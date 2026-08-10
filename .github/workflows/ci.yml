@@ -23,7 +23,8 @@ jobs:
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
-          java-version: 25.0.4+7
+          # setup-java's Temurin catalog represents release build +7 as +7.0.LTS.
+          java-version: 25.0.4+7.0.LTS
           cache: maven
       - name: Verify Java reactor
         run: bash ./mvnw --batch-mode --no-transfer-progress verify
@@ -84,7 +85,8 @@ jobs:
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
-          java-version: 25.0.4+7
+          # setup-java's Temurin catalog represents release build +7 as +7.0.LTS.
+          java-version: 25.0.4+7.0.LTS
           cache: maven
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
