@@ -23,6 +23,7 @@ playwright-report/
 !.env.example
 application-local.yml
 application-local.yaml
+!backend/launchforge-control-api/src/main/resources/application-local.yml
 
 # IDE/OS
 .idea/

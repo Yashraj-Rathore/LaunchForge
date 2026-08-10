@@ -1,0 +1,12 @@
+# Safe local-development overrides only; credentials remain environment-supplied.
+server:
+  servlet:
+    session:
+      cookie:
+        name: launchforge_session
+        secure: false
+
+launchforge:
+  demo-seed:
+    enabled: ${LAUNCHFORGE_DEMO_SEED_ENABLED:false}
+    location: ${LAUNCHFORGE_DEMO_SEED_LOCATION:file:deploy/local/tenancy-seed.sql}
