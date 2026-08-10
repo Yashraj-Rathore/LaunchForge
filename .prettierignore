@@ -1,0 +1,6 @@
+**/target/
+**/node_modules/
+**/dist/
+**/coverage/
+CODEX_MASTER_IMPLEMENTATION_SPEC.md
+pnpm-lock.yaml

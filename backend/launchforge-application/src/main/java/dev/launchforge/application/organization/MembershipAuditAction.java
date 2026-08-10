@@ -1,0 +1,10 @@
+package dev.launchforge.application.organization;
+
+public enum MembershipAuditAction {
+  MEMBERSHIP_ADDED,
+  MEMBERSHIP_ADD_DENIED,
+  MEMBERSHIP_ROLE_CHANGED,
+  MEMBERSHIP_ROLE_CHANGE_DENIED,
+  MEMBERSHIP_REMOVED,
+  MEMBERSHIP_REMOVE_DENIED
+}

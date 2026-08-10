@@ -1,0 +1,25 @@
+spring:
+  datasource:
+    url: ${LAUNCHFORGE_DB_URL}
+    username: ${LAUNCHFORGE_DB_USER}
+    password: ${LAUNCHFORGE_DB_PASSWORD}
+    hikari:
+      connection-timeout: 3000
+      validation-timeout: 1000
+
+launchforge:
+  demo-seed:
+    enabled: false
+    location: file:deploy/local/tenancy-seed.sql
+  runtime:
+    snapshot-max-bytes: 5242880
+  security:
+    require-https: false
+    session:
+      absolute-lifetime: 12h
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

@@ -1,0 +1,9 @@
+{
+  "name": "@launchforge/js-browser",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@launchforge/js-core": "workspace:*"
+  }
+}

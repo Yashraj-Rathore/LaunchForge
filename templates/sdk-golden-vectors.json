@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "algorithmVersion": 1,
+  "notes": "Placeholder only. LF-0302 populates expected vectors from verified reference code. Do not invent cryptographic expected values manually.",
+  "cases": []
+}

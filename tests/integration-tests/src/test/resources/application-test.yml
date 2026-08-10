@@ -1,0 +1,19 @@
+spring:
+  session:
+    jdbc:
+      initialize-schema: never
+
+server:
+  servlet:
+    session:
+      cookie:
+        name: launchforge_test_session
+        secure: false
+
+launchforge:
+  demo-seed:
+    enabled: false
+
+logging:
+  level:
+    root: WARN

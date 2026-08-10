@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "algorithmVersion": 1,
+  "projectKey": "storefront",
+  "environmentKey": "development",
+  "revision": 1,
+  "generatedAt": "2026-08-10T00:00:00Z",
+  "flags": {
+    "new-checkout": {
+      "type": "boolean",
+      "enabled": true,
+      "clientVisible": true,
+      "variations": [
+        {"id": "off", "value": false},
+        {"id": "on", "value": true}
+      ],
+      "offVariation": "off",
+      "defaultVariation": "off",
+      "rules": []
+    }
+  },
+  "checksum": "<64-lowercase-hex-characters-computed-with-checksum-omitted>"
+}

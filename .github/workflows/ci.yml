@@ -1,0 +1,147 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Java quality and integration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Temurin Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: 25.0.4+7
+          cache: maven
+      - name: Verify Java reactor
+        run: bash ./mvnw --batch-mode --no-transfer-progress verify
+      - name: Verify PostgreSQL integration
+        run: >-
+          bash ./mvnw --batch-mode --no-transfer-progress
+          -pl tests/integration-tests -am verify -Pintegration
+
+  frontend:
+    name: Frontend quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.19.0
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.21.0
+          run_install: false
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check formatting
+        run: pnpm format:check
+      - name: Lint
+        run: pnpm lint
+      - name: Type-check
+        run: pnpm typecheck
+      - name: Test
+        run: pnpm test
+      - name: Build
+        run: pnpm build
+
+  identity-e2e:
+    name: OIDC tenancy browser smoke
+    runs-on: ubuntu-latest
+    env:
+      LAUNCHFORGE_POSTGRES_PASSWORD: ci-postgres-only
+      LAUNCHFORGE_KEYCLOAK_ADMIN_USERNAME: local-admin
+      LAUNCHFORGE_KEYCLOAK_ADMIN_PASSWORD: ci-keycloak-admin-only
+      LAUNCHFORGE_DEMO_USER_PASSWORD: ci-demo-user-only
+      LAUNCHFORGE_DB_URL: jdbc:postgresql://localhost:55432/launchforge
+      LAUNCHFORGE_DB_USER: launchforge
+      LAUNCHFORGE_DB_PASSWORD: ci-postgres-only
+      LAUNCHFORGE_OIDC_ISSUER_URI: http://localhost:8081/realms/launchforge
+      LAUNCHFORGE_OIDC_CLIENT_ID: launchforge-control
+      LAUNCHFORGE_DEMO_SEED_ENABLED: 'true'
+      LAUNCHFORGE_DEMO_SEED_LOCATION: file:deploy/local/tenancy-seed.sql
+      LAUNCHFORGE_E2E_USERNAME: owner
+      LAUNCHFORGE_E2E_PASSWORD: ci-demo-user-only
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Temurin Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: 25.0.4+7
+          cache: maven
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.19.0
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.21.0
+          run_install: false
+      - name: Install locked dependencies and Chromium
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @launchforge/e2e exec playwright install --with-deps chromium
+      - name: Build Control API
+        run: bash ./mvnw --batch-mode --no-transfer-progress -pl backend/launchforge-control-api -am package
+      - name: Start PostgreSQL and Keycloak
+        run: |
+          docker compose --profile identity up -d --wait postgres keycloak
+          docker compose --profile identity --profile identity-seed run --rm keycloak-seed
+      - name: Start seeded Control API
+        run: |
+          nohup java -jar backend/launchforge-control-api/target/launchforge-control-api-0.1.0-SNAPSHOT-exec.jar \
+            --spring.profiles.active=local >/tmp/launchforge-control.log 2>&1 &
+          echo $! >/tmp/launchforge-control.pid
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/launchforge-control.log
+          exit 1
+      - name: Run browser access smoke
+        run: pnpm test:e2e
+      - name: Stop identity test stack
+        if: always()
+        run: |
+          if [ -f /tmp/launchforge-control.pid ]; then kill "$(cat /tmp/launchforge-control.pid)" || true; fi
+          docker compose --profile identity --profile identity-seed down
+
+  repository:
+    name: Repository contracts
+    runs-on: ubuntu-latest
+    env:
+      LAUNCHFORGE_POSTGRES_PASSWORD: ci-validation-only
+      LAUNCHFORGE_KEYCLOAK_ADMIN_PASSWORD: ci-validation-only
+      LAUNCHFORGE_DEMO_USER_PASSWORD: ci-validation-only
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Validate Compose
+        run: docker compose config --quiet
+      - name: Validate documentation
+        run: python eng/validate_docs.py
+      - name: Validate JSON templates
+        run: |
+          python -m json.tool templates/config-snapshot.example.json > /dev/null
+          python -m json.tool templates/sdk-golden-vectors.json > /dev/null
+          python -m json.tool templates/demo-seed.example.json > /dev/null
