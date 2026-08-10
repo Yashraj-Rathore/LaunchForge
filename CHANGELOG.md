@@ -19,6 +19,7 @@
 - Added the pnpm 11.21 workspace, minimal React 19.2 / strict TypeScript / Vite admin shell, reserved JavaScript SDK package boundaries, and format/lint/typecheck/test/build commands.
 - Added SHA-pinned GitHub Actions jobs for backend, PostgreSQL integration, frontend quality, Compose, documentation, and JSON-template validation.
 - Corrected the GitHub Actions Temurin selector to the setup-java catalog form for the pinned Java 25.0.4+7 release.
+- Moved fictional Keycloak credentials to runtime-resolved realm-import placeholders so fresh CI environments do not require post-start bootstrap-administrator operations.
 - Implemented LF-0101–LF-0105 with a framework-free organization/membership domain, final-Owner and role invariants, server-derived tenant application ports, scoped JDBC persistence, Flyway V1 schema, transactional membership changes, and safe success/denial audit records.
 - Added Spring Security Authorization Code/OIDC with PKCE, state/nonce validation, PostgreSQL-backed sessions, bounded idle/absolute lifetime, secure non-local cookie defaults, local HTTP cookie isolation, CSRF protection, session rotation, and local logout invalidation.
 - Added digest-pinned optional Keycloak Compose profiles, runtime-only fictional demo passwords, fictional tenant/project seeds, the authenticated React organization shell, PostgreSQL security integration tests, and a real Keycloak/Chromium login/access/logout CI smoke.

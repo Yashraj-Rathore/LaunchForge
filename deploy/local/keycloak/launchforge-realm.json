@@ -34,7 +34,14 @@
       "email": "owner@northstar.invalid",
       "emailVerified": true,
       "firstName": "Olivia",
-      "lastName": "Owner"
+      "lastName": "Owner",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${LAUNCHFORGE_DEMO_USER_PASSWORD}",
+          "temporary": false
+        }
+      ]
     },
     {
       "id": "30000000-0000-0000-0000-000000000002",
@@ -43,7 +50,14 @@
       "email": "admin@northstar.invalid",
       "emailVerified": true,
       "firstName": "Avery",
-      "lastName": "Admin"
+      "lastName": "Admin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${LAUNCHFORGE_DEMO_USER_PASSWORD}",
+          "temporary": false
+        }
+      ]
     },
     {
       "id": "30000000-0000-0000-0000-000000000003",
@@ -52,7 +66,14 @@
       "email": "developer@northstar.invalid",
       "emailVerified": true,
       "firstName": "Devon",
-      "lastName": "Developer"
+      "lastName": "Developer",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${LAUNCHFORGE_DEMO_USER_PASSWORD}",
+          "temporary": false
+        }
+      ]
     },
     {
       "id": "30000000-0000-0000-0000-000000000004",
@@ -61,7 +82,14 @@
       "email": "viewer@northstar.invalid",
       "emailVerified": true,
       "firstName": "Vera",
-      "lastName": "Viewer"
+      "lastName": "Viewer",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${LAUNCHFORGE_DEMO_USER_PASSWORD}",
+          "temporary": false
+        }
+      ]
     }
   ]
 }

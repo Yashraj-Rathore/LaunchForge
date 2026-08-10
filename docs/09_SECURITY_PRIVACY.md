@@ -72,7 +72,7 @@ M1 session baseline:
 
 `GET /api/v1/auth/csrf` returns a CSRF token bound to the authenticated session. Browser mutations send it in `X-CSRF-TOKEN`; it is kept in memory, not localStorage, and rotates with the session. Management endpoints are same-origin and do not enable cross-origin credentialed CORS.
 
-M1 re-verified and pinned Keycloak `26.7.0` as the local reference provider. Compose uses `quay.io/keycloak/keycloak:26.7.0@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13` only through the optional `identity`/`identity-seed` profiles. The imported client is public, permits only the local callback origin, and requires PKCE S256; fictional user passwords are supplied at runtime and are absent from the realm file.
+M1 re-verified and pinned Keycloak `26.7.0` as the local reference provider. Compose uses `quay.io/keycloak/keycloak:26.7.0@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13` only through the optional `identity` profile. The imported client is public, permits only the local callback origin, and requires PKCE S256. Fictional user passwords are supplied through a Keycloak realm-import environment placeholder at runtime and the secret value is absent from the realm file; no post-start bootstrap-administrator operation is required.
 
 ## 4. Authorization
 

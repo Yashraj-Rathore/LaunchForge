@@ -230,11 +230,10 @@ java -jar backend/launchforge-control-api/target/launchforge-control-api-0.1.0-S
 
 ### Local identity and authenticated shell
 
-M1 adds an optional Keycloak profile, four fictional operator identities, a fictional organization/project seed, and the authenticated React shell. Set every password placeholder in `.env`, then start PostgreSQL and the imported realm and assign the local-only demo password:
+M1 adds an optional Keycloak profile, four fictional operator identities, a fictional organization/project seed, and the authenticated React shell. Set every password placeholder in `.env`, then start PostgreSQL and the imported realm. Keycloak resolves the local-only demo password from the environment while importing the realm; the password is not stored in the JSON file:
 
 ```powershell
-docker compose --profile identity --profile identity-seed up -d --wait postgres keycloak
-docker compose --profile identity --profile identity-seed run --rm keycloak-seed
+docker compose --profile identity up -d --wait postgres keycloak
 ```
 
 Export the database and OIDC variables shown in `.env.example` into the shell that starts Java. Enable the fictional SQL seed only in the `local` profile:
@@ -262,7 +261,7 @@ pnpm test:e2e
 The Playwright configuration starts and stops Vite automatically. Stop the local services without deleting PostgreSQL data with:
 
 ```powershell
-docker compose --profile identity --profile identity-seed down
+docker compose --profile identity down
 ```
 
 The reset command below permanently deletes only the local Compose PostgreSQL volume:
@@ -2840,7 +2839,7 @@ M1 session baseline:
 
 `GET /api/v1/auth/csrf` returns a CSRF token bound to the authenticated session. Browser mutations send it in `X-CSRF-TOKEN`; it is kept in memory, not localStorage, and rotates with the session. Management endpoints are same-origin and do not enable cross-origin credentialed CORS.
 
-M1 re-verified and pinned Keycloak `26.7.0` as the local reference provider. Compose uses `quay.io/keycloak/keycloak:26.7.0@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13` only through the optional `identity`/`identity-seed` profiles. The imported client is public, permits only the local callback origin, and requires PKCE S256; fictional user passwords are supplied at runtime and are absent from the realm file.
+M1 re-verified and pinned Keycloak `26.7.0` as the local reference provider. Compose uses `quay.io/keycloak/keycloak:26.7.0@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13` only through the optional `identity` profile. The imported client is public, permits only the local callback origin, and requires PKCE S256. Fictional user passwords are supplied through a Keycloak realm-import environment placeholder at runtime and the secret value is absent from the realm file; no post-start bootstrap-administrator operation is required.
 
 ## 4. Authorization
 

@@ -222,11 +222,10 @@ java -jar backend/launchforge-control-api/target/launchforge-control-api-0.1.0-S
 
 ### Local identity and authenticated shell
 
-M1 adds an optional Keycloak profile, four fictional operator identities, a fictional organization/project seed, and the authenticated React shell. Set every password placeholder in `.env`, then start PostgreSQL and the imported realm and assign the local-only demo password:
+M1 adds an optional Keycloak profile, four fictional operator identities, a fictional organization/project seed, and the authenticated React shell. Set every password placeholder in `.env`, then start PostgreSQL and the imported realm. Keycloak resolves the local-only demo password from the environment while importing the realm; the password is not stored in the JSON file:
 
 ```powershell
-docker compose --profile identity --profile identity-seed up -d --wait postgres keycloak
-docker compose --profile identity --profile identity-seed run --rm keycloak-seed
+docker compose --profile identity up -d --wait postgres keycloak
 ```
 
 Export the database and OIDC variables shown in `.env.example` into the shell that starts Java. Enable the fictional SQL seed only in the `local` profile:
@@ -254,7 +253,7 @@ pnpm test:e2e
 The Playwright configuration starts and stops Vite automatically. Stop the local services without deleting PostgreSQL data with:
 
 ```powershell
-docker compose --profile identity --profile identity-seed down
+docker compose --profile identity down
 ```
 
 The reset command below permanently deletes only the local Compose PostgreSQL volume:

@@ -28,6 +28,7 @@ services:
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${LAUNCHFORGE_KEYCLOAK_ADMIN_USERNAME:-local-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${LAUNCHFORGE_KEYCLOAK_ADMIN_PASSWORD:?Set a local-only Keycloak admin password in .env}
+      LAUNCHFORGE_DEMO_USER_PASSWORD: ${LAUNCHFORGE_DEMO_USER_PASSWORD:?Set a local-only demo user password in .env}
       KC_HEALTH_ENABLED: 'true'
     ports:
       - '127.0.0.1:8081:8080'
@@ -44,20 +45,6 @@ services:
       retries: 30
       start_period: 20s
     stop_grace_period: 30s
-
-  keycloak-seed:
-    profiles: [identity-seed]
-    image: quay.io/keycloak/keycloak:26.7.0@sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13
-    entrypoint: [/bin/bash, /opt/launchforge/set-demo-passwords.sh]
-    environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: ${LAUNCHFORGE_KEYCLOAK_ADMIN_USERNAME:-local-admin}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${LAUNCHFORGE_KEYCLOAK_ADMIN_PASSWORD:?Set a local-only Keycloak admin password in .env}
-      LAUNCHFORGE_DEMO_USER_PASSWORD: ${LAUNCHFORGE_DEMO_USER_PASSWORD:?Set a local-only demo user password in .env}
-    volumes:
-      - ./deploy/local/keycloak/set-demo-passwords.sh:/opt/launchforge/set-demo-passwords.sh:ro
-    depends_on:
-      keycloak:
-        condition: service_healthy
 
 volumes:
   launchforge-postgres:
