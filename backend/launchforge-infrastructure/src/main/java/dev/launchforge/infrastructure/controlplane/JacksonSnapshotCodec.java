@@ -32,6 +32,7 @@ import org.erdtman.jcs.JsonCanonicalizer;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.StreamReadFeature;
 import tools.jackson.core.json.JsonFactory;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -138,9 +139,11 @@ public final class JacksonSnapshotCodec implements SnapshotCodec {
       throw new ControlPlaneRuleViolationException("JSON value is absent or too large");
     }
     try {
-      JsonNode parsed = strictJsonMapper.readTree(rawJson);
+      JsonNode parsed =
+          strictJsonMapper.reader(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).readTree(rawJson);
       validateJsonValue(parsed, 0);
-      return new JsonCanonicalizer(rawJson).getEncodedString();
+      String wrapper = new JsonCanonicalizer("{\"value\":" + rawJson + '}').getEncodedString();
+      return wrapper.substring("{\"value\":".length(), wrapper.length() - 1);
     } catch (IOException | RuntimeException exception) {
       throw new ControlPlaneRuleViolationException("JSON value is not valid I-JSON");
     }
@@ -303,7 +306,9 @@ public final class JacksonSnapshotCodec implements SnapshotCodec {
       if (!Double.isFinite(value.doubleValue())) {
         throw new ControlPlaneRuleViolationException("JSON number must be finite binary64");
       }
-      if (value.isIntegralNumber() && value.decimalValue().abs().compareTo(MAX_SAFE_INTEGER) > 0) {
+      BigDecimal decimal = value.decimalValue();
+      if (decimal.stripTrailingZeros().scale() <= 0
+          && decimal.abs().compareTo(MAX_SAFE_INTEGER) > 0) {
         throw new ControlPlaneRuleViolationException("JSON integer exceeds the safe range");
       }
     } else if (value.isString()) {

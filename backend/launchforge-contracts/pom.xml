@@ -11,4 +11,11 @@
   </parent>
   <artifactId>launchforge-contracts</artifactId>
   <name>LaunchForge Contracts</name>
+  <dependencies>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
 </project>

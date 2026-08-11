@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: launchforge-fictional-storefront
+
+launchforge:
+  base-uri: ${LAUNCHFORGE_BASE_URI}
+  sdk-key: ${LAUNCHFORGE_SDK_KEY}
+  bootstrap-timeout: ${LAUNCHFORGE_BOOTSTRAP_TIMEOUT:5s}
+  streaming: ${LAUNCHFORGE_STREAMING:true}

@@ -37,24 +37,24 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 
 ## M3 Java evaluator/SDK
 
-- [ ] LF-0301
-- [ ] LF-0302
-- [ ] LF-0303
-- [ ] LF-0304
-- [ ] LF-0305
-- [ ] LF-0306
-- [ ] LF-0307
+- [x] LF-0301
+- [x] LF-0302
+- [x] LF-0303
+- [x] LF-0304
+- [x] LF-0305
+- [x] LF-0306
+- [x] LF-0307
 
 **Resume checkpoint A**
 
 ## M4 Config Edge/SSE
 
-- [ ] LF-0401
-- [ ] LF-0402
-- [ ] LF-0403
-- [ ] LF-0404
-- [ ] LF-0405
-- [ ] LF-0406
+- [x] LF-0401
+- [x] LF-0402
+- [x] LF-0403
+- [x] LF-0404
+- [x] LF-0405
+- [x] LF-0406
 
 ## M5 JavaScript/React SDKs
 

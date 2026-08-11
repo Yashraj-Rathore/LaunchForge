@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -20,6 +21,8 @@ import dev.launchforge.application.controlplane.ControlPlaneService.VariationInp
 import dev.launchforge.application.controlplane.PublishedRevision;
 import dev.launchforge.application.organization.OperationForbiddenException;
 import dev.launchforge.application.organization.UnitOfWork;
+import dev.launchforge.application.sdkkey.IssuedServerSdkKey;
+import dev.launchforge.application.sdkkey.SdkKeyService;
 import dev.launchforge.domain.controlplane.Environment;
 import dev.launchforge.domain.controlplane.EnvironmentDraft;
 import dev.launchforge.domain.controlplane.FlagDefinition;
@@ -31,6 +34,7 @@ import dev.launchforge.domain.controlplane.Targeting.PercentageRollout;
 import dev.launchforge.domain.organization.OidcIdentity;
 import dev.launchforge.domain.organization.OrganizationId;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -67,6 +71,7 @@ class ControlPlanePostgresIT extends AbstractControlApiIntegrationTest {
   @Autowired private ControlPlaneService service;
   @Autowired private ControlPlaneRepository repository;
   @Autowired private UnitOfWork unitOfWork;
+  @Autowired private SdkKeyService sdkKeyService;
 
   @BeforeEach
   void seedTenants() {
@@ -401,6 +406,83 @@ class ControlPlanePostgresIT extends AbstractControlApiIntegrationTest {
     assertEquals(
         1,
         service.publish(OWNER_A, environment.id(), 0, "Approve the production release").revision());
+  }
+
+  @Test
+  void serverSdkKeyLifecycleReturnsSecretOnceAndRemainsTenantScoped() throws Exception {
+    Fixture alpha = fixture("sdk-alpha", OWNER_A, ORGANIZATION_A);
+    Fixture beta = fixture("sdk-beta", OWNER_B, ORGANIZATION_B);
+
+    IssuedServerSdkKey issued =
+        sdkKeyService.create(OWNER_A, alpha.environment().id(), "Storefront server", null);
+    assertTrue(issued.credential().matches("lf_srv_[A-Za-z0-9_-]{16}_[A-Za-z0-9_-]{43}"));
+    assertEquals(
+        32,
+        jdbcTemplate.queryForObject(
+            "SELECT OCTET_LENGTH(secret_verifier) FROM sdk_keys WHERE id = ?",
+            Integer.class,
+            issued.metadata().id().value()));
+    assertFalse(
+        jdbcTemplate
+            .queryForList("SELECT * FROM sdk_keys WHERE id = ?", issued.metadata().id().value())
+            .getFirst()
+            .containsValue(issued.credential()));
+    assertThrows(
+        ControlPlaneNotFoundException.class,
+        () -> sdkKeyService.list(OWNER_A, beta.environment().id()));
+
+    IssuedServerSdkKey replacement =
+        sdkKeyService.rotate(OWNER_A, issued.metadata().id(), Duration.ofMinutes(5), null);
+    assertNotEquals(issued.credential(), replacement.credential());
+    assertEquals(
+        "ACTIVE",
+        jdbcTemplate.queryForObject(
+            "SELECT status FROM sdk_keys WHERE id = ?",
+            String.class,
+            issued.metadata().id().value()));
+    assertTrue(
+        jdbcTemplate
+            .queryForObject(
+                "SELECT expires_at FROM sdk_keys WHERE id = ?",
+                Timestamp.class,
+                issued.metadata().id().value())
+            .toInstant()
+            .isAfter(NOW));
+    sdkKeyService.revoke(OWNER_A, replacement.metadata().id());
+    assertEquals(
+        "REVOKED",
+        jdbcTemplate.queryForObject(
+            "SELECT status FROM sdk_keys WHERE id = ?",
+            String.class,
+            replacement.metadata().id().value()));
+
+    String createdBody =
+        mockMvc
+            .perform(
+                post(
+                        "/api/v1/environments/{environmentId}/sdk-keys",
+                        alpha.environment().id().value())
+                    .with(operator(OWNER_A.subject()))
+                    .with(csrf().asHeader())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"name\":\"API server\"}"))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertTrue(createdBody.contains("\"secret\":\"lf_srv_"));
+    String listBody =
+        mockMvc
+            .perform(
+                get(
+                        "/api/v1/environments/{environmentId}/sdk-keys",
+                        alpha.environment().id().value())
+                    .with(operator(OWNER_A.subject())))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertFalse(listBody.contains("secret"));
   }
 
   private Fixture fixture(String suffix, OidcIdentity actor, UUID organizationId) {

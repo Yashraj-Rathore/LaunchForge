@@ -124,12 +124,20 @@ class JacksonSnapshotCodecTest {
   @Test
   void canonicalJsonValidationRejectsDuplicateNamesUnsafeIntegersAndUnpairedUnicode() {
     assertEquals("{\"a\":\"é\",\"b\":1}", codec.canonicalizeJsonValue("{\"b\":1.0,\"a\":\"é\"}"));
+    assertEquals("false", codec.canonicalizeJsonValue("false"));
+    assertEquals("[1,2]", codec.canonicalizeJsonValue("[1.0,2]"));
     assertThrows(
         ControlPlaneRuleViolationException.class,
         () -> codec.canonicalizeJsonValue("{\"same\":1,\"same\":2}"));
     assertThrows(
         ControlPlaneRuleViolationException.class,
         () -> codec.canonicalizeJsonValue("{\"unsafe\":9007199254740992}"));
+    assertThrows(
+        ControlPlaneRuleViolationException.class,
+        () -> codec.canonicalizeJsonValue("{\"unsafe\":9007199254740992.0}"));
+    assertThrows(
+        ControlPlaneRuleViolationException.class,
+        () -> codec.canonicalizeJsonValue("{\"first\":true}{\"second\":false}"));
     assertThrows(
         ControlPlaneRuleViolationException.class,
         () -> codec.canonicalizeJsonValue("{\"bad\":\"\\ud800\"}"));

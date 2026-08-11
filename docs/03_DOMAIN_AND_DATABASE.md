@@ -176,6 +176,15 @@ The management domain validates two to ten typed variations, algorithm-version-1
 
 Publication locks the project/environment rows, validates the complete active draft, creates the normative keyed-flag snapshot, calculates and injects its checksum, inserts a revision, advances the environment, appends audit, and inserts a versioned pending outbox event in one PostgreSQL transaction. A database trigger rejects revision update/delete. Rollback rebases historical content with a new timestamp/checksum and strictly higher revision while preserving history and recording `source_revision`.
 
+### M4 implemented SDK-key baseline
+
+Flyway migration `V3__server_sdk_keys.sql` adds one-environment server SDK-key metadata. It stores a
+globally unique non-secret lookup ID, HMAC-SHA-256 verifier, non-secret pepper version and display
+fingerprint, lifecycle status/expiry/revocation timestamps, optional rotation lineage, creator
+identity, and a compound organization/project/environment ownership foreign key. Plaintext secret
+segments are never persisted. Rotation inserts a new active key and either revokes the old key
+immediately or bounds its overlap to at most 24 hours; lifecycle audit records contain metadata only.
+
 Rule trees may initially be validated `jsonb` inside `flag_environment_configs` if domain validation remains explicit. Normalize only if query requirements justify it. Published snapshots remain immutable `jsonb`.
 
 ## Constraints

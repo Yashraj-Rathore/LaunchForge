@@ -95,4 +95,20 @@ class ModuleDependencyRulesTest {
           .should()
           .dependOnClassesThat()
           .resideInAPackage("dev.launchforge.sdk..");
+
+  @ArchTest
+  static final ArchRule SPRING_DEMO_IMPORTS_NO_LAUNCHFORGE_SERVER_INTERNALS =
+      noClasses()
+          .that()
+          .resideInAPackage("dev.launchforge.demo.spring..")
+          .should()
+          .dependOnClassesThat()
+          .resideInAnyPackage(
+              "dev.launchforge.domain..",
+              "dev.launchforge.application..",
+              "dev.launchforge.contracts..",
+              "dev.launchforge.infrastructure..",
+              "dev.launchforge.controlapi..",
+              "dev.launchforge.configedge..",
+              "dev.launchforge.eventworker..");
 }

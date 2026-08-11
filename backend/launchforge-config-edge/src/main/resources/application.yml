@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: launchforge-config-edge
+  datasource:
+    url: ${LAUNCHFORGE_DB_URL}
+    username: ${LAUNCHFORGE_DB_USER}
+    password: ${LAUNCHFORGE_DB_PASSWORD}
+    hikari:
+      connection-timeout: 3000
+      validation-timeout: 1000
+      maximum-pool-size: 20
+  flyway:
+    enabled: false
+  codec:
+    max-in-memory-size: 1MB
+
+server:
+  port: ${LAUNCHFORGE_CONFIG_EDGE_PORT:8082}
+  shutdown: graceful
+  forward-headers-strategy: framework
+  max-http-request-header-size: 8KB
+
+launchforge:
+  sdk-keys:
+    peppers:
+      v1: ${LAUNCHFORGE_SDK_KEY_PEPPER}
+  config-edge:
+    maximum-snapshot-bytes: 1048576
+    revision-poll-interval: ${LAUNCHFORGE_EDGE_REVISION_POLL_INTERVAL:1s}
+    heartbeat-interval: ${LAUNCHFORGE_EDGE_HEARTBEAT_INTERVAL:15s}
+    maximum-connections: ${LAUNCHFORGE_EDGE_MAX_CONNECTIONS:1000}
+    maximum-connections-per-key: ${LAUNCHFORGE_EDGE_MAX_CONNECTIONS_PER_KEY:5}
+
+management:
+  endpoint:
+    health:
+      show-details: never
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics

@@ -274,7 +274,35 @@ docker compose down -v
 
 M2 implements the authenticated management API for projects, environments, typed flags/variations, environment drafts, ordered targeting rules, 100,000-bucket percentage allocations, publication history/diff, and rollback. Mutable routes use ETag/`If-Match`; browser mutations retain the M1 CSRF requirement. Rollout salt is server-owned and can change only through the explicit reason-required reseed route.
 
-Flyway applies `V2__flag_control_plane.sql` when the Control API starts. Publication validates the full draft and commits the RFC 8785 canonical revision, current pointer, audit event, and pending outbox intent atomically. PostgreSQL rejects update/delete of revision rows. Kafka publishing, Config Edge, SDK evaluation, and the React flag editor remain intentionally deferred to their owning prompts.
+Flyway applies `V2__flag_control_plane.sql` when the Control API starts. Publication validates the full draft and commits the RFC 8785 canonical revision, current pointer, audit event, and pending outbox intent atomically. PostgreSQL rejects update/delete of revision rows. Kafka publishing, Config Edge, and the React flag editor remain intentionally deferred to their owning prompts.
+
+### Java evaluator and SDK
+
+M3 implements the pure Java algorithm-version-1 evaluator, strict immutable snapshot compiler, typed local APIs, SDK bootstrap authentication, conditional jittered polling, atomic revision activation, and in-memory last-known-good behavior. The SDK has no Spring or LaunchForge server-module dependency. Its frozen language-neutral corpus is `contracts/golden-vectors/evaluator-v1.json`; the generator and exact verification commands are documented in `sdks/java/launchforge-java-sdk/README.md`.
+
+### Config Edge and live updates
+
+M4 implements LF-0401 through LF-0406. The Control API manages one-environment server SDK keys
+using one-time `lf_srv_...` secrets and hash-only PostgreSQL storage. The separate Spring Boot
+WebFlux Config Edge validates those keys, serves the authoritative immutable PostgreSQL snapshot
+with ETag/304/revision/checksum headers, and exposes a bounded authenticated SSE stream containing
+revision hints only. The Java SDK can opt into the stream, fetches the authoritative snapshot after
+a newer hint, reconnects with exponential jitter, and retains conditional polling plus in-memory
+last-known-good behavior. Kafka and Redis remain deferred to M7.
+
+Control API and Config Edge must receive the same uncommitted HMAC pepper. Start the Control API
+first so Flyway applies V3, then start the edge in a second terminal:
+
+```powershell
+$env:LAUNCHFORGE_SDK_KEY_PEPPER = '<at-least-32-random-bytes>'
+.\mvnw.cmd -pl backend/launchforge-control-api,backend/launchforge-config-edge -am package
+java -jar backend/launchforge-config-edge/target/launchforge-config-edge-0.1.0-SNAPSHOT-exec.jar
+```
+
+The fictional Spring storefront in `demos/spring-demo` enables streaming by default, includes the
+active snapshot revision in `/demo/{subject}`, and keeps evaluating after Config Edge becomes
+unavailable. Its README contains the interactive flow and the reproducible PostgreSQL/WebFlux/SDK
+E2E command.
 
 On Unix-like systems, use `./mvnw` in place of `.\mvnw.cmd`. After initializing Git on Windows, record the executable bit with `git update-index --chmod=+x mvnw`.
 
@@ -487,9 +515,9 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 
 # Project Status
 
-**Status:** Prompt 3 flag control-plane implementation complete.
+**Status:** Prompt 5 Config Edge and streaming implementation complete.
 
-**Current milestone:** M2 flag domain and control plane (LF-0201–LF-0207) complete; stop point before Prompt 4 / M3 evaluator and Java SDK.
+**Current milestone:** M4 Config Edge and live updates (LF-0401–LF-0406) complete; stop point before Prompt 6 / M5 JavaScript and React SDKs.
 
 **Specification baseline:** Canonical module paths, snapshot/checksum representation, algorithm-version-1 types and reason codes, milestone dependencies, and exact Prompt 0 toolchain pins were normalized on 2026-08-10.
 
@@ -498,8 +526,8 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 | M0 Foundation | LF-0001–LF-0005 | Complete (2026-08-10) |
 | M1 Tenancy & identity | LF-0101–LF-0105 | Complete (2026-08-10) |
 | M2 Flag domain & control plane | LF-0201–LF-0207 | Complete (2026-08-10) |
-| M3 Evaluation engine & Java SDK | LF-0301–LF-0307 | Not started |
-| M4 Data plane & streaming | LF-0401–LF-0406 | Not started |
+| M3 Evaluation engine & Java SDK | LF-0301–LF-0307 | Complete (2026-08-11) |
+| M4 Data plane & streaming | LF-0401–LF-0406 | Complete (2026-08-11) |
 | M5 JavaScript/React SDKs | LF-0501–LF-0505 | Not started |
 | M6 Admin console | LF-0601–LF-0606 | Not started |
 | M7 Kafka/Redis scale-out | LF-0701–LF-0706 | Not started |
@@ -555,24 +583,24 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 
 ## M3 Java evaluator/SDK
 
-- [ ] LF-0301
-- [ ] LF-0302
-- [ ] LF-0303
-- [ ] LF-0304
-- [ ] LF-0305
-- [ ] LF-0306
-- [ ] LF-0307
+- [x] LF-0301
+- [x] LF-0302
+- [x] LF-0303
+- [x] LF-0304
+- [x] LF-0305
+- [x] LF-0306
+- [x] LF-0307
 
 **Resume checkpoint A**
 
 ## M4 Config Edge/SSE
 
-- [ ] LF-0401
-- [ ] LF-0402
-- [ ] LF-0403
-- [ ] LF-0404
-- [ ] LF-0405
-- [ ] LF-0406
+- [x] LF-0401
+- [x] LF-0402
+- [x] LF-0403
+- [x] LF-0404
+- [x] LF-0405
+- [x] LF-0406
 
 ## M5 JavaScript/React SDKs
 
@@ -1328,6 +1356,15 @@ The management domain validates two to ten typed variations, algorithm-version-1
 
 Publication locks the project/environment rows, validates the complete active draft, creates the normative keyed-flag snapshot, calculates and injects its checksum, inserts a revision, advances the environment, appends audit, and inserts a versioned pending outbox event in one PostgreSQL transaction. A database trigger rejects revision update/delete. Rollback rebases historical content with a new timestamp/checksum and strictly higher revision while preserving history and recording `source_revision`.
 
+### M4 implemented SDK-key baseline
+
+Flyway migration `V3__server_sdk_keys.sql` adds one-environment server SDK-key metadata. It stores a
+globally unique non-secret lookup ID, HMAC-SHA-256 verifier, non-secret pepper version and display
+fingerprint, lifecycle status/expiry/revocation timestamps, optional rotation lineage, creator
+identity, and a compound organization/project/environment ownership foreign key. Plaintext secret
+segments are never persisted. Rotation inserts a new active key and either revokes the old key
+immediately or bounds its overlap to at most 24 hours; lifecycle audit records contain metadata only.
+
 Rule trees may initially be validated `jsonb` inside `flag_environment_configs` if domain validation remains explicit. Normalize only if query requirements justify it. Published snapshots remain immutable `jsonb`.
 
 ## Constraints
@@ -1521,7 +1558,7 @@ Returns flag key, variation ID, typed value, reason, matched rule, bucket if rel
 ```text
 GET /sdk/v1/snapshot
 Authorization: LF-SDK <key>
-If-None-Match: "revision:42:checksum"
+If-None-Match: "env_<opaque>_rev_42_<checksum>"
 ```
 
 Outcomes:
@@ -1532,6 +1569,11 @@ Outcomes:
 - 403 inactive/forbidden projection
 - 429 rate limited
 - 503 unable to safely serve materialized snapshot
+
+A `200` or `304` includes `ETag`, `X-LaunchForge-Revision`,
+`X-LaunchForge-Checksum`, `X-LaunchForge-Schema-Version`, and
+`Cache-Control: no-store`. The response body is capped at 1 MiB in M4 and is the
+validated canonical server projection stored in the immutable PostgreSQL revision.
 
 Browser client keys only receive client-visible projection.
 
@@ -1551,10 +1593,12 @@ Example:
 ```text
 event: revision
 id: 43
-data: {"revision":43,"etag":"...","checksum":"..."}
+data: {"revision":43}
 ```
 
-Stream carries revision hints; SDK retrieves authoritative snapshot with conditional GET.
+The stream carries revision hints only. It also emits heartbeat comments; the SDK retrieves the
+authoritative snapshot with a conditional GET. `Last-Event-ID` is a convergence hint, never an
+ordering authority.
 
 ## Analytics ingestion
 
@@ -1577,6 +1621,15 @@ POST /api/v1/sdk-keys/{keyId}/revoke
 ```
 
 Secret material is returned once where applicable.
+
+Create accepts `{"name":"Storefront server","expiresAt":null}` and returns `201` with a metadata
+object plus the one-time `secret`. List returns metadata only and never the verifier or secret.
+Rotate accepts optional `overlapSeconds` (zero through 86400) and optional replacement
+`expiresAt`; it returns the new credential once. Revoke is idempotent and returns `204`.
+
+M4 supports server keys only. Each `lf_srv_<lookup_id>_<secret>` credential maps to exactly one
+environment. Owner/Admin may manage all environment keys; Developer is constrained to
+non-production environments; Viewer is denied. Browser/client keys remain assigned to M5.
 
 ## Error model
 
@@ -1957,6 +2010,15 @@ EvaluationDetail<Boolean> detail = client.boolVariationDetail(
 
 Do not expose internal stack traces through the public evaluation result.
 
+The LF-0304/LF-0306 Java implementation uses `dev.launchforge.sdk`, non-blocking bootstrap by default, explicit `blockingBootstrap(Duration)`, 2-second connect and 5-second request defaults, and a uniformly jittered 25–35-second polling window. The polling bounds and both network timeouts are caller-configurable up to five minutes. One daemon scheduler serializes refresh work; validated newer revisions replace one atomic reference, while `304`, stale/same revisions, transient HTTP failures, and invalid candidates retain the active in-memory snapshot. `close()` is idempotent and closes scheduler and HTTP resources without discarding the readable in-memory last-known-good snapshot.
+
+M4 adds opt-in `streaming(true)` against `GET /sdk/v1/stream` while retaining conditional polling.
+Newer revision events trigger a coalesced authoritative snapshot fetch; stale/duplicate/malformed
+hints do not activate configuration. Reconnect uses caller-configurable exponential backoff with
+jitter (500 milliseconds through 30 seconds by default). A stream reconnect checks the current
+snapshot so missed events converge, and `close()` interrupts the stream as well as polling/network
+resources without discarding the readable in-memory last-known-good snapshot.
+
 ## 8. Evaluation reason codes
 
 Use exactly the bounded algorithm-version-1 enum in `docs/05_FLAG_EVALUATION_ENGINE.md`: `FLAG_NOT_FOUND`, `FLAG_DISABLED`, `DEFAULT_VARIATION`, `RULE_MATCH`, `ROLLOUT_MATCH`, `MISSING_ROLLOUT_KEY`, `TYPE_MISMATCH`, `INVALID_CONFIG`, `SNAPSHOT_UNAVAILABLE`, and `ERROR_DEFAULT`.
@@ -2292,6 +2354,17 @@ POST /sdk/v1/events   # optional analytics, later
 ```
 
 The edge must be horizontally scalable and stateless except for ephemeral connection state.
+
+### M4 PostgreSQL-first implementation
+
+LF-0401 through LF-0406 implement this as an independent Spring Boot WebFlux process. The M4 edge
+authenticates the structured server key, validates the immutable canonical snapshot and checksum,
+and reads the current published revision directly from PostgreSQL on a bounded elastic scheduler.
+Each bounded SSE connection periodically revalidates key/scope lifecycle and checks the current
+environment revision; only strictly newer revision notices are emitted. This deliberately proves
+the contract and failure behavior before Kafka/Redis. LF-0701 through LF-0706 later replace the
+database polling/fan-out path with durable distribution and rebuildable materialization without
+changing the public snapshot/SSE contract.
 
 ## 9. Snapshot resolution
 
@@ -2915,6 +2988,15 @@ Storage:
 
 High-entropy SDK keys are not passwords; do not add a deliberately slow password hash solely for their verifier. HMAC verification uses constant-time comparison. A browser/client key is a public opaque identifier, not a secret authenticator, and receives only the reduced browser projection.
 
+M4 implements server keys with exactly this version-1 format. The Control API returns plaintext
+only from create/rotate responses, stores only lookup/verifier metadata, caps rotation overlap at
+24 hours, and audits lifecycle actions without credential material. Config Edge looks up one row by
+the public ID and uses constant-time verifier comparison. It checks status/expiry/scope on every
+snapshot request and on each configured SSE revision poll (bounded to at most 60 seconds), so
+revocation eventually closes an existing stream. A management session cookie is never accepted as
+SDK authentication. Multiple configured pepper versions provide bounded verification overlap;
+only the configured current version is used for new credentials.
+
 ## 7. Key lookup
 
 Do not scan all key hashes.
@@ -3248,6 +3330,14 @@ The M1 Chromium smoke uses the real local Keycloak reference and seeded Control 
 
 Run Java/JS SDKs against a real local Config Edge.
 
+The M4 default suite covers credential formatting/verifier behavior, invalid/revoked/expired/
+disabled/inactive authentication, management-cookie denial, canonical snapshot integrity and the
+1 MiB response bound, ETag/304 headers, revision-only SSE parsing, heartbeat/connection lifecycle,
+bounded connection quotas, stale events, repeated disconnect backoff, polling convergence, corrupt
+snapshot retention, simulated network interruption/edge restart, and SDK shutdown/LKG behavior.
+The PostgreSQL integration profile adds Flyway V3 key lifecycle/tenant tests and a real WebFlux
+edge-to-Java-SDK kill-switch convergence flow.
+
 ### Performance
 
 - JMH evaluator microbenchmarks;
@@ -3287,26 +3377,16 @@ Concurrent evaluations during activation see either old complete snapshot or new
 
 ## 4. Golden vector format
 
-Example shape:
+The LF-0302 canonical corpus is `contracts/golden-vectors/evaluator-v1.json`. Its version-1 shape includes `rolloutVectors`, `operatorCases`, one checksum-valid `evaluationSnapshot`, `evaluationCases`, `malformedSnapshots`, and `corpusChecksum`. The corpus checksum is SHA-256 over the RFC 8785 canonical projection with `corpusChecksum` absent.
 
-```json
-{
-  "algorithmVersion": 1,
-  "cases": [
-    {
-      "name": "rollout-basic",
-      "flag": {},
-      "context": {},
-      "expected": {
-        "variation": "on",
-        "reason": "ROLLOUT_MATCH"
-      }
-    }
-  ]
-}
+Regenerate and verify it with:
+
+```powershell
+./mvnw.cmd -pl sdks/java/launchforge-java-sdk -am test "-Dtest=GoldenVectorCorpusTest" "-Dlaunchforge.updateGoldenVectors=true"
+./mvnw.cmd -pl sdks/java/launchforge-java-sdk -am test "-Dtest=GoldenVectorCorpusTest"
 ```
 
-Vectors must be computed by verified reference code and then frozen.
+The first command computes SHA-256 expectations through the test reference implementation and freezes the file. The second byte-compares the regenerated form with the committed artifact and executes every case. JavaScript must consume this same file in M5.
 
 Do not manually invent expected cryptographic hash results.
 

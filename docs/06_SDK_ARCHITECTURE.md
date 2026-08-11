@@ -149,6 +149,15 @@ EvaluationDetail<Boolean> detail = client.boolVariationDetail(
 
 Do not expose internal stack traces through the public evaluation result.
 
+The LF-0304/LF-0306 Java implementation uses `dev.launchforge.sdk`, non-blocking bootstrap by default, explicit `blockingBootstrap(Duration)`, 2-second connect and 5-second request defaults, and a uniformly jittered 25–35-second polling window. The polling bounds and both network timeouts are caller-configurable up to five minutes. One daemon scheduler serializes refresh work; validated newer revisions replace one atomic reference, while `304`, stale/same revisions, transient HTTP failures, and invalid candidates retain the active in-memory snapshot. `close()` is idempotent and closes scheduler and HTTP resources without discarding the readable in-memory last-known-good snapshot.
+
+M4 adds opt-in `streaming(true)` against `GET /sdk/v1/stream` while retaining conditional polling.
+Newer revision events trigger a coalesced authoritative snapshot fetch; stale/duplicate/malformed
+hints do not activate configuration. Reconnect uses caller-configurable exponential backoff with
+jitter (500 milliseconds through 30 seconds by default). A stream reconnect checks the current
+snapshot so missed events converge, and `close()` interrupts the stream as well as polling/network
+resources without discarding the readable in-memory last-known-good snapshot.
+
 ## 8. Evaluation reason codes
 
 Use exactly the bounded algorithm-version-1 enum in `docs/05_FLAG_EVALUATION_ENGINE.md`: `FLAG_NOT_FOUND`, `FLAG_DISABLED`, `DEFAULT_VARIATION`, `RULE_MATCH`, `ROLLOUT_MATCH`, `MISSING_ROLLOUT_KEY`, `TYPE_MISMATCH`, `INVALID_CONFIG`, `SNAPSHOT_UNAVAILABLE`, and `ERROR_DEFAULT`.

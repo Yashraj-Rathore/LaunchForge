@@ -28,6 +28,7 @@
     <module>backend/launchforge-config-edge</module>
     <module>backend/launchforge-event-worker</module>
     <module>sdks/java/launchforge-java-sdk</module>
+    <module>demos/spring-demo</module>
     <module>tests/architecture-tests</module>
     <module>tests/integration-tests</module>
   </modules>

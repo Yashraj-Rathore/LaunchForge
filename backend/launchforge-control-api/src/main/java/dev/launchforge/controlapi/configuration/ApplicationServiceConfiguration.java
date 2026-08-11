@@ -10,15 +10,22 @@ import dev.launchforge.application.organization.MembershipRepository;
 import dev.launchforge.application.organization.OrganizationAccessRepository;
 import dev.launchforge.application.organization.OrganizationQueryService;
 import dev.launchforge.application.organization.UnitOfWork;
+import dev.launchforge.application.sdkkey.SdkKeyRepository;
+import dev.launchforge.application.sdkkey.SdkKeyService;
+import dev.launchforge.application.sdkkey.ServerSdkKeyGenerator;
 import dev.launchforge.domain.organization.MemberManagementPolicy;
 import dev.launchforge.infrastructure.controlplane.JacksonSnapshotCodec;
 import dev.launchforge.infrastructure.controlplane.SecureRolloutSaltGenerator;
+import dev.launchforge.infrastructure.sdkkey.SecureServerSdkKeyGenerator;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.ObjectMapper;
 
 @Configuration
+@EnableConfigurationProperties(SdkKeySecurityProperties.class)
 public class ApplicationServiceConfiguration {
   @Bean
   Clock systemClock() {
@@ -68,5 +75,23 @@ public class ApplicationServiceConfiguration {
       Clock clock) {
     return new ControlPlaneService(
         accessRepository, repository, unitOfWork, snapshotCodec, saltGenerator, clock);
+  }
+
+  @Bean
+  ServerSdkKeyGenerator serverSdkKeyGenerator(SdkKeySecurityProperties properties) {
+    String pepper = properties.currentPepper();
+    return new SecureServerSdkKeyGenerator(
+        properties.currentPepperVersion(), pepper.getBytes(StandardCharsets.UTF_8));
+  }
+
+  @Bean
+  SdkKeyService sdkKeyService(
+      ControlPlaneRepository controlPlaneRepository,
+      SdkKeyRepository sdkKeyRepository,
+      ServerSdkKeyGenerator generator,
+      UnitOfWork unitOfWork,
+      Clock clock) {
+    return new SdkKeyService(
+        controlPlaneRepository, sdkKeyRepository, generator, unitOfWork, clock);
   }
 }

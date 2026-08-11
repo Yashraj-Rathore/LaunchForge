@@ -1,6 +1,7 @@
 {
+  "corpusVersion": 1,
   "schemaVersion": 1,
   "algorithmVersion": 1,
-  "notes": "Placeholder only. LF-0302 populates expected vectors from verified reference code. Do not invent cryptographic expected values manually.",
-  "cases": []
+  "canonicalCorpus": "../contracts/golden-vectors/evaluator-v1.json",
+  "notes": "Use the generated canonical corpus. Never invent or edit expected cryptographic outputs manually."
 }

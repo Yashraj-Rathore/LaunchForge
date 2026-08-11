@@ -1,15 +1,15 @@
 # Backend Workspace
 
-Java/Spring modules initialized by Prompt 01 and extended by Prompt 02:
+Java/Spring modules initialized by Prompt 01 and extended through Prompt 05:
 
-- `launchforge-domain` — JDK-only domain boundary;
-- `launchforge-application` — use cases and ports, depending only on Domain;
-- `launchforge-contracts` — versioned transport-contract boundary;
-- `launchforge-infrastructure` — adapters depending inward;
-- `launchforge-control-api` — Spring MVC management BFF with OIDC login, PostgreSQL-backed sessions, CSRF, and organization/member endpoints;
-- `launchforge-config-edge` — reserved runtime edge boundary;
-- `launchforge-event-worker` — reserved worker boundary.
+- `launchforge-domain` - JDK-only domain boundary;
+- `launchforge-application` - use cases and ports, depending only on Domain;
+- `launchforge-contracts` - versioned transport-contract and credential-format boundary;
+- `launchforge-infrastructure` - management persistence and external-system adapters;
+- `launchforge-control-api` - Spring MVC management BFF with OIDC/session security, publication, and server SDK-key lifecycle;
+- `launchforge-config-edge` - independent Spring WebFlux data plane with SDK-key authentication, PostgreSQL-backed ETag snapshots, and bounded revision-only SSE;
+- `launchforge-event-worker` - reserved worker boundary.
 
-Planned modules are documented in `docs/02_SYSTEM_ARCHITECTURE.md`.
-
-Prompt 02 implements LF-0101 through LF-0105: the framework-free organization/membership domain, server-derived tenant authorization, JDBC/Flyway persistence, role policies, and safe membership audit events. Flag, SDK, distribution, and analytics behavior remains deferred to its owning milestone.
+Config Edge depends on runtime contracts and its own data-plane JDBC adapter, never management
+controllers or application services. PostgreSQL is authoritative in M4; Kafka and Redis remain
+deferred to M7.

@@ -266,7 +266,35 @@ docker compose down -v
 
 M2 implements the authenticated management API for projects, environments, typed flags/variations, environment drafts, ordered targeting rules, 100,000-bucket percentage allocations, publication history/diff, and rollback. Mutable routes use ETag/`If-Match`; browser mutations retain the M1 CSRF requirement. Rollout salt is server-owned and can change only through the explicit reason-required reseed route.
 
-Flyway applies `V2__flag_control_plane.sql` when the Control API starts. Publication validates the full draft and commits the RFC 8785 canonical revision, current pointer, audit event, and pending outbox intent atomically. PostgreSQL rejects update/delete of revision rows. Kafka publishing, Config Edge, SDK evaluation, and the React flag editor remain intentionally deferred to their owning prompts.
+Flyway applies `V2__flag_control_plane.sql` when the Control API starts. Publication validates the full draft and commits the RFC 8785 canonical revision, current pointer, audit event, and pending outbox intent atomically. PostgreSQL rejects update/delete of revision rows. Kafka publishing, Config Edge, and the React flag editor remain intentionally deferred to their owning prompts.
+
+### Java evaluator and SDK
+
+M3 implements the pure Java algorithm-version-1 evaluator, strict immutable snapshot compiler, typed local APIs, SDK bootstrap authentication, conditional jittered polling, atomic revision activation, and in-memory last-known-good behavior. The SDK has no Spring or LaunchForge server-module dependency. Its frozen language-neutral corpus is `contracts/golden-vectors/evaluator-v1.json`; the generator and exact verification commands are documented in `sdks/java/launchforge-java-sdk/README.md`.
+
+### Config Edge and live updates
+
+M4 implements LF-0401 through LF-0406. The Control API manages one-environment server SDK keys
+using one-time `lf_srv_...` secrets and hash-only PostgreSQL storage. The separate Spring Boot
+WebFlux Config Edge validates those keys, serves the authoritative immutable PostgreSQL snapshot
+with ETag/304/revision/checksum headers, and exposes a bounded authenticated SSE stream containing
+revision hints only. The Java SDK can opt into the stream, fetches the authoritative snapshot after
+a newer hint, reconnects with exponential jitter, and retains conditional polling plus in-memory
+last-known-good behavior. Kafka and Redis remain deferred to M7.
+
+Control API and Config Edge must receive the same uncommitted HMAC pepper. Start the Control API
+first so Flyway applies V3, then start the edge in a second terminal:
+
+```powershell
+$env:LAUNCHFORGE_SDK_KEY_PEPPER = '<at-least-32-random-bytes>'
+.\mvnw.cmd -pl backend/launchforge-control-api,backend/launchforge-config-edge -am package
+java -jar backend/launchforge-config-edge/target/launchforge-config-edge-0.1.0-SNAPSHOT-exec.jar
+```
+
+The fictional Spring storefront in `demos/spring-demo` enables streaming by default, includes the
+active snapshot revision in `/demo/{subject}`, and keeps evaluating after Config Edge becomes
+unavailable. Its README contains the interactive flow and the reproducible PostgreSQL/WebFlux/SDK
+E2E command.
 
 On Unix-like systems, use `./mvnw` in place of `.\mvnw.cmd`. After initializing Git on Windows, record the executable bit with `git update-index --chmod=+x mvnw`.
 

@@ -135,7 +135,8 @@ public record FlagDefinition(
         if (!Double.isFinite(number.doubleValue())) {
           throw new ControlPlaneRuleViolationException("Number must be a finite binary64 value");
         }
-        if (number.scale() <= 0 && number.abs().compareTo(MAX_SAFE_INTEGER) > 0) {
+        if (number.stripTrailingZeros().scale() <= 0
+            && number.abs().compareTo(MAX_SAFE_INTEGER) > 0) {
           throw new ControlPlaneRuleViolationException(
               "Integer exceeds the interoperable safe range");
         }

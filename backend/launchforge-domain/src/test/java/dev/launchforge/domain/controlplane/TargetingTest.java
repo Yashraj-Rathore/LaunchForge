@@ -31,6 +31,10 @@ class TargetingTest {
         () -> new Condition("age", AttributeType.NUMBER, Operator.GT, List.of("ten")));
     assertThrows(
         ControlPlaneRuleViolationException.class,
+        () ->
+            new Condition("age", AttributeType.NUMBER, Operator.GT, List.of("9007199254740992.0")));
+    assertThrows(
+        ControlPlaneRuleViolationException.class,
         () -> new Condition("version", AttributeType.SEMVER, Operator.SEMVER_GTE, List.of("v1")));
   }
 

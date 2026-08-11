@@ -123,7 +123,7 @@ Returns flag key, variation ID, typed value, reason, matched rule, bucket if rel
 ```text
 GET /sdk/v1/snapshot
 Authorization: LF-SDK <key>
-If-None-Match: "revision:42:checksum"
+If-None-Match: "env_<opaque>_rev_42_<checksum>"
 ```
 
 Outcomes:
@@ -134,6 +134,11 @@ Outcomes:
 - 403 inactive/forbidden projection
 - 429 rate limited
 - 503 unable to safely serve materialized snapshot
+
+A `200` or `304` includes `ETag`, `X-LaunchForge-Revision`,
+`X-LaunchForge-Checksum`, `X-LaunchForge-Schema-Version`, and
+`Cache-Control: no-store`. The response body is capped at 1 MiB in M4 and is the
+validated canonical server projection stored in the immutable PostgreSQL revision.
 
 Browser client keys only receive client-visible projection.
 
@@ -153,10 +158,12 @@ Example:
 ```text
 event: revision
 id: 43
-data: {"revision":43,"etag":"...","checksum":"..."}
+data: {"revision":43}
 ```
 
-Stream carries revision hints; SDK retrieves authoritative snapshot with conditional GET.
+The stream carries revision hints only. It also emits heartbeat comments; the SDK retrieves the
+authoritative snapshot with a conditional GET. `Last-Event-ID` is a convergence hint, never an
+ordering authority.
 
 ## Analytics ingestion
 
@@ -179,6 +186,15 @@ POST /api/v1/sdk-keys/{keyId}/revoke
 ```
 
 Secret material is returned once where applicable.
+
+Create accepts `{"name":"Storefront server","expiresAt":null}` and returns `201` with a metadata
+object plus the one-time `secret`. List returns metadata only and never the verifier or secret.
+Rotate accepts optional `overlapSeconds` (zero through 86400) and optional replacement
+`expiresAt`; it returns the new credential once. Revoke is idempotent and returns `204`.
+
+M4 supports server keys only. Each `lf_srv_<lookup_id>_<secret>` credential maps to exactly one
+environment. Owner/Admin may manage all environment keys; Developer is constrained to
+non-production environments; Viewer is denied. Browser/client keys remain assigned to M5.
 
 ## Error model
 

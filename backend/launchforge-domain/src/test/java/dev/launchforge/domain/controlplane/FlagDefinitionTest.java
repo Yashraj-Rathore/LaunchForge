@@ -50,6 +50,9 @@ class FlagDefinitionTest {
     assertThrows(
         ControlPlaneRuleViolationException.class,
         () -> FlagValue.number(new BigDecimal("9007199254740992")));
+    assertThrows(
+        ControlPlaneRuleViolationException.class,
+        () -> FlagValue.number(new BigDecimal("9007199254740992.0")));
   }
 
   @Test

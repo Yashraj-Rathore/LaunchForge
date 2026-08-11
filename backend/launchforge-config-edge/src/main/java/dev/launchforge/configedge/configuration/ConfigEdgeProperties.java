@@ -1,0 +1,38 @@
+package dev.launchforge.configedge.configuration;
+
+import java.time.Duration;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
+
+@ConfigurationProperties("launchforge.config-edge")
+public record ConfigEdgeProperties(
+    @DefaultValue("1048576") int maximumSnapshotBytes,
+    @DefaultValue("1s") Duration revisionPollInterval,
+    @DefaultValue("15s") Duration heartbeatInterval,
+    @DefaultValue("1000") int maximumConnections,
+    @DefaultValue("5") int maximumConnectionsPerKey) {
+  public ConfigEdgeProperties {
+    if (maximumSnapshotBytes < 1 || maximumSnapshotBytes > 8 * 1024 * 1024) {
+      throw new IllegalArgumentException("maximumSnapshotBytes is invalid");
+    }
+    if (revisionPollInterval == null
+        || revisionPollInterval.isNegative()
+        || revisionPollInterval.isZero()
+        || revisionPollInterval.compareTo(Duration.ofSeconds(60)) > 0) {
+      throw new IllegalArgumentException(
+          "revisionPollInterval must be between zero and 60 seconds");
+    }
+    if (heartbeatInterval == null
+        || heartbeatInterval.isNegative()
+        || heartbeatInterval.isZero()
+        || heartbeatInterval.compareTo(Duration.ofSeconds(60)) > 0) {
+      throw new IllegalArgumentException("heartbeatInterval must be between zero and 60 seconds");
+    }
+    if (maximumConnections < 1
+        || maximumConnections > 100_000
+        || maximumConnectionsPerKey < 1
+        || maximumConnectionsPerKey > maximumConnections) {
+      throw new IllegalArgumentException("SSE connection limits are invalid");
+    }
+  }
+}

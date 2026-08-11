@@ -4,7 +4,8 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /** LaunchForge management control-plane process. */
-@SpringBootApplication(scanBasePackages = "dev.launchforge")
+@SpringBootApplication(
+    scanBasePackages = {"dev.launchforge.controlapi", "dev.launchforge.infrastructure"})
 public class LaunchForgeControlApiApplication {
   public static void main(String[] args) {
     SpringApplication.run(LaunchForgeControlApiApplication.class, args);

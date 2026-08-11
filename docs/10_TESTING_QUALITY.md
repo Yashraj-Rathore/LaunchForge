@@ -104,6 +104,14 @@ The M1 Chromium smoke uses the real local Keycloak reference and seeded Control 
 
 Run Java/JS SDKs against a real local Config Edge.
 
+The M4 default suite covers credential formatting/verifier behavior, invalid/revoked/expired/
+disabled/inactive authentication, management-cookie denial, canonical snapshot integrity and the
+1 MiB response bound, ETag/304 headers, revision-only SSE parsing, heartbeat/connection lifecycle,
+bounded connection quotas, stale events, repeated disconnect backoff, polling convergence, corrupt
+snapshot retention, simulated network interruption/edge restart, and SDK shutdown/LKG behavior.
+The PostgreSQL integration profile adds Flyway V3 key lifecycle/tenant tests and a real WebFlux
+edge-to-Java-SDK kill-switch convergence flow.
+
 ### Performance
 
 - JMH evaluator microbenchmarks;
@@ -143,26 +151,16 @@ Concurrent evaluations during activation see either old complete snapshot or new
 
 ## 4. Golden vector format
 
-Example shape:
+The LF-0302 canonical corpus is `contracts/golden-vectors/evaluator-v1.json`. Its version-1 shape includes `rolloutVectors`, `operatorCases`, one checksum-valid `evaluationSnapshot`, `evaluationCases`, `malformedSnapshots`, and `corpusChecksum`. The corpus checksum is SHA-256 over the RFC 8785 canonical projection with `corpusChecksum` absent.
 
-```json
-{
-  "algorithmVersion": 1,
-  "cases": [
-    {
-      "name": "rollout-basic",
-      "flag": {},
-      "context": {},
-      "expected": {
-        "variation": "on",
-        "reason": "ROLLOUT_MATCH"
-      }
-    }
-  ]
-}
+Regenerate and verify it with:
+
+```powershell
+./mvnw.cmd -pl sdks/java/launchforge-java-sdk -am test "-Dtest=GoldenVectorCorpusTest" "-Dlaunchforge.updateGoldenVectors=true"
+./mvnw.cmd -pl sdks/java/launchforge-java-sdk -am test "-Dtest=GoldenVectorCorpusTest"
 ```
 
-Vectors must be computed by verified reference code and then frozen.
+The first command computes SHA-256 expectations through the test reference implementation and freezes the file. The second byte-compares the regenerated form with the committed artifact and executes every case. JavaScript must consume this same file in M5.
 
 Do not manually invent expected cryptographic hash results.
 

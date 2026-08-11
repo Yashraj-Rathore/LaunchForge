@@ -1,6 +1,6 @@
 package dev.launchforge.sdk;
 
-/** Marker for the pure-Java SDK boundary; SDK behavior begins in M3. */
+/** Marker for the framework-independent LaunchForge Java SDK boundary. */
 public final class JavaSdkModule {
   private JavaSdkModule() {}
 }

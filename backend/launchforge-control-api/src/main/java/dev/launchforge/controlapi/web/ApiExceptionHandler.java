@@ -6,6 +6,7 @@ import dev.launchforge.application.controlplane.StaleWriteException;
 import dev.launchforge.application.organization.OperationForbiddenException;
 import dev.launchforge.application.organization.OrganizationConflictException;
 import dev.launchforge.application.organization.OrganizationNotFoundException;
+import dev.launchforge.application.sdkkey.SdkKeyConflictException;
 import dev.launchforge.domain.controlplane.ControlPlaneRuleViolationException;
 import dev.launchforge.domain.organization.DomainRuleViolationException;
 import java.net.URI;
@@ -49,6 +50,11 @@ public final class ApiExceptionHandler {
     return problem(HttpStatus.CONFLICT, "CONTROL_PLANE_CONFLICT", exception.getMessage());
   }
 
+  @ExceptionHandler(SdkKeyConflictException.class)
+  ProblemDetail sdkKeyConflict(SdkKeyConflictException exception) {
+    return problem(HttpStatus.CONFLICT, "SDK_KEY_CONFLICT", exception.getMessage());
+  }
+
   @ExceptionHandler(PreconditionRequiredException.class)
   ProblemDetail preconditionRequired() {
     return problem(
@@ -61,7 +67,8 @@ public final class ApiExceptionHandler {
     DomainRuleViolationException.class,
     ControlPlaneRuleViolationException.class,
     HttpMessageNotReadableException.class,
-    MethodArgumentTypeMismatchException.class
+    MethodArgumentTypeMismatchException.class,
+    IllegalArgumentException.class
   })
   ProblemDetail invalidInput(Exception exception) {
     return problem(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Request validation failed");

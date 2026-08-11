@@ -11,5 +11,32 @@
   </parent>
   <artifactId>launchforge-java-sdk</artifactId>
   <name>LaunchForge Java SDK</name>
-  <description>Framework-independent Java SDK boundary reserved for M3</description>
+  <description>Framework-independent LaunchForge evaluator and server SDK</description>
+
+  <dependencies>
+    <!-- Strict runtime snapshot parsing; the SDK has no Spring or server-module dependency. -->
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+    <!-- RFC 8785 canonical bytes are required to verify snapshot checksums. -->
+    <dependency>
+      <groupId>io.github.erdtman</groupId>
+      <artifactId>java-json-canonicalization</artifactId>
+      <version>${json-canonicalization.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <testResources>
+      <testResource>
+        <directory>${maven.multiModuleProjectDirectory}/contracts/golden-vectors</directory>
+      </testResource>
+    </testResources>
+  </build>
 </project>

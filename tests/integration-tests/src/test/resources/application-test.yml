@@ -13,6 +13,10 @@ server:
 launchforge:
   demo-seed:
     enabled: false
+  sdk-keys:
+    current-pepper-version: v1
+    peppers:
+      v1: integration-test-pepper-value-with-more-than-thirty-two-bytes
 
 logging:
   level:

@@ -162,6 +162,17 @@ POST /sdk/v1/events   # optional analytics, later
 
 The edge must be horizontally scalable and stateless except for ephemeral connection state.
 
+### M4 PostgreSQL-first implementation
+
+LF-0401 through LF-0406 implement this as an independent Spring Boot WebFlux process. The M4 edge
+authenticates the structured server key, validates the immutable canonical snapshot and checksum,
+and reads the current published revision directly from PostgreSQL on a bounded elastic scheduler.
+Each bounded SSE connection periodically revalidates key/scope lifecycle and checks the current
+environment revision; only strictly newer revision notices are emitted. This deliberately proves
+the contract and failure behavior before Kafka/Redis. LF-0701 through LF-0706 later replace the
+database polling/fan-out path with durable distribution and rebuildable materialization without
+changing the public snapshot/SSE contract.
+
 ## 9. Snapshot resolution
 
 Fast path:

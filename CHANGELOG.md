@@ -11,6 +11,8 @@
 - Recorded Prompt 0 toolchain pins and clarified deferred service, optional analytics, security-hardening, and durable LKG milestone boundaries.
 - Finalized the M1 organization/member API, PostgreSQL tenancy/session baseline, OIDC BFF settings, role matrix enforcement, local identity workflow, and Keycloak 26.7.0/container digest pin.
 - Finalized the M2 control-plane API, normative rule/rollout projection details, strict I-JSON/RFC 8785 publication contract, PostgreSQL ownership constraints, and the pre-Kafka durable outbox boundary.
+- Finalized the M3 Java SDK API, concrete bootstrap/timeout/polling defaults, generated evaluator corpus lifecycle, and the explicit boundary that Config Edge endpoints and SDK-key persistence remain M4 work.
+- Finalized the M4 server SDK-key lifecycle, authoritative snapshot headers, revision-only SSE contract, Java SDK stream/fallback behavior, PostgreSQL-first delivery boundary, and reproducible fictional live-update demo.
 
 ### Implementation
 
@@ -27,3 +29,10 @@
 - Implemented LF-0201–LF-0207 with project/environment lifecycle, typed flags and two-to-ten variations, environment drafts, ordered typed rules, integer rollout allocations, deliberate salt reseeding, ETag/If-Match management APIs, and server-derived tenant authorization.
 - Added Flyway V2 compound tenant constraints, immutable revision triggers, canonical snapshot/checksum storage, atomic revision/pointer/audit/outbox publication, safe revision diff/history, and rollback as a newer revision with source metadata.
 - Added domain, canonicalization, API, and PostgreSQL Testcontainers coverage for operator/type boundaries, I-JSON, stale concurrent writes/publishes, cross-tenant direct IDs, forced transaction rollback, production authorization/reasons, revision immutability, and historical rollback.
+- Implemented LF-0301–LF-0307 with a pure Java algorithm-version-1 evaluator, strict immutable snapshot compilation/checksum validation, exact SemVer and SHA-256 rollout semantics, typed value/detail APIs, atomic snapshot activation, and all bounded reason codes.
+- Added non-blocking and bounded blocking SDK bootstrap, `LF-SDK` authentication, ETag conditional polling with bounded jitter, coalesced refreshes, in-memory last-known-good retention, idempotent shutdown, and no network/JSON work on the evaluation hot path.
+- Generated and froze the language-neutral evaluator-v1 corpus from executable reference code, including every operator/type/reason identifier, Unicode and empty strings, exact rollout boundaries, malformed snapshots, and a deterministic 10,000-subject distribution; exact regeneration is enforced in tests.
+- Added concurrent evaluator/activation tests, snapshot outage and invalid-newer-revision tests, safe-integer compatibility fixes in management publication, and a separate fictional Spring storefront that continues two typed evaluations after its snapshot source stops.
+- Implemented LF-0401–LF-0406 with an independent Spring Boot WebFlux Config Edge, environment-scoped one-time server SDK keys with hash-only PostgreSQL storage, strict `LF-SDK` authentication, bounded canonical snapshot delivery, ETag/304 support, and revision-only SSE with heartbeats, lifecycle revalidation, connection limits, and active metrics.
+- Extended the Java SDK with optional SSE consumption, authoritative conditional refresh after newer hints, exponential reconnect jitter, retained polling fallback, interruption/restart convergence, and clean shutdown while preserving in-memory last-known-good evaluation.
+- Added Flyway V3, authenticated key create/list/rotate/revoke APIs, key/edge security and HTTP contract tests, full PostgreSQL/WebFlux/SDK integration coverage for kill-switch publication and revocation, and a live-update Spring demo exposing its active revision.

@@ -16,6 +16,7 @@ public final class Targeting {
   public static final int MAX_CONDITIONS = 10;
   public static final int MAX_CONDITION_VALUES = 50;
   public static final int MAX_ROLLOUT_ALLOCATIONS = 50;
+  private static final BigDecimal MAX_SAFE_INTEGER = new BigDecimal("9007199254740991");
   private static final Pattern ATTRIBUTE = Pattern.compile("^[A-Za-z][A-Za-z0-9_.-]{0,63}$");
   private static final Pattern SEMVER =
       Pattern.compile(
@@ -177,6 +178,11 @@ public final class Targeting {
           BigDecimal number = new BigDecimal(value);
           if (!Double.isFinite(number.doubleValue())) {
             throw new ControlPlaneRuleViolationException("Numeric condition must be finite");
+          }
+          if (number.stripTrailingZeros().scale() <= 0
+              && number.abs().compareTo(MAX_SAFE_INTEGER) > 0) {
+            throw new ControlPlaneRuleViolationException(
+                "Numeric condition integer exceeds the safe range");
           }
         }
         case SEMVER -> {

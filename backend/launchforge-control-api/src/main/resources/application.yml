@@ -53,6 +53,10 @@ server:
 launchforge:
   demo-seed:
     enabled: false
+  sdk-keys:
+    current-pepper-version: ${LAUNCHFORGE_SDK_KEY_PEPPER_VERSION:v1}
+    peppers:
+      v1: ${LAUNCHFORGE_SDK_KEY_PEPPER}
   security:
     session:
       absolute-lifetime: ${LAUNCHFORGE_SESSION_ABSOLUTE_LIFETIME:12h}

@@ -148,6 +148,15 @@ Storage:
 
 High-entropy SDK keys are not passwords; do not add a deliberately slow password hash solely for their verifier. HMAC verification uses constant-time comparison. A browser/client key is a public opaque identifier, not a secret authenticator, and receives only the reduced browser projection.
 
+M4 implements server keys with exactly this version-1 format. The Control API returns plaintext
+only from create/rotate responses, stores only lookup/verifier metadata, caps rotation overlap at
+24 hours, and audits lifecycle actions without credential material. Config Edge looks up one row by
+the public ID and uses constant-time verifier comparison. It checks status/expiry/scope on every
+snapshot request and on each configured SSE revision poll (bounded to at most 60 seconds), so
+revocation eventually closes an existing stream. A management session cookie is never accepted as
+SDK authentication. Multiple configured pepper versions provide bounded verification overlap;
+only the configured current version is used for new credentials.
+
 ## 7. Key lookup
 
 Do not scan all key hashes.
