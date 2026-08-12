@@ -81,7 +81,7 @@ class ModuleDependencyRulesTest {
               "org.springframework..");
 
   @ArchTest
-  static final ArchRule SERVER_MODULES_DO_NOT_DEPEND_ON_JAVA_SDK =
+  static final ArchRule NON_SIMULATION_SERVER_MODULES_DO_NOT_DEPEND_ON_JAVA_SDK =
       noClasses()
           .that()
           .resideInAnyPackage(
@@ -89,9 +89,19 @@ class ModuleDependencyRulesTest {
               "dev.launchforge.application..",
               "dev.launchforge.contracts..",
               "dev.launchforge.infrastructure..",
-              "dev.launchforge.controlapi..",
               "dev.launchforge.configedge..",
               "dev.launchforge.eventworker..")
+          .should()
+          .dependOnClassesThat()
+          .resideInAPackage("dev.launchforge.sdk..");
+
+  @ArchTest
+  static final ArchRule CONTROL_API_SDK_REUSE_IS_CONFINED_TO_DRAFT_SIMULATION =
+      noClasses()
+          .that()
+          .resideInAPackage("dev.launchforge.controlapi..")
+          .and()
+          .resideOutsideOfPackage("dev.launchforge.controlapi.simulation..")
           .should()
           .dependOnClassesThat()
           .resideInAPackage("dev.launchforge.sdk..");

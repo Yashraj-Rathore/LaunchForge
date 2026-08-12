@@ -60,6 +60,8 @@ public interface ControlPlaneRepository {
   Optional<PublishedRevision> findRevision(
       OrganizationAccess access, EnvironmentId environmentId, long revision);
 
+  List<AuditEvent> findAuditEvents(OrganizationAccess access, AuditQuery query);
+
   void storePublication(
       OrganizationAccess access,
       OidcIdentity actor,

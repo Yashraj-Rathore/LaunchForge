@@ -150,10 +150,13 @@ demos/
 - Application references Domain.
 - Contracts references neither Domain nor Infrastructure.
 - Infrastructure references Domain/Application.
-- Control API references Application/Infrastructure/Contracts.
+- Control API references Application/Infrastructure/Contracts. The M6
+  `dev.launchforge.controlapi.simulation` adapter has one narrow additional dependency on the Java
+  SDK's public snapshot parser/evaluator so the console does not introduce a third evaluator;
+  ArchUnit rejects SDK access from every other Control API package and server module.
 - Config Edge references only runtime contracts/data-plane infrastructure, not management controllers.
 - Event Worker references narrow Application/Infrastructure/Contracts as needed.
-- Java SDK is independent of backend modules.
+- Java SDK is independent of backend modules and does not reference Spring or server code.
 - JS SDK shares JSON schemas/golden vectors only, not Java code.
 - JavaScript Browser SDK depends on JavaScript Core.
 - React SDK depends on JavaScript Browser/Core and never reimplements evaluation.

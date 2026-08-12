@@ -1,9 +1,10 @@
 # LaunchForge JavaScript Workspace
 
-M0 reserves explicit package boundaries only:
+M5 implements the explicit package boundaries:
 
-- `packages/core` — framework-neutral evaluator/client boundary;
-- `packages/browser` — browser transport/projection boundary, depending on Core;
-- `packages/react` — future React binding, depending on Browser/Core.
+- `packages/core` — framework-neutral strict snapshot compiler and evaluator;
+- `packages/browser` — browser transport, LKG, polling, and SSE boundary, depending on Core;
+- `packages/react` — thin provider/hooks binding, depending on Browser/Core.
 
-No evaluator or SDK behavior is implemented before M5.
+Core and Java execute the same frozen golden corpus. React contains no evaluator. Package READMEs
+document the public-key/CORS boundary, lifecycle APIs, numeric compatibility, and context updates.

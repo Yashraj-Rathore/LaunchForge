@@ -1,6 +1,7 @@
 package dev.launchforge.configedge.persistence;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.UUID;
@@ -15,6 +16,16 @@ public interface EdgeRepository {
   OptionalLong findCurrentRevision(UUID environmentId);
 
   void recordUse(UUID keyId);
+
+  default Optional<StoredBrowserCredential> findBrowserCredential(String clientKey) {
+    return Optional.empty();
+  }
+
+  default Optional<BrowserCredentialLifecycle> findBrowserLifecycle(UUID keyId) {
+    return Optional.empty();
+  }
+
+  default void recordBrowserUse(UUID keyId) {}
 
   record StoredSdkCredential(
       UUID keyId,
@@ -43,4 +54,19 @@ public interface EdgeRepository {
       int schemaVersion,
       String canonicalSnapshot,
       String checksum) {}
+
+  record StoredBrowserCredential(
+      UUID keyId,
+      UUID environmentId,
+      List<String> allowedOrigins,
+      String status,
+      Instant expiresAt,
+      boolean scopeActive) {
+    public StoredBrowserCredential {
+      allowedOrigins = List.copyOf(allowedOrigins);
+    }
+  }
+
+  record BrowserCredentialLifecycle(
+      UUID environmentId, String status, Instant expiresAt, boolean scopeActive) {}
 }

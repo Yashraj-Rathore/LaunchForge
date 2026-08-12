@@ -13,9 +13,15 @@ test('OIDC login scopes the shell and logout invalidates the session', async ({ 
   await page.locator('#password').fill(password);
   await page.locator('#kc-login').click();
 
-  await expect(page.getByRole('heading', { name: `Welcome, ${username}` })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Feature flags' })).toBeVisible();
   await expect(page.getByText('Northstar Commerce')).toBeVisible();
   await expect(page.getByText('OWNER', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Project context')).toHaveValue(
+    '40000000-0000-0000-0000-000000000001',
+  );
+  await expect(page.getByLabel('Environment context')).toHaveValue(
+    '50000000-0000-0000-0000-000000000001',
+  );
 
   const sessionCookie = (await page.context().cookies()).find(
     (cookie) => cookie.name === 'launchforge_session',

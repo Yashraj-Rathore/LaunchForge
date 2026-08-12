@@ -1,0 +1,34 @@
+{
+  "name": "@launchforge/react-storefront-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "dev": "vite",
+    "lint": "eslint . --max-warnings 0",
+    "test": "vitest run --passWithNoTests --exclude=e2e/**",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit --pretty false"
+  },
+  "dependencies": {
+    "@launchforge/js-browser": "workspace:*",
+    "@launchforge/js-core": "workspace:*",
+    "@launchforge/react-sdk": "workspace:*",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.62.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "@vitejs/plugin-react": "6.0.5",
+    "eslint": "10.8.1",
+    "globals": "17.9.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.67.0",
+    "vite": "8.2.1",
+    "vitest": "4.1.10"
+  }
+}

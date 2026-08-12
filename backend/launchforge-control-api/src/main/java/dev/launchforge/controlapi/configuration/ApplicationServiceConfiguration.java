@@ -10,12 +10,16 @@ import dev.launchforge.application.organization.MembershipRepository;
 import dev.launchforge.application.organization.OrganizationAccessRepository;
 import dev.launchforge.application.organization.OrganizationQueryService;
 import dev.launchforge.application.organization.UnitOfWork;
+import dev.launchforge.application.sdkkey.BrowserClientKeyGenerator;
+import dev.launchforge.application.sdkkey.BrowserClientKeyRepository;
+import dev.launchforge.application.sdkkey.BrowserClientKeyService;
 import dev.launchforge.application.sdkkey.SdkKeyRepository;
 import dev.launchforge.application.sdkkey.SdkKeyService;
 import dev.launchforge.application.sdkkey.ServerSdkKeyGenerator;
 import dev.launchforge.domain.organization.MemberManagementPolicy;
 import dev.launchforge.infrastructure.controlplane.JacksonSnapshotCodec;
 import dev.launchforge.infrastructure.controlplane.SecureRolloutSaltGenerator;
+import dev.launchforge.infrastructure.sdkkey.SecureBrowserClientKeyGenerator;
 import dev.launchforge.infrastructure.sdkkey.SecureServerSdkKeyGenerator;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
@@ -93,5 +97,21 @@ public class ApplicationServiceConfiguration {
       Clock clock) {
     return new SdkKeyService(
         controlPlaneRepository, sdkKeyRepository, generator, unitOfWork, clock);
+  }
+
+  @Bean
+  BrowserClientKeyGenerator browserClientKeyGenerator() {
+    return new SecureBrowserClientKeyGenerator();
+  }
+
+  @Bean
+  BrowserClientKeyService browserClientKeyService(
+      ControlPlaneRepository controlPlaneRepository,
+      BrowserClientKeyRepository repository,
+      BrowserClientKeyGenerator generator,
+      UnitOfWork unitOfWork,
+      Clock clock) {
+    return new BrowserClientKeyService(
+        controlPlaneRepository, repository, generator, unitOfWork, clock);
   }
 }

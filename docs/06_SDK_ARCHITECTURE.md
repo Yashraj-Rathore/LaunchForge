@@ -241,8 +241,14 @@ The JS core package owns:
 - snapshot parsing;
 - deterministic evaluator;
 - rollout hashing;
-- in-memory snapshot;
-- polling/stream client appropriate to its runtime.
+- strict evaluation-context construction;
+- RFC 8785 checksum verification and immutable compiled snapshot types.
+
+The M5 implementation is `@launchforge/js-core`. It has no React or transport dependency, performs
+no I/O during evaluation, uses `BigInt` for the unsigned rollout prefix, and consumes
+`contracts/golden-vectors/evaluator-v1.json` directly. JavaScript mathematical integers are limited
+to the safe integer range; finite non-integers use ECMAScript binary64/RFC 8785 rendering, and
+negative zero is normalized to zero.
 
 ### Browser package
 
@@ -256,16 +262,30 @@ The browser package must assume the end user can inspect:
 
 Therefore do not deliver server-only sensitive rules or values to browser clients. A future relay/proxy pattern may provide stricter segmentation when needed.
 
+`@launchforge/js-browser` owns one immutable active snapshot, bounded bootstrap, conditional
+jittered polling, streaming-fetch SSE, exponential reconnect with jitter, and in-memory
+last-known-good behavior. It activates only checksum-valid snapshots with nondecreasing revisions;
+same-revision/different-content, stale, oversized, or malformed candidates are rejected. The
+constructor itself performs no I/O. `start()` awaits one bounded bootstrap attempt and starts the
+background transports, evaluation returns `SNAPSHOT_UNAVAILABLE` before activation, and `close()` is
+idempotent. A snapshot activation or explicit immutable context replacement notifies subscribers.
+
 ### React wrapper
 
 The React package should be thin:
 
 - `LaunchForgeProvider`;
-- `useFlag`;
-- `useFlagDetail`;
+- typed boolean/string/number/JSON value hooks;
+- a matching detail hook for every type;
 - stable context update APIs.
 
 It must not contain an independent evaluator.
+
+The provider creates and owns exactly one browser client unless a client is injected, starts it in
+an effect, and releases its timers, stream, and subscriptions on final unmount. React development
+Strict Mode's effect rehearsal does not permanently close the owned client. Callers should memoize
+context objects; changing context is an intentional local reevaluation and rerender, never a remote
+context upload.
 
 ## 14. Cross-language compatibility
 

@@ -2,5 +2,7 @@
 **/node_modules/
 **/dist/
 **/coverage/
+**/playwright-report/
+**/test-results/
 CODEX_MASTER_IMPLEMENTATION_SPEC.md
 pnpm-lock.yaml

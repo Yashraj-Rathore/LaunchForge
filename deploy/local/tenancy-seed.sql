@@ -58,8 +58,25 @@ VALUES (
     '10000000-0000-0000-0000-000000000001',
     'storefront',
     'Storefront',
-    'Read-only M1 shell seed; project behavior begins in M2.',
+    'Local control-plane console seed.',
     'ACTIVE',
+    0,
+    TIMESTAMPTZ '2026-08-10 12:00:00Z',
+    TIMESTAMPTZ '2026-08-10 12:00:00Z'
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO environments
+    (id, organization_id, project_id, environment_key, name, kind, status, current_revision, version, created_at, updated_at)
+VALUES (
+    '50000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    '40000000-0000-0000-0000-000000000001',
+    'development',
+    'Development',
+    'DEVELOPMENT',
+    'ACTIVE',
+    0,
     0,
     TIMESTAMPTZ '2026-08-10 12:00:00Z',
     TIMESTAMPTZ '2026-08-10 12:00:00Z'

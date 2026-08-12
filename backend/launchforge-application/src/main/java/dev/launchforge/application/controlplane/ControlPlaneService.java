@@ -286,11 +286,25 @@ public final class ControlPlaneService {
       String name,
       FlagDefinition.Status status,
       long expectedVersion) {
+    return updateFlag(actor, flagId, name, status, null, expectedVersion);
+  }
+
+  public FlagDefinition updateFlag(
+      OidcIdentity actor,
+      FlagId flagId,
+      String name,
+      FlagDefinition.Status status,
+      List<VariationUpdateInput> variationInputs,
+      long expectedVersion) {
     return unitOfWork.required(
         () -> {
           ScopedFlag scoped = requireLockedFlag(actor, flagId);
           requireAbility(scoped.access(), OrganizationAbility.EDIT_DRAFT);
           requireVersion(scoped.flag().version(), expectedVersion);
+          List<Variation> variations =
+              variationInputs == null
+                  ? scoped.flag().variations()
+                  : updatedVariations(scoped.flag(), variationInputs);
           FlagDefinition updated =
               new FlagDefinition(
                   flagId,
@@ -299,7 +313,7 @@ public final class ControlPlaneService {
                   name,
                   scoped.flag().type(),
                   scoped.flag().clientVisible(),
-                  scoped.flag().variations(),
+                  variations,
                   status,
                   expectedVersion + 1,
                   scoped.flag().createdAt(),
@@ -308,6 +322,36 @@ public final class ControlPlaneService {
           audit(scoped.access(), actor, "FLAG_UPDATED", "FLAG", flagId.value(), name, null);
           return updated;
         });
+  }
+
+  private static List<Variation> updatedVariations(
+      FlagDefinition current, List<VariationUpdateInput> inputs) {
+    if (inputs.size() != current.variations().size()) {
+      throw new ControlPlaneConflictException(
+          "Variation identities cannot be added or removed after flag creation");
+    }
+    List<UUID> ids = inputs.stream().map(VariationUpdateInput::id).toList();
+    if (ids.stream().distinct().count() != ids.size()) {
+      throw new ControlPlaneConflictException("Variation identities must be unique");
+    }
+    return current.variations().stream()
+        .map(
+            variation -> {
+              VariationUpdateInput input =
+                  inputs.stream()
+                      .filter(candidate -> candidate.id().equals(variation.id()))
+                      .findFirst()
+                      .orElseThrow(
+                          () ->
+                              new ControlPlaneConflictException(
+                                  "Variation identities cannot change after flag creation"));
+              return new Variation(
+                  variation.id(),
+                  variation.key(),
+                  input.name(),
+                  requireType(current.type(), input.value()));
+            })
+        .toList();
   }
 
   public EnvironmentDraft getDraft(OidcIdentity actor, FlagId flagId, EnvironmentId environmentId) {
@@ -451,6 +495,26 @@ public final class ControlPlaneService {
         });
   }
 
+  public DraftPreview previewDraft(OidcIdentity actor, EnvironmentId environmentId) {
+    ScopedEnvironment scoped = requireEnvironment(actor, environmentId);
+    requireAbility(scoped.access(), OrganizationAbility.VIEW_CONFIGURATION);
+    long candidateRevision = scoped.environment().currentRevision() + 1;
+    SnapshotCodec.EncodedSnapshot encoded =
+        encodeCurrentDraft(scoped, candidateRevision, clock.instant());
+    return new DraftPreview(
+        environmentId,
+        scoped.environment().currentRevision(),
+        candidateRevision,
+        encoded.canonicalJson());
+  }
+
+  public List<AuditEvent> auditHistory(
+      OidcIdentity actor, OrganizationId organizationId, AuditQuery query) {
+    OrganizationAccess access = requireOrganization(actor, organizationId);
+    requireAbility(access, OrganizationAbility.VIEW_CONFIGURATION);
+    return repository.findAuditEvents(access, Objects.requireNonNull(query, "query"));
+  }
+
   public List<PublishedRevision> revisionHistory(OidcIdentity actor, EnvironmentId environmentId) {
     ScopedEnvironment scoped = requireEnvironment(actor, environmentId);
     requireAbility(scoped.access(), OrganizationAbility.VIEW_CONFIGURATION);
@@ -484,33 +548,9 @@ public final class ControlPlaneService {
       String reason,
       Long sourceRevision,
       String action) {
-    List<FlagDefinition> flags =
-        repository.findFlags(scoped.access(), scoped.environment().projectId()).stream()
-            .filter(flag -> flag.status() == FlagDefinition.Status.ACTIVE)
-            .toList();
-    if (flags.size() > MAX_FLAGS_PER_ENVIRONMENT) {
-      throw new ControlPlaneConflictException("Environment has too many flags to publish");
-    }
-    List<EnvironmentDraft> drafts =
-        repository.findDrafts(scoped.access(), scoped.environment().id());
-    List<EnvironmentDraft> activeDrafts = new ArrayList<>();
-    for (FlagDefinition flag : flags) {
-      EnvironmentDraft draft =
-          drafts.stream()
-              .filter(candidate -> candidate.flagId().equals(flag.id()))
-              .findFirst()
-              .orElseThrow(() -> new ControlPlaneConflictException("Flag draft is missing"));
-      draft.validateFor(flag);
-      activeDrafts.add(draft);
-    }
     long nextRevision = scoped.environment().currentRevision() + 1;
     Instant now = clock.instant();
-    SnapshotCodec.EncodedSnapshot encoded =
-        snapshotCodec.encode(
-            scoped.project(), scoped.environment(), flags, activeDrafts, nextRevision, now);
-    if (encoded.utf8Bytes() > MAX_SNAPSHOT_BYTES) {
-      throw new ControlPlaneConflictException("Snapshot exceeds the 5 MiB publication limit");
-    }
+    SnapshotCodec.EncodedSnapshot encoded = encodeCurrentDraft(scoped, nextRevision, now);
     PublishedRevision revision =
         new PublishedRevision(
             scoped.environment().id(),
@@ -532,6 +572,36 @@ public final class ControlPlaneService {
         snapshotCodec.publicationEvent(
             scoped.access(), scoped.environment(), nextRevision, encoded.checksum(), now));
     return revision;
+  }
+
+  private SnapshotCodec.EncodedSnapshot encodeCurrentDraft(
+      ScopedEnvironment scoped, long revision, Instant generatedAt) {
+    List<FlagDefinition> flags =
+        repository.findFlags(scoped.access(), scoped.environment().projectId()).stream()
+            .filter(flag -> flag.status() == FlagDefinition.Status.ACTIVE)
+            .toList();
+    if (flags.size() > MAX_FLAGS_PER_ENVIRONMENT) {
+      throw new ControlPlaneConflictException("Environment has too many flags to publish");
+    }
+    List<EnvironmentDraft> drafts =
+        repository.findDrafts(scoped.access(), scoped.environment().id());
+    List<EnvironmentDraft> activeDrafts = new ArrayList<>();
+    for (FlagDefinition flag : flags) {
+      EnvironmentDraft draft =
+          drafts.stream()
+              .filter(candidate -> candidate.flagId().equals(flag.id()))
+              .findFirst()
+              .orElseThrow(() -> new ControlPlaneConflictException("Flag draft is missing"));
+      draft.validateFor(flag);
+      activeDrafts.add(draft);
+    }
+    SnapshotCodec.EncodedSnapshot encoded =
+        snapshotCodec.encode(
+            scoped.project(), scoped.environment(), flags, activeDrafts, revision, generatedAt);
+    if (encoded.utf8Bytes() > MAX_SNAPSHOT_BYTES) {
+      throw new ControlPlaneConflictException("Snapshot exceeds the 5 MiB publication limit");
+    }
+    return encoded;
   }
 
   private OrganizationAccess requireOrganization(
@@ -672,6 +742,19 @@ public final class ControlPlaneService {
   }
 
   public record VariationInput(String key, String name, FlagValue value) {}
+
+  public record VariationUpdateInput(UUID id, String name, FlagValue value) {
+    public VariationUpdateInput {
+      Objects.requireNonNull(id, "id");
+      Objects.requireNonNull(value, "value");
+    }
+  }
+
+  public record DraftPreview(
+      EnvironmentId environmentId,
+      long currentPublishedRevision,
+      long candidateRevision,
+      String canonicalSnapshot) {}
 
   public record DraftInput(
       boolean enabled,

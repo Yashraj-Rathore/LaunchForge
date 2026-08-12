@@ -39,6 +39,8 @@ class ConfigEdgePostgresIT extends AbstractConfigEdgeIntegrationTest {
   private static final UUID ENVIRONMENT_ID =
       UUID.fromString("53000000-0000-0000-0000-000000000001");
   private static final Instant NOW = Instant.parse("2026-08-11T12:00:00Z");
+  private static final String BROWSER_CLIENT_KEY = "lf_client_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+  private static final String BROWSER_ORIGIN = "https://storefront.example";
 
   @Autowired private JdbcTemplate jdbcTemplate;
   @Autowired private ObjectMapper objectMapper;
@@ -106,6 +108,21 @@ class ConfigEdgePostgresIT extends AbstractConfigEdgeIntegrationTest {
         credential.verifier(),
         credential.fingerprint(),
         Timestamp.from(NOW));
+    jdbcTemplate.update(
+        """
+        INSERT INTO browser_client_keys
+          (id, organization_id, project_id, environment_id, name, client_key, fingerprint,
+           allowed_origins, status, created_at, created_by_issuer, created_by_subject)
+        VALUES (?, ?, ?, ?, 'Integration browser', ?, '0123456789abcdef01234567',
+                CAST(? AS jsonb), 'ACTIVE', ?, 'https://identity.example', 'edge-test')
+        """,
+        UUID.randomUUID(),
+        ORGANIZATION_ID,
+        PROJECT_ID,
+        ENVIRONMENT_ID,
+        BROWSER_CLIENT_KEY,
+        "[\"" + BROWSER_ORIGIN + "\"]",
+        Timestamp.from(NOW));
   }
 
   @Test
@@ -171,6 +188,51 @@ class ConfigEdgePostgresIT extends AbstractConfigEdgeIntegrationTest {
         .get()
         .uri("/sdk/v1/snapshot")
         .header(HttpHeaders.AUTHORIZATION, authorization())
+        .exchange()
+        .expectStatus()
+        .isUnauthorized();
+  }
+
+  @Test
+  void browserClientKeyGetsExactCorsAndOnlyClientVisibleProjection() throws Exception {
+    String browserBody =
+        webTestClient
+            .get()
+            .uri("/sdk/v1/client/" + BROWSER_CLIENT_KEY + "/snapshot")
+            .header(HttpHeaders.ORIGIN, BROWSER_ORIGIN)
+            .exchange()
+            .expectStatus()
+            .isOk()
+            .expectHeader()
+            .valueEquals(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, BROWSER_ORIGIN)
+            .expectHeader()
+            .doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS)
+            .expectBody(String.class)
+            .returnResult()
+            .getResponseBody();
+    assertFalse(objectMapper.readTree(browserBody).get("flags").has("release"));
+    assertTrue(objectMapper.readTree(browserBody).get("flags").has("browser-release"));
+
+    webTestClient
+        .get()
+        .uri("/sdk/v1/client/" + BROWSER_CLIENT_KEY + "/snapshot")
+        .header(HttpHeaders.ORIGIN, "https://evil.example")
+        .exchange()
+        .expectStatus()
+        .isForbidden();
+
+    webTestClient
+        .get()
+        .uri("/sdk/v1/snapshot")
+        .header(HttpHeaders.AUTHORIZATION, "LF-SDK " + BROWSER_CLIENT_KEY)
+        .exchange()
+        .expectStatus()
+        .isUnauthorized();
+
+    webTestClient
+        .get()
+        .uri("/sdk/v1/client/" + credential.credential() + "/snapshot")
+        .header(HttpHeaders.ORIGIN, BROWSER_ORIGIN)
         .exchange()
         .expectStatus()
         .isUnauthorized();
@@ -250,7 +312,9 @@ class ConfigEdgePostgresIT extends AbstractConfigEdgeIntegrationTest {
     document.put("environmentKey", "development");
     document.put("revision", revision);
     document.put("generatedAt", NOW.plusSeconds(revision - 1).toString());
-    document.put("flags", Map.of("release", flag));
+    Map<String, Object> browserFlag = new LinkedHashMap<>(flag);
+    browserFlag.put("clientVisible", true);
+    document.put("flags", Map.of("release", flag, "browser-release", browserFlag));
     ObjectNode root = (ObjectNode) objectMapper.valueToTree(document);
     String withoutChecksum =
         new JsonCanonicalizer(objectMapper.writeValueAsString(root)).getEncodedString();

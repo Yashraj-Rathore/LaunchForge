@@ -206,6 +206,8 @@ pnpm typecheck
 pnpm test
 pnpm build
 pnpm --filter @launchforge/admin-web dev
+pnpm --filter @launchforge/admin-web test:e2e
+pnpm --filter @launchforge/react-storefront-demo test:e2e
 ```
 
 ### Local PostgreSQL
@@ -274,7 +276,7 @@ docker compose down -v
 
 M2 implements the authenticated management API for projects, environments, typed flags/variations, environment drafts, ordered targeting rules, 100,000-bucket percentage allocations, publication history/diff, and rollback. Mutable routes use ETag/`If-Match`; browser mutations retain the M1 CSRF requirement. Rollout salt is server-owned and can change only through the explicit reason-required reseed route.
 
-Flyway applies `V2__flag_control_plane.sql` when the Control API starts. Publication validates the full draft and commits the RFC 8785 canonical revision, current pointer, audit event, and pending outbox intent atomically. PostgreSQL rejects update/delete of revision rows. Kafka publishing, Config Edge, and the React flag editor remain intentionally deferred to their owning prompts.
+Flyway applies `V2__flag_control_plane.sql` when the Control API starts. Publication validates the full draft and commits the RFC 8785 canonical revision, current pointer, audit event, and pending outbox intent atomically. PostgreSQL rejects update/delete of revision rows. Kafka publication remains intentionally deferred to M7.
 
 ### Java evaluator and SDK
 
@@ -303,6 +305,52 @@ The fictional Spring storefront in `demos/spring-demo` enables streaming by defa
 active snapshot revision in `/demo/{subject}`, and keeps evaluating after Config Edge becomes
 unavailable. Its README contains the interactive flow and the reproducible PostgreSQL/WebFlux/SDK
 E2E command.
+
+### JavaScript, browser, and React SDKs
+
+M5 implements LF-0501 through LF-0505. `@launchforge/js-core` is the strict algorithm-version-1
+TypeScript evaluator and consumes the same frozen corpus as Java. `@launchforge/js-browser` adds a
+public-client-key bootstrap path, conditional polling, streaming-fetch SSE, atomic activation, and
+in-memory last-known-good behavior. `@launchforge/react-sdk` owns one client through a provider and
+exposes typed value/detail hooks without duplicating evaluator logic.
+
+Config Edge serves browser-safe projections at
+`/sdk/v1/client/{clientKey}/{snapshot|stream}`. The Control API manages separate browser client keys
+and exact origin allowlists through `/api/v1/.../client-keys`; server and browser key classes cannot
+substitute for one another. Browser configuration is intentionally inspectable, contains no
+server-only flags, and must never be used as an authorization boundary.
+
+The fictional Northstar Commerce app is in `demos/react-storefront`. Supply its public key at
+runtime—never a server SDK key—and start it with:
+
+```powershell
+$env:VITE_LAUNCHFORGE_EDGE_URL='http://localhost:8081'
+$env:VITE_LAUNCHFORGE_CLIENT_KEY='<public lf_client_ value>'
+corepack pnpm --filter @launchforge/react-storefront-demo dev --host 127.0.0.1 --port 5174
+```
+
+Its Playwright flow proves two deterministic fictional users plus an SSE-triggered kill switch
+without redeploy. The exact setup, security notes, and real-edge workflow are in the demo README.
+
+### React admin console
+
+M6 implements LF-0601 through LF-0606 in `frontend/admin-web`. The same-origin OIDC/BFF console
+provides project/environment navigation, typed flags and stable variations, ordered rules, exact
+rollout allocation, Java-backed draft simulation, production publish review, immutable revision
+diff/rollback, separate server/browser SDK key lifecycle, and tenant-scoped audit filtering.
+
+The selected environment remains visible throughout the console and production has an explicit
+warning and confirmation gate. ETag conflicts preserve local form state for reconciliation;
+ambiguous publish/rollback errors refresh server state before retry. Server SDK secrets are held
+only in transient one-time dialog state. Run its isolated browser acceptance flow with:
+
+```powershell
+pnpm --filter @launchforge/admin-web test:e2e
+```
+
+The opt-in local SQL seed now includes a fictional Development environment so a successful OIDC
+login lands directly in the console. Kafka, Redis, and analytics remain deferred to their owning
+milestones.
 
 On Unix-like systems, use `./mvnw` in place of `.\mvnw.cmd`. After initializing Git on Windows, record the executable bit with `git update-index --chmod=+x mvnw`.
 
@@ -515,9 +563,9 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 
 # Project Status
 
-**Status:** Prompt 5 Config Edge and streaming implementation complete.
+**Status:** Prompt 7 React admin console implementation complete.
 
-**Current milestone:** M4 Config Edge and live updates (LF-0401–LF-0406) complete; stop point before Prompt 6 / M5 JavaScript and React SDKs.
+**Current milestone:** M6 Admin console (LF-0601–LF-0606) complete; stop point before Prompt 8 / M7 Kafka and Redis scale-out.
 
 **Specification baseline:** Canonical module paths, snapshot/checksum representation, algorithm-version-1 types and reason codes, milestone dependencies, and exact Prompt 0 toolchain pins were normalized on 2026-08-10.
 
@@ -528,8 +576,8 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 | M2 Flag domain & control plane | LF-0201–LF-0207 | Complete (2026-08-10) |
 | M3 Evaluation engine & Java SDK | LF-0301–LF-0307 | Complete (2026-08-11) |
 | M4 Data plane & streaming | LF-0401–LF-0406 | Complete (2026-08-11) |
-| M5 JavaScript/React SDKs | LF-0501–LF-0505 | Not started |
-| M6 Admin console | LF-0601–LF-0606 | Not started |
+| M5 JavaScript/React SDKs | LF-0501–LF-0505 | Complete (2026-08-12) |
+| M6 Admin console | LF-0601–LF-0606 | Complete (2026-08-12) |
 | M7 Kafka/Redis scale-out | LF-0701–LF-0706 | Not started |
 | M8 Analytics | LF-0801–LF-0805 | Not started |
 | M9 Security hardening | LF-0901–LF-0906 | Not started |
@@ -1075,10 +1123,13 @@ demos/
 - Application references Domain.
 - Contracts references neither Domain nor Infrastructure.
 - Infrastructure references Domain/Application.
-- Control API references Application/Infrastructure/Contracts.
+- Control API references Application/Infrastructure/Contracts. The M6
+  `dev.launchforge.controlapi.simulation` adapter has one narrow additional dependency on the Java
+  SDK's public snapshot parser/evaluator so the console does not introduce a third evaluator;
+  ArchUnit rejects SDK access from every other Control API package and server module.
 - Config Edge references only runtime contracts/data-plane infrastructure, not management controllers.
 - Event Worker references narrow Application/Infrastructure/Contracts as needed.
-- Java SDK is independent of backend modules.
+- Java SDK is independent of backend modules and does not reference Spring or server code.
 - JS SDK shares JSON schemas/golden vectors only, not Java code.
 - JavaScript Browser SDK depends on JavaScript Core.
 - React SDK depends on JavaScript Browser/Core and never reimplements evaluation.
@@ -1344,7 +1395,7 @@ outbox_events
 
 ### M1 implemented baseline
 
-Flyway migration `V1__tenancy_identity.sql` creates `organizations`, `organization_memberships`, `audit_events`, and the PostgreSQL-backed `launchforge_session` tables. It also creates the minimum organization-scoped `projects` table needed for the opt-in read-only M1 shell seed; project domain behavior and CRUD remain assigned to M2.
+Flyway migration `V1__tenancy_identity.sql` creates `organizations`, `organization_memberships`, `audit_events`, and the PostgreSQL-backed `launchforge_session` tables. It also creates the minimum organization-scoped `projects` table needed by later control-plane milestones. The opt-in local seed now adds one fictional project and Development environment so an authenticated operator lands in the M6 console.
 
 The M1 JDBC adapter derives tenant access from the exact authenticated OIDC `(issuer, subject)` membership, repeats actor membership scope in tenant queries/mutations, and locks the organization row while changing the roster. Membership and tenant foreign keys use `RESTRICT`, and denied/successful membership administration writes bounded audit fields without tokens, cookies, or arbitrary claims.
 
@@ -1365,6 +1416,23 @@ identity, and a compound organization/project/environment ownership foreign key.
 segments are never persisted. Rotation inserts a new active key and either revokes the old key
 immediately or bounds its overlap to at most 24 hours; lifecycle audit records contain metadata only.
 
+### M5 implemented browser-key baseline
+
+Flyway migration `V4__browser_client_keys.sql` adds a separate public browser credential class. It
+stores the opaque `lf_client_...` identifier, non-secret fingerprint, exact-origin JSON array,
+lifecycle timestamps, creator/revoker identity, and compound tenant/environment ownership. It has no
+server secret verifier or pepper column. This separation keeps server-key hash-only invariants intact
+and lets Config Edge resolve CORS policy without treating the browser identifier as confidential.
+Create/revoke actions append safe audit metadata; last-used writes are coalesced.
+
+### M6 console persistence baseline
+
+M6 adds no new system-of-record tables. Typed variation edits update only names and canonical typed
+values while preserving the exact stable variation ID/key/order set, inside the flag's optimistic
+transaction. The console audit query reads existing bounded safe columns with tenant, resource,
+actor, action, time, and limit filters. Draft simulation compiles an in-memory candidate snapshot
+from authoritative draft rows and does not store evaluation subjects or attributes.
+
 Rule trees may initially be validated `jsonb` inside `flag_environment_configs` if domain validation remains explicit. Normalize only if query requirements justify it. Published snapshots remain immutable `jsonb`.
 
 ## Constraints
@@ -1378,6 +1446,7 @@ Rule trees may initially be validated `jsonb` inside `flag_environment_configs` 
 - environment revision unique per environment/revision
 - outbox event ID unique
 - SDK key lookup identity unique
+- browser client key globally unique with one-to-20 exact origins
 - audit ID unique/immutable
 
 Tenant-owned child rows must be protected from cross-organization parent mismatches by enforced ownership chains and compound foreign keys where a direct organization key is duplicated for scoping. Repository filters alone are not sufficient. Removing or demoting the final Owner must be rejected inside the same transaction and covered by a concurrency integration test.
@@ -1545,6 +1614,11 @@ These project/environment/flag/draft/publication routes are implemented by M2. M
 
 Flag creation accepts `BOOLEAN`, `STRING`, `NUMBER`, or `JSON`, a `clientVisible` decision, and two to ten variations. JSON token types must exactly match the declared flag type; there is no implicit coercion.
 
+M6 extends flag update with an optional `variations` array containing each existing stable variation
+ID plus its new name and typed value. The submitted ID set must exactly match the flag's existing
+variation set; keys, order, identity, and flag type remain immutable. The flag row and variation
+rows update in the same optimistic transaction.
+
 ## Evaluation simulator
 
 ```text
@@ -1552,6 +1626,31 @@ POST /api/v1/environments/{environmentId}/evaluate
 ```
 
 Returns flag key, variation ID, typed value, reason, matched rule, bucket if relevant, and revision. Test context is not persisted by default.
+
+M6 implements this route as an authenticated, CSRF-protected management mutation. It validates and
+compiles the complete current draft as the next candidate revision, then invokes the same pure Java
+snapshot parser/evaluator used by the Java SDK. The request carries `flagKey`, declared `type`, a
+typed caller `defaultValue`, and `context` with a non-blank subject key plus bounded scalar
+attributes. The response explicitly identifies `configuration: "DRAFT"`, the current published
+revision, and the candidate revision. Evaluation context is neither persisted nor logged.
+
+## Audit query
+
+```text
+GET /api/v1/organizations/{organizationId}/audit
+    ?projectId={projectId}
+    &environmentId={environmentId}
+    &actor={exactSubject}
+    &action={exactAction}
+    &from={instant}
+    &to={instant}
+    &limit={1..200}
+```
+
+M6 implements this tenant-authorized read for the console. Optional resource, actor, action, and
+time filters are combined, newest events are returned first, and output is limited to safe audit
+metadata. Cross-organization direct IDs remain not-found and response fields never contain request
+bodies, credentials, cookies, authorization headers, or simulator context.
 
 ## SDK bootstrap
 
@@ -1578,6 +1677,20 @@ validated canonical server projection stored in the immutable PostgreSQL revisio
 Browser client keys only receive client-visible projection.
 
 Projection happens before checksum and ETag calculation. A server projection and browser projection for the same environment revision may therefore have different checksums/ETags, and a client must validate the exact representation it received.
+
+M5 implements the distinct public browser endpoints:
+
+```text
+GET /sdk/v1/client/{clientKey}/snapshot
+GET /sdk/v1/client/{clientKey}/stream
+```
+
+`clientKey` has the public `lf_client_<32 base64url characters>` form and is mapped to exactly one
+environment. It is intentionally carried in the path so Config Edge can resolve that key's origin
+policy for CORS preflight; it is not a secret authenticator. Both endpoints accept only `GET`, never
+cookies or credentialed CORS. Snapshot responses use the same headers and conditional request
+semantics as the server route. The browser stream has the same revision-only event shape and accepts
+`Last-Event-ID`; the browser SDK implements it with streaming `fetch` and `credentials: omit`.
 
 ## Revision stream
 
@@ -1618,6 +1731,10 @@ POST /api/v1/environments/{environmentId}/sdk-keys
 GET  /api/v1/environments/{environmentId}/sdk-keys
 POST /api/v1/sdk-keys/{keyId}/rotate
 POST /api/v1/sdk-keys/{keyId}/revoke
+
+POST /api/v1/environments/{environmentId}/client-keys
+GET  /api/v1/environments/{environmentId}/client-keys
+POST /api/v1/client-keys/{keyId}/revoke
 ```
 
 Secret material is returned once where applicable.
@@ -1627,9 +1744,14 @@ object plus the one-time `secret`. List returns metadata only and never the veri
 Rotate accepts optional `overlapSeconds` (zero through 86400) and optional replacement
 `expiresAt`; it returns the new credential once. Revoke is idempotent and returns `204`.
 
-M4 supports server keys only. Each `lf_srv_<lookup_id>_<secret>` credential maps to exactly one
+Each `lf_srv_<lookup_id>_<secret>` credential maps to exactly one
 environment. Owner/Admin may manage all environment keys; Developer is constrained to
-non-production environments; Viewer is denied. Browser/client keys remain assigned to M5.
+non-production environments; Viewer is denied. M5 browser-key create accepts
+`{"name":"Storefront browser","allowedOrigins":["https://shop.example"],"expiresAt":null}`.
+The response and subsequent list contain the public key, fingerprint, exact-origin policy, and safe
+lifecycle metadata. Revoke is idempotent. A browser key is a separate credential class: server
+snapshot routes reject it, browser routes reject server keys, and the management API still requires
+an authenticated operator session plus CSRF for mutations.
 
 ## Error model
 
@@ -2102,8 +2224,14 @@ The JS core package owns:
 - snapshot parsing;
 - deterministic evaluator;
 - rollout hashing;
-- in-memory snapshot;
-- polling/stream client appropriate to its runtime.
+- strict evaluation-context construction;
+- RFC 8785 checksum verification and immutable compiled snapshot types.
+
+The M5 implementation is `@launchforge/js-core`. It has no React or transport dependency, performs
+no I/O during evaluation, uses `BigInt` for the unsigned rollout prefix, and consumes
+`contracts/golden-vectors/evaluator-v1.json` directly. JavaScript mathematical integers are limited
+to the safe integer range; finite non-integers use ECMAScript binary64/RFC 8785 rendering, and
+negative zero is normalized to zero.
 
 ### Browser package
 
@@ -2117,16 +2245,30 @@ The browser package must assume the end user can inspect:
 
 Therefore do not deliver server-only sensitive rules or values to browser clients. A future relay/proxy pattern may provide stricter segmentation when needed.
 
+`@launchforge/js-browser` owns one immutable active snapshot, bounded bootstrap, conditional
+jittered polling, streaming-fetch SSE, exponential reconnect with jitter, and in-memory
+last-known-good behavior. It activates only checksum-valid snapshots with nondecreasing revisions;
+same-revision/different-content, stale, oversized, or malformed candidates are rejected. The
+constructor itself performs no I/O. `start()` awaits one bounded bootstrap attempt and starts the
+background transports, evaluation returns `SNAPSHOT_UNAVAILABLE` before activation, and `close()` is
+idempotent. A snapshot activation or explicit immutable context replacement notifies subscribers.
+
 ### React wrapper
 
 The React package should be thin:
 
 - `LaunchForgeProvider`;
-- `useFlag`;
-- `useFlagDetail`;
+- typed boolean/string/number/JSON value hooks;
+- a matching detail hook for every type;
 - stable context update APIs.
 
 It must not contain an independent evaluator.
+
+The provider creates and owns exactly one browser client unless a client is injected, starts it in
+an effect, and releases its timers, stream, and subscriptions on final unmount. React development
+Strict Mode's effect rehearsal does not permanently close the owned client. Callers should memoize
+context objects; changing context is an intentional local reevaluation and rerender, never a remote
+context upload.
 
 ## 14. Cross-language compatibility
 
@@ -2564,12 +2706,17 @@ Baseline:
 - React 19.2.x;
 - TypeScript strict mode;
 - Vite;
-- React Router;
-- TanStack Query for server state;
-- a focused form/schema validation library selected when the first M6 form requires it;
+- React Router `7.18.2`;
+- TanStack Query `5.101.4` for server state;
+- Zod `4.4.3` for focused form/schema validation;
 - Playwright for browser acceptance tests.
 
 Avoid a large state-management framework unless a concrete need appears. Most persistent state is server state.
+
+M6 uses URL routes as the selected organization/project/environment context, TanStack Query as the
+only remote-state cache, component-local state for unsaved forms and one-time secrets, and Zod plus
+explicit serializers at the HTTP boundary. No bearer token, SDK credential, or persistent draft is
+stored in browser storage.
 
 ## 3. Information architecture
 
@@ -2834,6 +2981,24 @@ Suggested split-screen sequence:
 
 The demo must not depend on a paid external service.
 
+## 15. M6 implementation baseline
+
+LF-0601 through LF-0606 are implemented in `frontend/admin-web`. The console includes:
+
+- authenticated project/environment routing with persistent context and production treatment;
+- typed flag/variation forms and visible draft-versus-published state;
+- ordered, keyboard-operable rule and condition controls with type-specific operators;
+- exact 100,000-unit rollouts, deliberate salt reseeding, and server-backed draft simulation;
+- production-aware publish review, immutable history/diff, and rollback-as-new-revision messaging;
+- separate server/browser SDK key views with one-time server-secret state; and
+- safe tenant-scoped audit filtering.
+
+Mutations use the same-origin CSRF token and the server's ETag. A stale response leaves local form
+state mounted and directs the operator to reconcile. A failed publish or rollback invalidates the
+environment query before a retry so the UI does not imply an uncertain write failed. The dedicated
+Playwright journey covers typed creation, stale conflict, targeting, simulation, production publish,
+key create/rotate/revoke, secret disappearance, audit output, and Viewer denial.
+
 ---
 
 <!-- SOURCE: docs/09_SECURITY_PRIVACY.md -->
@@ -2997,6 +3162,22 @@ revocation eventually closes an existing stream. A management session cookie is 
 SDK authentication. Multiple configured pepper versions provide bounded verification overlap;
 only the configured current version is used for new credentials.
 
+M5 implements browser keys in a separate `browser_client_keys` table rather than weakening the
+server-key verifier invariant. A browser key uses `lf_client_<32 base64url characters>`, is retained
+as a public lookup identifier, maps to one environment, and carries one to 20 exact allowed origins.
+Only HTTPS origins are accepted outside the explicit `http://localhost[:port]` and
+`http://127.0.0.1[:port]` local-development exceptions. Paths, user information, query strings,
+fragments, wildcard origins, duplicated origins, and non-local HTTP are rejected. Browser streams
+revalidate lifecycle state; last-used writes are coalesced to at most hourly.
+
+M6 keeps all operator calls same-origin with the HttpOnly BFF session and obtains a CSRF token only
+in memory for mutations. Console routes are convenience and visibility boundaries only: every
+query and mutation is still authorized from the authenticated identity and server-derived tenant
+scope. The draft simulator accepts only a bounded subject key and scalar attributes, invokes local
+evaluation without I/O, and never persists or logs that context. Server SDK secrets exist only in
+the create/rotate response and transient dialog state; they are never inserted into the query cache,
+browser storage, audit output, or subsequent list responses.
+
 ## 7. Key lookup
 
 Do not scan all key hashes.
@@ -3095,6 +3276,11 @@ Config Edge:
 - credentials are not accepted from arbitrary origins.
 
 Browser SDK origins are an explicit exact-origin allowlist per key/environment, use no credentialed CORS, and never use `*` for a production browser projection. Origin checks and CORS are abuse controls, not authentication or confidentiality; the public key and every delivered browser-visible value remain inspectable by end users.
+
+The implemented browser endpoints expose only `ETag` and the bounded LaunchForge revision,
+checksum, and schema headers. Preflight permits `GET` and only `Accept`, `If-None-Match`, and
+`Last-Event-ID`; responses omit `Access-Control-Allow-Credentials`. Same-origin/non-browser clients
+may omit `Origin`, while any supplied origin must exactly match the key policy.
 
 ## 13. Rate limiting
 
@@ -3338,6 +3524,23 @@ snapshot retention, simulated network interruption/edge restart, and SDK shutdow
 The PostgreSQL integration profile adds Flyway V3 key lifecycle/tenant tests and a real WebFlux
 edge-to-Java-SDK kill-switch convergence flow.
 
+The M5 suites execute the same frozen evaluator corpus in Java and TypeScript, then cover strict
+Unicode/duplicate-property rejection, browser bootstrap and local evaluation, malformed/stale
+last-known-good retention, SSE-triggered authoritative refresh, React subscription cleanup/context
+replacement, public-key/server-key route separation, exact non-credentialed CORS, server-only flag
+filtering before browser checksum generation, and Flyway V4 browser-key persistence. The Northstar
+Playwright flow selects two deterministic fictional users and observes an SSE-driven kill switch
+without an application redeploy.
+
+The M6 suites add strict TypeScript form-contract tests for typed values, operator compatibility,
+rule ordering, context attribute syntax, and exact rollout totals. React tests cover anonymous
+login, server-authorized production context, and stale-write guidance. The isolated Playwright
+control-API harness proves typed flag creation, local-edit preservation after conflict, rule save,
+Java-backed simulation result rendering, production confirmation/reason, publish reconciliation,
+one-time key secrets, key rotation/revocation, audit safety, and Viewer denial. PostgreSQL
+integration coverage proves stable-ID variation updates, same-evaluator draft results, audit filters,
+and cross-tenant denial for both simulator and audit routes.
+
 ### Performance
 
 - JMH evaluator microbenchmarks;
@@ -3384,9 +3587,13 @@ Regenerate and verify it with:
 ```powershell
 ./mvnw.cmd -pl sdks/java/launchforge-java-sdk -am test "-Dtest=GoldenVectorCorpusTest" "-Dlaunchforge.updateGoldenVectors=true"
 ./mvnw.cmd -pl sdks/java/launchforge-java-sdk -am test "-Dtest=GoldenVectorCorpusTest"
+corepack pnpm --filter @launchforge/js-core test
 ```
 
-The first command computes SHA-256 expectations through the test reference implementation and freezes the file. The second byte-compares the regenerated form with the committed artifact and executes every case. JavaScript must consume this same file in M5.
+The first command computes SHA-256 expectations through the test reference implementation and
+freezes the file. The second byte-compares the regenerated form with the committed artifact and
+executes every Java case. The third runs the TypeScript evaluator directly against that same file.
+CI's `evaluator-compatibility` job runs the Java verification and TypeScript corpus gate together.
 
 Do not manually invent expected cryptographic hash results.
 
@@ -6290,6 +6497,9 @@ Verified against official release sources on **2026-08-10**; M1-owned tools were
 | Vite | `8.2.1` | M0 |
 | Vitest | `4.1.10` | M0 |
 | Playwright | `1.62.1` | M1 |
+| React Router DOM | `7.18.2` | M6 |
+| TanStack React Query | `5.101.4` | M6 |
+| Zod | `4.4.3` | M6 |
 | PostgreSQL | `18.4`; image `postgres:18.4-bookworm`; manifest `sha256:d9c83446333daec3f0588cc709adb80c26090b7f9f0f7ec8d43c243385d79818` | M0 |
 | Keycloak | `26.7.0`; image `quay.io/keycloak/keycloak:26.7.0`; manifest `sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13` | M1 |
 | Apache Kafka | `4.3.1`; image `apache/kafka:4.3.1` | Re-verify in M7 |

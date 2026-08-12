@@ -110,6 +110,11 @@ These project/environment/flag/draft/publication routes are implemented by M2. M
 
 Flag creation accepts `BOOLEAN`, `STRING`, `NUMBER`, or `JSON`, a `clientVisible` decision, and two to ten variations. JSON token types must exactly match the declared flag type; there is no implicit coercion.
 
+M6 extends flag update with an optional `variations` array containing each existing stable variation
+ID plus its new name and typed value. The submitted ID set must exactly match the flag's existing
+variation set; keys, order, identity, and flag type remain immutable. The flag row and variation
+rows update in the same optimistic transaction.
+
 ## Evaluation simulator
 
 ```text
@@ -117,6 +122,31 @@ POST /api/v1/environments/{environmentId}/evaluate
 ```
 
 Returns flag key, variation ID, typed value, reason, matched rule, bucket if relevant, and revision. Test context is not persisted by default.
+
+M6 implements this route as an authenticated, CSRF-protected management mutation. It validates and
+compiles the complete current draft as the next candidate revision, then invokes the same pure Java
+snapshot parser/evaluator used by the Java SDK. The request carries `flagKey`, declared `type`, a
+typed caller `defaultValue`, and `context` with a non-blank subject key plus bounded scalar
+attributes. The response explicitly identifies `configuration: "DRAFT"`, the current published
+revision, and the candidate revision. Evaluation context is neither persisted nor logged.
+
+## Audit query
+
+```text
+GET /api/v1/organizations/{organizationId}/audit
+    ?projectId={projectId}
+    &environmentId={environmentId}
+    &actor={exactSubject}
+    &action={exactAction}
+    &from={instant}
+    &to={instant}
+    &limit={1..200}
+```
+
+M6 implements this tenant-authorized read for the console. Optional resource, actor, action, and
+time filters are combined, newest events are returned first, and output is limited to safe audit
+metadata. Cross-organization direct IDs remain not-found and response fields never contain request
+bodies, credentials, cookies, authorization headers, or simulator context.
 
 ## SDK bootstrap
 
@@ -143,6 +173,20 @@ validated canonical server projection stored in the immutable PostgreSQL revisio
 Browser client keys only receive client-visible projection.
 
 Projection happens before checksum and ETag calculation. A server projection and browser projection for the same environment revision may therefore have different checksums/ETags, and a client must validate the exact representation it received.
+
+M5 implements the distinct public browser endpoints:
+
+```text
+GET /sdk/v1/client/{clientKey}/snapshot
+GET /sdk/v1/client/{clientKey}/stream
+```
+
+`clientKey` has the public `lf_client_<32 base64url characters>` form and is mapped to exactly one
+environment. It is intentionally carried in the path so Config Edge can resolve that key's origin
+policy for CORS preflight; it is not a secret authenticator. Both endpoints accept only `GET`, never
+cookies or credentialed CORS. Snapshot responses use the same headers and conditional request
+semantics as the server route. The browser stream has the same revision-only event shape and accepts
+`Last-Event-ID`; the browser SDK implements it with streaming `fetch` and `credentials: omit`.
 
 ## Revision stream
 
@@ -183,6 +227,10 @@ POST /api/v1/environments/{environmentId}/sdk-keys
 GET  /api/v1/environments/{environmentId}/sdk-keys
 POST /api/v1/sdk-keys/{keyId}/rotate
 POST /api/v1/sdk-keys/{keyId}/revoke
+
+POST /api/v1/environments/{environmentId}/client-keys
+GET  /api/v1/environments/{environmentId}/client-keys
+POST /api/v1/client-keys/{keyId}/revoke
 ```
 
 Secret material is returned once where applicable.
@@ -192,9 +240,14 @@ object plus the one-time `secret`. List returns metadata only and never the veri
 Rotate accepts optional `overlapSeconds` (zero through 86400) and optional replacement
 `expiresAt`; it returns the new credential once. Revoke is idempotent and returns `204`.
 
-M4 supports server keys only. Each `lf_srv_<lookup_id>_<secret>` credential maps to exactly one
+Each `lf_srv_<lookup_id>_<secret>` credential maps to exactly one
 environment. Owner/Admin may manage all environment keys; Developer is constrained to
-non-production environments; Viewer is denied. Browser/client keys remain assigned to M5.
+non-production environments; Viewer is denied. M5 browser-key create accepts
+`{"name":"Storefront browser","allowedOrigins":["https://shop.example"],"expiresAt":null}`.
+The response and subsequent list contain the public key, fingerprint, exact-origin policy, and safe
+lifecycle metadata. Revoke is idempotent. A browser key is a separate credential class: server
+snapshot routes reject it, browser routes reject server keys, and the management API still requires
+an authenticated operator session plus CSRF for mutations.
 
 ## Error model
 

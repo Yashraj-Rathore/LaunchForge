@@ -1,5 +1,7 @@
 package dev.launchforge.infrastructure.controlplane;
 
+import dev.launchforge.application.controlplane.AuditEvent;
+import dev.launchforge.application.controlplane.AuditQuery;
 import dev.launchforge.application.controlplane.ControlPlaneConflictException;
 import dev.launchforge.application.controlplane.ControlPlaneNotFoundException;
 import dev.launchforge.application.controlplane.ControlPlaneRepository;
@@ -341,6 +343,27 @@ public class JdbcControlPlanePersistence implements ControlPlaneRepository {
             expectedVersion,
             access.actorMembershipId().value());
     requireVersionedMutation(updated);
+    for (Variation variation : flag.variations()) {
+      int variationUpdated =
+          jdbcTemplate.update(
+              """
+              UPDATE flag_variations v
+                 SET name = ?, canonical_value = ?
+               WHERE v.id = ? AND v.flag_id = ? AND v.organization_id = ?
+                 AND EXISTS (
+                   SELECT 1 FROM organization_memberships actor
+                    WHERE actor.id = ? AND actor.organization_id = v.organization_id)
+              """,
+              variation.name(),
+              variation.value().canonicalValue(),
+              variation.id(),
+              flag.id().value(),
+              access.organization().id().value(),
+              access.actorMembershipId().value());
+      if (variationUpdated != 1) {
+        throw new ControlPlaneConflictException("Flag variation could not be updated safely");
+      }
+    }
   }
 
   @Override
@@ -493,6 +516,43 @@ public class JdbcControlPlanePersistence implements ControlPlaneRepository {
             revision,
             access.actorMembershipId().value());
     return matches.stream().findFirst();
+  }
+
+  @Override
+  public List<AuditEvent> findAuditEvents(OrganizationAccess access, AuditQuery query) {
+    return jdbcTemplate.query(
+        """
+        SELECT a.*
+          FROM audit_events a
+         WHERE a.organization_id = ?
+           AND EXISTS (
+             SELECT 1 FROM organization_memberships actor
+              WHERE actor.id = ? AND actor.organization_id = a.organization_id)
+           AND (CAST(? AS uuid) IS NULL OR a.project_id = CAST(? AS uuid))
+           AND (CAST(? AS uuid) IS NULL OR a.environment_id = CAST(? AS uuid))
+           AND (CAST(? AS varchar) IS NULL OR a.actor_subject = CAST(? AS varchar))
+           AND (CAST(? AS varchar) IS NULL OR a.action = CAST(? AS varchar))
+           AND (CAST(? AS timestamptz) IS NULL OR a.created_at >= CAST(? AS timestamptz))
+           AND (CAST(? AS timestamptz) IS NULL OR a.created_at <= CAST(? AS timestamptz))
+         ORDER BY a.created_at DESC, a.id
+         LIMIT ?
+        """,
+        (resultSet, rowNumber) -> auditEvent(resultSet),
+        access.organization().id().value(),
+        access.actorMembershipId().value(),
+        query.projectId(),
+        query.projectId(),
+        query.environmentId(),
+        query.environmentId(),
+        query.actorSubject(),
+        query.actorSubject(),
+        query.action(),
+        query.action(),
+        timestamp(query.from()),
+        timestamp(query.from()),
+        timestamp(query.to()),
+        timestamp(query.to()),
+        query.limit());
   }
 
   @Override
@@ -892,6 +952,28 @@ public class JdbcControlPlanePersistence implements ControlPlaneRepository {
 
   private String writeNullableJson(Object value) {
     return value == null ? null : writeJson(value);
+  }
+
+  private static AuditEvent auditEvent(ResultSet resultSet) throws SQLException {
+    return new AuditEvent(
+        resultSet.getObject("id", UUID.class),
+        new OrganizationId(resultSet.getObject("organization_id", UUID.class)),
+        resultSet.getObject("project_id", UUID.class),
+        resultSet.getObject("environment_id", UUID.class),
+        resultSet.getString("actor_subject"),
+        resultSet.getString("action"),
+        resultSet.getString("target_type"),
+        resultSet.getObject("target_id", UUID.class),
+        resultSet.getString("safe_summary"),
+        resultSet.getString("human_reason"),
+        nullableLong(resultSet, "from_revision"),
+        nullableLong(resultSet, "to_revision"),
+        resultSet.getObject("correlation_id", UUID.class),
+        instant(resultSet, "created_at"));
+  }
+
+  private static Timestamp timestamp(Instant value) {
+    return value == null ? null : Timestamp.from(value);
   }
 
   private static Instant instant(ResultSet resultSet, String column) throws SQLException {

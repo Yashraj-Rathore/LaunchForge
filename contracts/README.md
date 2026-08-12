@@ -30,6 +30,7 @@ The executable generator and verifier are in the Java SDK test source. Regenerat
 ```powershell
 ./mvnw.cmd -pl sdks/java/launchforge-java-sdk -am test "-Dtest=GoldenVectorCorpusTest" "-Dlaunchforge.updateGoldenVectors=true"
 ./mvnw.cmd -pl sdks/java/launchforge-java-sdk -am test "-Dtest=GoldenVectorCorpusTest"
+corepack pnpm --filter @launchforge/js-core test
 ```
 
-Never manually edit expected cryptographic outputs. Any semantic change requires an explicit algorithm/schema decision and both Java and JavaScript suites to pass this same corpus.
+Never manually edit expected cryptographic outputs. Any semantic change requires an explicit algorithm/schema decision and both Java and JavaScript suites to pass this same corpus. CI runs both gates together in the `evaluator-compatibility` job.

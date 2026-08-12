@@ -157,6 +157,22 @@ revocation eventually closes an existing stream. A management session cookie is 
 SDK authentication. Multiple configured pepper versions provide bounded verification overlap;
 only the configured current version is used for new credentials.
 
+M5 implements browser keys in a separate `browser_client_keys` table rather than weakening the
+server-key verifier invariant. A browser key uses `lf_client_<32 base64url characters>`, is retained
+as a public lookup identifier, maps to one environment, and carries one to 20 exact allowed origins.
+Only HTTPS origins are accepted outside the explicit `http://localhost[:port]` and
+`http://127.0.0.1[:port]` local-development exceptions. Paths, user information, query strings,
+fragments, wildcard origins, duplicated origins, and non-local HTTP are rejected. Browser streams
+revalidate lifecycle state; last-used writes are coalesced to at most hourly.
+
+M6 keeps all operator calls same-origin with the HttpOnly BFF session and obtains a CSRF token only
+in memory for mutations. Console routes are convenience and visibility boundaries only: every
+query and mutation is still authorized from the authenticated identity and server-derived tenant
+scope. The draft simulator accepts only a bounded subject key and scalar attributes, invokes local
+evaluation without I/O, and never persists or logs that context. Server SDK secrets exist only in
+the create/rotate response and transient dialog state; they are never inserted into the query cache,
+browser storage, audit output, or subsequent list responses.
+
 ## 7. Key lookup
 
 Do not scan all key hashes.
@@ -255,6 +271,11 @@ Config Edge:
 - credentials are not accepted from arbitrary origins.
 
 Browser SDK origins are an explicit exact-origin allowlist per key/environment, use no credentialed CORS, and never use `*` for a production browser projection. Origin checks and CORS are abuse controls, not authentication or confidentiality; the public key and every delivered browser-visible value remain inspectable by end users.
+
+The implemented browser endpoints expose only `ETag` and the bounded LaunchForge revision,
+checksum, and schema headers. Preflight permits `GET` and only `Accept`, `If-None-Match`, and
+`Last-Event-ID`; responses omit `Access-Control-Allow-Credentials`. Same-origin/non-browser clients
+may omit `Origin`, while any supplied origin must exactly match the key policy.
 
 ## 13. Rate limiting
 

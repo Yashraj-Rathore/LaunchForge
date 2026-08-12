@@ -164,7 +164,7 @@ outbox_events
 
 ### M1 implemented baseline
 
-Flyway migration `V1__tenancy_identity.sql` creates `organizations`, `organization_memberships`, `audit_events`, and the PostgreSQL-backed `launchforge_session` tables. It also creates the minimum organization-scoped `projects` table needed for the opt-in read-only M1 shell seed; project domain behavior and CRUD remain assigned to M2.
+Flyway migration `V1__tenancy_identity.sql` creates `organizations`, `organization_memberships`, `audit_events`, and the PostgreSQL-backed `launchforge_session` tables. It also creates the minimum organization-scoped `projects` table needed by later control-plane milestones. The opt-in local seed now adds one fictional project and Development environment so an authenticated operator lands in the M6 console.
 
 The M1 JDBC adapter derives tenant access from the exact authenticated OIDC `(issuer, subject)` membership, repeats actor membership scope in tenant queries/mutations, and locks the organization row while changing the roster. Membership and tenant foreign keys use `RESTRICT`, and denied/successful membership administration writes bounded audit fields without tokens, cookies, or arbitrary claims.
 
@@ -185,6 +185,23 @@ identity, and a compound organization/project/environment ownership foreign key.
 segments are never persisted. Rotation inserts a new active key and either revokes the old key
 immediately or bounds its overlap to at most 24 hours; lifecycle audit records contain metadata only.
 
+### M5 implemented browser-key baseline
+
+Flyway migration `V4__browser_client_keys.sql` adds a separate public browser credential class. It
+stores the opaque `lf_client_...` identifier, non-secret fingerprint, exact-origin JSON array,
+lifecycle timestamps, creator/revoker identity, and compound tenant/environment ownership. It has no
+server secret verifier or pepper column. This separation keeps server-key hash-only invariants intact
+and lets Config Edge resolve CORS policy without treating the browser identifier as confidential.
+Create/revoke actions append safe audit metadata; last-used writes are coalesced.
+
+### M6 console persistence baseline
+
+M6 adds no new system-of-record tables. Typed variation edits update only names and canonical typed
+values while preserving the exact stable variation ID/key/order set, inside the flag's optimistic
+transaction. The console audit query reads existing bounded safe columns with tenant, resource,
+actor, action, time, and limit filters. Draft simulation compiles an in-memory candidate snapshot
+from authoritative draft rows and does not store evaluation subjects or attributes.
+
 Rule trees may initially be validated `jsonb` inside `flag_environment_configs` if domain validation remains explicit. Normalize only if query requirements justify it. Published snapshots remain immutable `jsonb`.
 
 ## Constraints
@@ -198,6 +215,7 @@ Rule trees may initially be validated `jsonb` inside `flag_environment_configs` 
 - environment revision unique per environment/revision
 - outbox event ID unique
 - SDK key lookup identity unique
+- browser client key globally unique with one-to-20 exact origins
 - audit ID unique/immutable
 
 Tenant-owned child rows must be protected from cross-organization parent mismatches by enforced ownership chains and compound foreign keys where a direct organization key is duplicated for scoping. Repository filters alone are not sufficient. Removing or demoting the final Owner must be rejected inside the same transaction and covered by a concurrency integration test.

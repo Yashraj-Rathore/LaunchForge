@@ -13,6 +13,8 @@
 - Finalized the M2 control-plane API, normative rule/rollout projection details, strict I-JSON/RFC 8785 publication contract, PostgreSQL ownership constraints, and the pre-Kafka durable outbox boundary.
 - Finalized the M3 Java SDK API, concrete bootstrap/timeout/polling defaults, generated evaluator corpus lifecycle, and the explicit boundary that Config Edge endpoints and SDK-key persistence remain M4 work.
 - Finalized the M4 server SDK-key lifecycle, authoritative snapshot headers, revision-only SSE contract, Java SDK stream/fallback behavior, PostgreSQL-first delivery boundary, and reproducible fictional live-update demo.
+- Finalized the M5 public browser-key and exact-origin CORS contract, separate client-visible projection checksum/ETag behavior, JavaScript numeric compatibility, React context/subscription lifecycle, and Northstar storefront workflow.
+- Finalized the M6 draft-backed simulator, safe tenant-scoped audit query, typed variation-edit contract, production publish review, stale-write reconciliation, and one-time credential display behavior.
 
 ### Implementation
 
@@ -36,3 +38,10 @@
 - Implemented LF-0401–LF-0406 with an independent Spring Boot WebFlux Config Edge, environment-scoped one-time server SDK keys with hash-only PostgreSQL storage, strict `LF-SDK` authentication, bounded canonical snapshot delivery, ETag/304 support, and revision-only SSE with heartbeats, lifecycle revalidation, connection limits, and active metrics.
 - Extended the Java SDK with optional SSE consumption, authoritative conditional refresh after newer hints, exponential reconnect jitter, retained polling fallback, interruption/restart convergence, and clean shutdown while preserving in-memory last-known-good evaluation.
 - Added Flyway V3, authenticated key create/list/rotate/revoke APIs, key/edge security and HTTP contract tests, full PostgreSQL/WebFlux/SDK integration coverage for kill-switch publication and revocation, and a live-update Spring demo exposing its active revision.
+- Implemented LF-0501–LF-0505 with a strict TypeScript algorithm-version-1 snapshot compiler/evaluator, SHA-256/BigInt rollout hashing, all typed value/detail APIs, and direct execution of the frozen Java golden corpus.
+- Added the browser SDK with bounded bootstrap, conditional jittered polling, streaming-fetch SSE, exponential reconnect, immutable snapshot activation, local context replacement, in-memory last-known-good retention, and idempotent cleanup.
+- Added Flyway V4, separate public browser client-key management, exact non-credentialed CORS enforcement, server/client key route separation, browser-only projection filtering before checksum/ETag generation, and Java/PostgreSQL/WebFlux security coverage.
+- Added the thin React provider and typed hooks plus a fictional Northstar Commerce storefront and Playwright proof for deterministic targeting, deterministic rollout, live revision activation, and kill-switch rendering without redeploy.
+- Implemented LF-0601–LF-0606 with an authenticated responsive React console for project/environment navigation, typed flag and variation editing, ordered rules, exact rollout allocation, Java-backed draft simulation, publish review, immutable revision history/diff/rollback, SDK key lifecycle, and filtered audit history.
+- Added React Router, TanStack Query, and Zod with exact pins; accessible loading/empty/denied/error states; unmistakable production context; optimistic-conflict messaging that preserves local edits; and Chromium coverage for the production flag journey, key create/rotate/revoke, one-time secrets, and Viewer denial.
+- Added a tenant-authorized audit read API, stable-ID variation updates in the existing optimistic transaction, and a narrowly isolated Control API simulator that reuses the pure Java SDK evaluator without persisting or logging evaluation context.

@@ -41,6 +41,9 @@ Verified against official release sources on **2026-08-10**; M1-owned tools were
 | Vite | `8.2.1` | M0 |
 | Vitest | `4.1.10` | M0 |
 | Playwright | `1.62.1` | M1 |
+| React Router DOM | `7.18.2` | M6 |
+| TanStack React Query | `5.101.4` | M6 |
+| Zod | `4.4.3` | M6 |
 | PostgreSQL | `18.4`; image `postgres:18.4-bookworm`; manifest `sha256:d9c83446333daec3f0588cc709adb80c26090b7f9f0f7ec8d43c243385d79818` | M0 |
 | Keycloak | `26.7.0`; image `quay.io/keycloak/keycloak:26.7.0`; manifest `sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13` | M1 |
 | Apache Kafka | `4.3.1`; image `apache/kafka:4.3.1` | Re-verify in M7 |

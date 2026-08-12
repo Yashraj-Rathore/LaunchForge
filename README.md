@@ -198,6 +198,8 @@ pnpm typecheck
 pnpm test
 pnpm build
 pnpm --filter @launchforge/admin-web dev
+pnpm --filter @launchforge/admin-web test:e2e
+pnpm --filter @launchforge/react-storefront-demo test:e2e
 ```
 
 ### Local PostgreSQL
@@ -266,7 +268,7 @@ docker compose down -v
 
 M2 implements the authenticated management API for projects, environments, typed flags/variations, environment drafts, ordered targeting rules, 100,000-bucket percentage allocations, publication history/diff, and rollback. Mutable routes use ETag/`If-Match`; browser mutations retain the M1 CSRF requirement. Rollout salt is server-owned and can change only through the explicit reason-required reseed route.
 
-Flyway applies `V2__flag_control_plane.sql` when the Control API starts. Publication validates the full draft and commits the RFC 8785 canonical revision, current pointer, audit event, and pending outbox intent atomically. PostgreSQL rejects update/delete of revision rows. Kafka publishing, Config Edge, and the React flag editor remain intentionally deferred to their owning prompts.
+Flyway applies `V2__flag_control_plane.sql` when the Control API starts. Publication validates the full draft and commits the RFC 8785 canonical revision, current pointer, audit event, and pending outbox intent atomically. PostgreSQL rejects update/delete of revision rows. Kafka publication remains intentionally deferred to M7.
 
 ### Java evaluator and SDK
 
@@ -295,6 +297,52 @@ The fictional Spring storefront in `demos/spring-demo` enables streaming by defa
 active snapshot revision in `/demo/{subject}`, and keeps evaluating after Config Edge becomes
 unavailable. Its README contains the interactive flow and the reproducible PostgreSQL/WebFlux/SDK
 E2E command.
+
+### JavaScript, browser, and React SDKs
+
+M5 implements LF-0501 through LF-0505. `@launchforge/js-core` is the strict algorithm-version-1
+TypeScript evaluator and consumes the same frozen corpus as Java. `@launchforge/js-browser` adds a
+public-client-key bootstrap path, conditional polling, streaming-fetch SSE, atomic activation, and
+in-memory last-known-good behavior. `@launchforge/react-sdk` owns one client through a provider and
+exposes typed value/detail hooks without duplicating evaluator logic.
+
+Config Edge serves browser-safe projections at
+`/sdk/v1/client/{clientKey}/{snapshot|stream}`. The Control API manages separate browser client keys
+and exact origin allowlists through `/api/v1/.../client-keys`; server and browser key classes cannot
+substitute for one another. Browser configuration is intentionally inspectable, contains no
+server-only flags, and must never be used as an authorization boundary.
+
+The fictional Northstar Commerce app is in `demos/react-storefront`. Supply its public key at
+runtime—never a server SDK key—and start it with:
+
+```powershell
+$env:VITE_LAUNCHFORGE_EDGE_URL='http://localhost:8081'
+$env:VITE_LAUNCHFORGE_CLIENT_KEY='<public lf_client_ value>'
+corepack pnpm --filter @launchforge/react-storefront-demo dev --host 127.0.0.1 --port 5174
+```
+
+Its Playwright flow proves two deterministic fictional users plus an SSE-triggered kill switch
+without redeploy. The exact setup, security notes, and real-edge workflow are in the demo README.
+
+### React admin console
+
+M6 implements LF-0601 through LF-0606 in `frontend/admin-web`. The same-origin OIDC/BFF console
+provides project/environment navigation, typed flags and stable variations, ordered rules, exact
+rollout allocation, Java-backed draft simulation, production publish review, immutable revision
+diff/rollback, separate server/browser SDK key lifecycle, and tenant-scoped audit filtering.
+
+The selected environment remains visible throughout the console and production has an explicit
+warning and confirmation gate. ETag conflicts preserve local form state for reconciliation;
+ambiguous publish/rollback errors refresh server state before retry. Server SDK secrets are held
+only in transient one-time dialog state. Run its isolated browser acceptance flow with:
+
+```powershell
+pnpm --filter @launchforge/admin-web test:e2e
+```
+
+The opt-in local SQL seed now includes a fictional Development environment so a successful OIDC
+login lands directly in the console. Kafka, Redis, and analytics remain deferred to their owning
+milestones.
 
 On Unix-like systems, use `./mvnw` in place of `.\mvnw.cmd`. After initializing Git on Windows, record the executable bit with `git update-index --chmod=+x mvnw`.
 

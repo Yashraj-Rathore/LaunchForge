@@ -30,7 +30,11 @@ import dev.launchforge.domain.controlplane.FlagDefinition.FlagType;
 import dev.launchforge.domain.controlplane.FlagDefinition.FlagValue;
 import dev.launchforge.domain.controlplane.Project;
 import dev.launchforge.domain.controlplane.Targeting.Allocation;
+import dev.launchforge.domain.controlplane.Targeting.AttributeType;
+import dev.launchforge.domain.controlplane.Targeting.Condition;
+import dev.launchforge.domain.controlplane.Targeting.Operator;
 import dev.launchforge.domain.controlplane.Targeting.PercentageRollout;
+import dev.launchforge.domain.controlplane.Targeting.Rule;
 import dev.launchforge.domain.organization.OidcIdentity;
 import dev.launchforge.domain.organization.OrganizationId;
 import java.sql.Timestamp;
@@ -375,6 +379,112 @@ class ControlPlanePostgresIT extends AbstractControlApiIntegrationTest {
   }
 
   @Test
+  void consoleVariationDraftSimulationAndAuditStayTenantScoped() throws Exception {
+    Fixture fixture = fixture("console", OWNER_A, ORGANIZATION_A);
+    UUID off = fixture.flag().variations().get(0).id();
+    UUID on = fixture.flag().variations().get(1).id();
+
+    mockMvc
+        .perform(
+            patch("/api/v1/flags/{flagId}", fixture.flag().id().value())
+                .with(operator(OWNER_A.subject()))
+                .with(csrf().asHeader())
+                .header(HttpHeaders.IF_MATCH, "\"0\"")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"name":"Checkout console","status":"ACTIVE","variations":[
+                      {"id":"%s","name":"Classic","value":false},
+                      {"id":"%s","name":"Express","value":true}
+                    ]}
+                    """
+                        .formatted(off, on)))
+        .andExpect(status().isOk());
+    assertEquals(
+        "Express",
+        jdbcTemplate.queryForObject(
+            "SELECT name FROM flag_variations WHERE id = ?", String.class, on));
+
+    service.updateDraft(
+        OWNER_A,
+        fixture.flag().id(),
+        fixture.environment().id(),
+        new DraftInput(
+            true,
+            on,
+            off,
+            List.of(
+                new Rule(
+                    UUID.randomUUID(),
+                    "Canadian operators",
+                    List.of(
+                        new Condition(
+                            "country", AttributeType.STRING, Operator.EQUALS, List.of("CA"))),
+                    on)),
+            null,
+            "Configure the console simulation rule"),
+        0);
+
+    String simulation =
+        mockMvc
+            .perform(
+                post(
+                        "/api/v1/environments/{environmentId}/evaluate",
+                        fixture.environment().id().value())
+                    .with(operator(OWNER_A.subject()))
+                    .with(csrf().asHeader())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {"flagKey":"checkout.console","type":"BOOLEAN","defaultValue":false,
+                         "context":{"key":"maya","attributes":{"country":"CA"}}}
+                        """))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertTrue(simulation.contains("\"reason\":\"RULE_MATCH\""));
+    assertTrue(simulation.contains("\"configuration\":\"DRAFT\""));
+    assertTrue(simulation.contains("\"candidateRevision\":1"));
+
+    mockMvc
+        .perform(
+            post(
+                    "/api/v1/environments/{environmentId}/evaluate",
+                    fixture.environment().id().value())
+                .with(operator(OWNER_B.subject()))
+                .with(csrf().asHeader())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"flagKey":"checkout.console","type":"BOOLEAN","defaultValue":false,
+                     "context":{"key":"maya","attributes":{}}}
+                    """))
+        .andExpect(status().isNotFound());
+
+    String audit =
+        mockMvc
+            .perform(
+                get("/api/v1/organizations/{organizationId}/audit", ORGANIZATION_A)
+                    .with(operator(OWNER_A.subject()))
+                    .queryParam("projectId", fixture.project().id().value().toString())
+                    .queryParam("action", "FLAG_DRAFT_UPDATED"))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertTrue(audit.contains("FLAG_DRAFT_UPDATED"));
+    assertFalse(audit.contains("maya"));
+    assertFalse(audit.contains("country"));
+
+    mockMvc
+        .perform(
+            get("/api/v1/organizations/{organizationId}/audit", ORGANIZATION_B)
+                .with(operator(OWNER_A.subject())))
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
   void productionPublicationRequiresPrivilegedRoleAndHumanReason() {
     Project project =
         service.createProject(
@@ -409,7 +519,7 @@ class ControlPlanePostgresIT extends AbstractControlApiIntegrationTest {
   }
 
   @Test
-  void serverSdkKeyLifecycleReturnsSecretOnceAndRemainsTenantScoped() throws Exception {
+  void serverAndBrowserKeyLifecyclesRemainDistinctAndTenantScoped() throws Exception {
     Fixture alpha = fixture("sdk-alpha", OWNER_A, ORGANIZATION_A);
     Fixture beta = fixture("sdk-beta", OWNER_B, ORGANIZATION_B);
 
@@ -483,6 +593,75 @@ class ControlPlanePostgresIT extends AbstractControlApiIntegrationTest {
             .getResponse()
             .getContentAsString();
     assertFalse(listBody.contains("secret"));
+
+    String browserCreated =
+        mockMvc
+            .perform(
+                post(
+                        "/api/v1/environments/{environmentId}/client-keys",
+                        alpha.environment().id().value())
+                    .with(operator(OWNER_A.subject()))
+                    .with(csrf().asHeader())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        """
+                        {"name":"Storefront browser",
+                         "allowedOrigins":["https://shop.example","http://localhost:5174"]}
+                        """))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertTrue(browserCreated.contains("\"clientKey\":\"lf_client_"));
+    assertFalse(browserCreated.contains("secret"));
+
+    String browserList =
+        mockMvc
+            .perform(
+                get(
+                        "/api/v1/environments/{environmentId}/client-keys",
+                        alpha.environment().id().value())
+                    .with(operator(OWNER_A.subject())))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertTrue(browserList.contains("https://shop.example"));
+    mockMvc
+        .perform(
+            get("/api/v1/environments/{environmentId}/client-keys", beta.environment().id().value())
+                .with(operator(OWNER_A.subject())))
+        .andExpect(status().isNotFound());
+
+    mockMvc
+        .perform(
+            post(
+                    "/api/v1/environments/{environmentId}/client-keys",
+                    alpha.environment().id().value())
+                .with(operator(OWNER_A.subject()))
+                .with(csrf().asHeader())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"name":"Invalid browser","allowedOrigins":["https://*.example"]}
+                    """))
+        .andExpect(status().isBadRequest());
+
+    UUID browserKeyId =
+        jdbcTemplate.queryForObject(
+            "SELECT id FROM browser_client_keys WHERE environment_id = ?",
+            UUID.class,
+            alpha.environment().id().value());
+    mockMvc
+        .perform(
+            post("/api/v1/client-keys/{keyId}/revoke", browserKeyId)
+                .with(operator(OWNER_A.subject()))
+                .with(csrf().asHeader()))
+        .andExpect(status().isNoContent());
+    assertEquals(
+        "REVOKED",
+        jdbcTemplate.queryForObject(
+            "SELECT status FROM browser_client_keys WHERE id = ?", String.class, browserKeyId));
   }
 
   private Fixture fixture(String suffix, OidcIdentity actor, UUID organizationId) {

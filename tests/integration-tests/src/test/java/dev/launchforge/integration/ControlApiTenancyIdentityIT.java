@@ -25,6 +25,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpSession;
@@ -67,6 +68,13 @@ class ControlApiTenancyIdentityIT extends AbstractControlApiIntegrationTest {
   void unauthenticatedApiIsRejectedAndAuthorizationRequestUsesCodePkceStateAndNonce()
       throws Exception {
     mockMvc.perform(get("/api/v1/auth/me")).andExpect(status().isUnauthorized());
+    mockMvc
+        .perform(
+            get("/api/v1/auth/me")
+                .header(
+                    HttpHeaders.AUTHORIZATION,
+                    "LF-CLIENT lf_client_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"))
+        .andExpect(status().isUnauthorized());
 
     String location =
         mockMvc

@@ -3,6 +3,7 @@ package dev.launchforge.controlapi.controlplane;
 import dev.launchforge.application.controlplane.ControlPlaneService;
 import dev.launchforge.application.controlplane.ControlPlaneService.DraftInput;
 import dev.launchforge.application.controlplane.ControlPlaneService.VariationInput;
+import dev.launchforge.application.controlplane.ControlPlaneService.VariationUpdateInput;
 import dev.launchforge.application.controlplane.PublishedRevision;
 import dev.launchforge.application.controlplane.SnapshotCodec.RevisionDiff;
 import dev.launchforge.controlapi.security.OperatorIdentityResolver;
@@ -185,12 +186,25 @@ public final class ControlPlaneController {
       @PathVariable UUID flagId,
       @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String ifMatch,
       @RequestBody UpdateFlagRequest request) {
+    OidcIdentity actor = actor(authentication);
+    FlagType type =
+        request.variations() == null ? null : service.getFlag(actor, new FlagId(flagId)).type();
     FlagDefinition flag =
         service.updateFlag(
-            actor(authentication),
+            actor,
             new FlagId(flagId),
             request.name(),
             request.status(),
+            request.variations() == null
+                ? null
+                : request.variations().stream()
+                    .map(
+                        variation ->
+                            new VariationUpdateInput(
+                                variation.id(),
+                                variation.name(),
+                                typedValue(type, variation.value())))
+                    .toList(),
             expectedVersion(ifMatch));
     return versioned(FlagResponse.from(flag, this), flag.version());
   }
@@ -418,7 +432,10 @@ public final class ControlPlaneController {
 
   public record VariationRequest(String key, String name, JsonNode value) {}
 
-  public record UpdateFlagRequest(String name, FlagDefinition.Status status) {}
+  public record UpdateFlagRequest(
+      String name, FlagDefinition.Status status, List<UpdateVariationRequest> variations) {}
+
+  public record UpdateVariationRequest(UUID id, String name, JsonNode value) {}
 
   public record DraftRequest(
       boolean enabled,

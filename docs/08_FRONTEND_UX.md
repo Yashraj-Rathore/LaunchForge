@@ -13,12 +13,17 @@ Baseline:
 - React 19.2.x;
 - TypeScript strict mode;
 - Vite;
-- React Router;
-- TanStack Query for server state;
-- a focused form/schema validation library selected when the first M6 form requires it;
+- React Router `7.18.2`;
+- TanStack Query `5.101.4` for server state;
+- Zod `4.4.3` for focused form/schema validation;
 - Playwright for browser acceptance tests.
 
 Avoid a large state-management framework unless a concrete need appears. Most persistent state is server state.
+
+M6 uses URL routes as the selected organization/project/environment context, TanStack Query as the
+only remote-state cache, component-local state for unsaved forms and one-time secrets, and Zod plus
+explicit serializers at the HTTP boundary. No bearer token, SDK credential, or persistent draft is
+stored in browser storage.
 
 ## 3. Information architecture
 
@@ -282,3 +287,21 @@ Suggested split-screen sequence:
 8. briefly show architecture/metrics.
 
 The demo must not depend on a paid external service.
+
+## 15. M6 implementation baseline
+
+LF-0601 through LF-0606 are implemented in `frontend/admin-web`. The console includes:
+
+- authenticated project/environment routing with persistent context and production treatment;
+- typed flag/variation forms and visible draft-versus-published state;
+- ordered, keyboard-operable rule and condition controls with type-specific operators;
+- exact 100,000-unit rollouts, deliberate salt reseeding, and server-backed draft simulation;
+- production-aware publish review, immutable history/diff, and rollback-as-new-revision messaging;
+- separate server/browser SDK key views with one-time server-secret state; and
+- safe tenant-scoped audit filtering.
+
+Mutations use the same-origin CSRF token and the server's ETag. A stale response leaves local form
+state mounted and directs the operator to reconcile. A failed publish or rollback invalidates the
+environment query before a retry so the UI does not imply an uncertain write failed. The dedicated
+Playwright journey covers typed creation, stale conflict, targeting, simulation, production publish,
+key create/rotate/revoke, secret disappearance, audit output, and Viewer denial.

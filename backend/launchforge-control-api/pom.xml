@@ -28,6 +28,12 @@
       <artifactId>launchforge-contracts</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <!-- M6 draft simulation reuses the exact framework-free evaluator shipped by the Java SDK. -->
+    <dependency>
+      <groupId>dev.launchforge</groupId>
+      <artifactId>launchforge-java-sdk</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>

@@ -9,12 +9,13 @@
   },
   "scripts": {
     "build": "pnpm --recursive --if-present build",
-    "format": "prettier --write package.json pnpm-workspace.yaml tsconfig.base.json .prettierrc.json compose.yaml .github/workflows/ci.yml \"frontend/admin-web/**/*.{json,js,mjs,ts,tsx,css,html}\" \"sdks/javascript/**/*.json\" \"tests/e2e/**/*.{json,ts}\"",
-    "format:check": "prettier --check package.json pnpm-workspace.yaml tsconfig.base.json .prettierrc.json compose.yaml .github/workflows/ci.yml \"frontend/admin-web/**/*.{json,js,mjs,ts,tsx,css,html}\" \"sdks/javascript/**/*.json\" \"tests/e2e/**/*.{json,ts}\"",
+    "build:sdk-dependencies": "pnpm --filter @launchforge/js-core build && pnpm --filter @launchforge/js-browser build && pnpm --filter @launchforge/react-sdk build",
+    "format": "prettier --write package.json pnpm-workspace.yaml tsconfig.base.json .prettierrc.json compose.yaml .github/workflows/ci.yml \"frontend/admin-web/**/*.{json,js,mjs,ts,tsx,css,html}\" \"sdks/javascript/**/*.{json,js,mjs,ts,tsx}\" \"demos/react-storefront/**/*.{json,js,mjs,ts,tsx,css,html}\" \"tests/e2e/**/*.{json,ts}\"",
+    "format:check": "prettier --check package.json pnpm-workspace.yaml tsconfig.base.json .prettierrc.json compose.yaml .github/workflows/ci.yml \"frontend/admin-web/**/*.{json,js,mjs,ts,tsx,css,html}\" \"sdks/javascript/**/*.{json,js,mjs,ts,tsx}\" \"demos/react-storefront/**/*.{json,js,mjs,ts,tsx,css,html}\" \"tests/e2e/**/*.{json,ts}\"",
     "lint": "pnpm --recursive --if-present lint",
-    "test": "pnpm --recursive --if-present test",
+    "test": "pnpm build:sdk-dependencies && pnpm --recursive --if-present test",
     "test:e2e": "pnpm --filter @launchforge/e2e test:e2e",
-    "typecheck": "pnpm --recursive --if-present typecheck"
+    "typecheck": "pnpm build:sdk-dependencies && pnpm --recursive --if-present typecheck"
   },
   "devDependencies": {
     "prettier": "3.9.6"

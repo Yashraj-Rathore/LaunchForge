@@ -1,8 +1,8 @@
 # Project Status
 
-**Status:** Prompt 5 Config Edge and streaming implementation complete.
+**Status:** Prompt 7 React admin console implementation complete.
 
-**Current milestone:** M4 Config Edge and live updates (LF-0401–LF-0406) complete; stop point before Prompt 6 / M5 JavaScript and React SDKs.
+**Current milestone:** M6 Admin console (LF-0601–LF-0606) complete; stop point before Prompt 8 / M7 Kafka and Redis scale-out.
 
 **Specification baseline:** Canonical module paths, snapshot/checksum representation, algorithm-version-1 types and reason codes, milestone dependencies, and exact Prompt 0 toolchain pins were normalized on 2026-08-10.
 
@@ -13,8 +13,8 @@
 | M2 Flag domain & control plane | LF-0201–LF-0207 | Complete (2026-08-10) |
 | M3 Evaluation engine & Java SDK | LF-0301–LF-0307 | Complete (2026-08-11) |
 | M4 Data plane & streaming | LF-0401–LF-0406 | Complete (2026-08-11) |
-| M5 JavaScript/React SDKs | LF-0501–LF-0505 | Not started |
-| M6 Admin console | LF-0601–LF-0606 | Not started |
+| M5 JavaScript/React SDKs | LF-0501–LF-0505 | Complete (2026-08-12) |
+| M6 Admin console | LF-0601–LF-0606 | Complete (2026-08-12) |
 | M7 Kafka/Redis scale-out | LF-0701–LF-0706 | Not started |
 | M8 Analytics | LF-0801–LF-0805 | Not started |
 | M9 Security hardening | LF-0901–LF-0906 | Not started |

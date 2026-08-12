@@ -112,6 +112,23 @@ snapshot retention, simulated network interruption/edge restart, and SDK shutdow
 The PostgreSQL integration profile adds Flyway V3 key lifecycle/tenant tests and a real WebFlux
 edge-to-Java-SDK kill-switch convergence flow.
 
+The M5 suites execute the same frozen evaluator corpus in Java and TypeScript, then cover strict
+Unicode/duplicate-property rejection, browser bootstrap and local evaluation, malformed/stale
+last-known-good retention, SSE-triggered authoritative refresh, React subscription cleanup/context
+replacement, public-key/server-key route separation, exact non-credentialed CORS, server-only flag
+filtering before browser checksum generation, and Flyway V4 browser-key persistence. The Northstar
+Playwright flow selects two deterministic fictional users and observes an SSE-driven kill switch
+without an application redeploy.
+
+The M6 suites add strict TypeScript form-contract tests for typed values, operator compatibility,
+rule ordering, context attribute syntax, and exact rollout totals. React tests cover anonymous
+login, server-authorized production context, and stale-write guidance. The isolated Playwright
+control-API harness proves typed flag creation, local-edit preservation after conflict, rule save,
+Java-backed simulation result rendering, production confirmation/reason, publish reconciliation,
+one-time key secrets, key rotation/revocation, audit safety, and Viewer denial. PostgreSQL
+integration coverage proves stable-ID variation updates, same-evaluator draft results, audit filters,
+and cross-tenant denial for both simulator and audit routes.
+
 ### Performance
 
 - JMH evaluator microbenchmarks;
@@ -158,9 +175,13 @@ Regenerate and verify it with:
 ```powershell
 ./mvnw.cmd -pl sdks/java/launchforge-java-sdk -am test "-Dtest=GoldenVectorCorpusTest" "-Dlaunchforge.updateGoldenVectors=true"
 ./mvnw.cmd -pl sdks/java/launchforge-java-sdk -am test "-Dtest=GoldenVectorCorpusTest"
+corepack pnpm --filter @launchforge/js-core test
 ```
 
-The first command computes SHA-256 expectations through the test reference implementation and freezes the file. The second byte-compares the regenerated form with the committed artifact and executes every case. JavaScript must consume this same file in M5.
+The first command computes SHA-256 expectations through the test reference implementation and
+freezes the file. The second byte-compares the regenerated form with the committed artifact and
+executes every Java case. The third runs the TypeScript evaluator directly against that same file.
+CI's `evaluator-compatibility` job runs the Java verification and TypeScript corpus gate together.
 
 Do not manually invent expected cryptographic hash results.
 
