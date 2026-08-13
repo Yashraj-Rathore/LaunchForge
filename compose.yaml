@@ -87,5 +87,31 @@ services:
       start_period: 5s
     stop_grace_period: 10s
 
+  clickhouse:
+    profiles: [analytics]
+    image: clickhouse:26.7.1.1315@sha256:16537a9270ad63acbbee437ebbb826ea62b49690e863ae33e2fc5c16b7d9466c
+    environment:
+      CLICKHOUSE_DB: launchforge
+      CLICKHOUSE_USER: ${LAUNCHFORGE_CLICKHOUSE_USER:-launchforge}
+      CLICKHOUSE_PASSWORD: ${LAUNCHFORGE_CLICKHOUSE_PASSWORD:?Set a local-only ClickHouse password in .env}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: '1'
+    ports:
+      - '127.0.0.1:${LAUNCHFORGE_CLICKHOUSE_PORT:-58123}:8123'
+    volumes:
+      - launchforge-clickhouse:/var/lib/clickhouse
+      - ./deploy/local/clickhouse/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          clickhouse-client --user "$${CLICKHOUSE_USER}" --password "$${CLICKHOUSE_PASSWORD}"
+          --query 'SELECT 1'
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+    stop_grace_period: 30s
+
 volumes:
   launchforge-postgres:
+  launchforge-clickhouse:

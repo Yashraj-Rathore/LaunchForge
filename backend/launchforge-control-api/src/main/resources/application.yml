@@ -60,6 +60,15 @@ launchforge:
   security:
     session:
       absolute-lifetime: ${LAUNCHFORGE_SESSION_ABSOLUTE_LIFETIME:12h}
+  analytics:
+    query:
+      enabled: ${LAUNCHFORGE_ANALYTICS_ENABLED:false}
+      click-house-url: ${LAUNCHFORGE_CLICKHOUSE_URL:http://localhost:58123}
+      click-house-user: ${LAUNCHFORGE_CLICKHOUSE_USER:launchforge}
+      click-house-password: ${LAUNCHFORGE_CLICKHOUSE_PASSWORD:}
+      maximum-concurrent-queries: ${LAUNCHFORGE_ANALYTICS_MAX_CONCURRENT_QUERIES:8}
+      maximum-range: 31d
+      maximum-rows: 1000
 
 management:
   endpoint:

@@ -2,6 +2,7 @@ package dev.launchforge.eventworker.configuration;
 
 import dev.launchforge.eventworker.observability.DistributionMetrics;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.TopicBuilder;
@@ -12,6 +13,15 @@ import org.springframework.util.backoff.ExponentialBackOff;
 public class KafkaDistributionConfiguration {
   @Bean
   NewTopic configRevisionTopic(DistributionProperties properties) {
+    return TopicBuilder.name(properties.topic())
+        .partitions(properties.topicPartitions())
+        .replicas(properties.topicReplicas())
+        .build();
+  }
+
+  @Bean
+  @ConditionalOnProperty(name = "launchforge.analytics.worker.enabled", havingValue = "true")
+  NewTopic analyticsEvaluationTopic(AnalyticsWorkerProperties properties) {
     return TopicBuilder.name(properties.topic())
         .partitions(properties.topicPartitions())
         .replicas(properties.topicReplicas())

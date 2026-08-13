@@ -81,6 +81,74 @@ test('renders the server-authorized workspace context and production warning', a
   expect(screen.getByText('Published revision 7')).toBeInTheDocument();
 });
 
+test('labels analytics as optional when its isolated store is unavailable', async () => {
+  window.history.replaceState(
+    {},
+    '',
+    `/organizations/${organizationId}/projects/${projectId}/environments/${environmentId}/analytics`,
+  );
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    const path = String(input);
+    if (path.endsWith('/auth/me')) {
+      return json({
+        subject: 'fictional-subject',
+        displayName: 'owner',
+        organizations: [
+          {
+            id: organizationId,
+            slug: 'northstar-commerce',
+            name: 'Northstar Commerce',
+            role: 'OWNER',
+          },
+        ],
+      });
+    }
+    if (path.endsWith(`/organizations/${organizationId}/projects`)) {
+      return json([
+        {
+          id: projectId,
+          organizationId,
+          key: 'storefront',
+          name: 'Storefront',
+          description: null,
+          status: 'ACTIVE',
+          version: 1,
+        },
+      ]);
+    }
+    if (path.endsWith(`/projects/${projectId}/environments`)) {
+      return json([
+        {
+          id: environmentId,
+          projectId,
+          key: 'production',
+          name: 'Production',
+          kind: 'PRODUCTION',
+          status: 'ACTIVE',
+          currentRevision: 7,
+          version: 8,
+        },
+      ]);
+    }
+    if (path.includes(`/environments/${environmentId}/analytics/evaluations?`)) {
+      return new Response(JSON.stringify({ code: 'ANALYTICS_UNAVAILABLE' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/problem+json' },
+      });
+    }
+    return new Response(null, { status: 404 });
+  });
+
+  render(<App />);
+
+  expect(await screen.findByRole('heading', { name: 'Evaluation analytics' })).toBeInTheDocument();
+  expect(await screen.findByText('Analytics unavailable')).toBeInTheDocument();
+  expect(
+    screen.getByText(/configuration delivery, publish, and rollback are unaffected/u),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/does not measure experiment significance/u)).toBeInTheDocument();
+});
+
 test('gives stale writes a safe reconciliation message', () => {
   render(
     <MutationError

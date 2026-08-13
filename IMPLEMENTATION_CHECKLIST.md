@@ -86,11 +86,11 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 
 ## M8 Optional analytics
 
-- [ ] LF-0801
-- [ ] LF-0802
-- [ ] LF-0803
-- [ ] LF-0804
-- [ ] LF-0805
+- [x] LF-0801
+- [x] LF-0802
+- [x] LF-0803
+- [x] LF-0804
+- [x] LF-0805
 
 ## M9 Security
 

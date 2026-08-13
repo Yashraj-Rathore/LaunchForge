@@ -103,6 +103,22 @@ class ConfigEdgeHttpContractTest {
         .isEqualTo("SDK_KEY_INVALID");
   }
 
+  @Test
+  void analyticsIngestionRequiresTheServerSdkCredentialClass() {
+    client
+        .post()
+        .uri("/events/v1/evaluations/batch")
+        .cookie("launchforge_session", "not-an-sdk-key")
+        .header(HttpHeaders.CONTENT_TYPE, "application/json")
+        .bodyValue("{}")
+        .exchange()
+        .expectStatus()
+        .isUnauthorized()
+        .expectBody()
+        .jsonPath("$.code")
+        .isEqualTo("SDK_KEY_INVALID");
+  }
+
   private static StoredSnapshot snapshot(ObjectMapper objectMapper) throws Exception {
     Map<String, Object> document = new LinkedHashMap<>();
     document.put("schemaVersion", 1);

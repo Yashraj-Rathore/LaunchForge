@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://launchforge.dev/contracts/events/evaluation-event-batch-v1.schema.json",
+  "title": "Evaluation event batch v1",
+  "description": "Opt-in, privacy-minimized SDK analytics. Tenant scope is derived at the edge; raw context and subject identifiers are forbidden.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["eventType", "schemaVersion", "events"],
+  "properties": {
+    "eventType": { "const": "analytics.evaluation-batch.v1" },
+    "schemaVersion": { "const": 1 },
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["eventId", "occurredAt", "flagKey", "reason", "revision"],
+        "properties": {
+          "eventId": { "type": "string", "format": "uuid" },
+          "occurredAt": { "type": "string", "format": "date-time" },
+          "flagKey": { "type": "string", "pattern": "^[a-z][a-z0-9._-]{0,63}$" },
+          "variationId": {
+            "type": ["string", "null"],
+            "pattern": "^[a-z][a-z0-9._-]{0,63}$"
+          },
+          "reason": {
+            "enum": [
+              "FLAG_NOT_FOUND",
+              "FLAG_DISABLED",
+              "DEFAULT_VARIATION",
+              "RULE_MATCH",
+              "ROLLOUT_MATCH",
+              "MISSING_ROLLOUT_KEY",
+              "TYPE_MISMATCH",
+              "INVALID_CONFIG",
+              "SNAPSHOT_UNAVAILABLE",
+              "ERROR_DEFAULT"
+            ]
+          },
+          "revision": { "type": "integer", "minimum": 1 }
+        }
+      }
+    }
+  }
+}

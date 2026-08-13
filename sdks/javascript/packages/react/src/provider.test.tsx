@@ -45,6 +45,7 @@ class FakeClient implements BrowserClient {
   readonly start = vi.fn(async () => undefined);
   readonly refresh = vi.fn(async () => false);
   readonly close = vi.fn();
+  readonly flushAnalytics = vi.fn(async () => undefined);
   readonly setContext = vi.fn((context: EvaluationContext) => {
     this.context = context;
   });
@@ -63,6 +64,10 @@ class FakeClient implements BrowserClient {
   }
 
   getVersion = (): number => this.version;
+
+  getAnalyticsStatistics() {
+    return { queued: 0, sent: 0, dropped: 0, failedBatches: 0 };
+  }
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);

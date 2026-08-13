@@ -25,9 +25,10 @@ import reactor.core.scheduler.Schedulers;
 @Order(Ordered.HIGHEST_PRECEDENCE + 5)
 public final class BrowserClientWebFilter implements WebFilter {
   public static final String SCOPE_ATTRIBUTE = BrowserClientScope.class.getName();
-  private static final String PREFIX = "/sdk/v1/client/";
+  private static final String SDK_PREFIX = "/sdk/v1/client/";
+  private static final String EVENTS_PREFIX = "/events/v1/client/";
   private static final Set<String> ALLOWED_REQUEST_HEADERS =
-      Set.of("accept", "if-none-match", "last-event-id");
+      Set.of("accept", "content-type", "if-none-match", "last-event-id");
   private static final String EXPOSED_HEADERS =
       "ETag, X-LaunchForge-Revision, X-LaunchForge-Checksum, X-LaunchForge-Schema-Version";
 
@@ -49,17 +50,21 @@ public final class BrowserClientWebFilter implements WebFilter {
         .subscribeOn(Schedulers.boundedElastic())
         .flatMap(
             scope -> {
+              HttpMethod expectedMethod =
+                  "evaluations/batch".equals(browserPath.resource())
+                      ? HttpMethod.POST
+                      : HttpMethod.GET;
               if (origin != null) {
-                addCorsHeaders(exchange, origin);
+                addCorsHeaders(exchange, origin, expectedMethod);
               }
               if (exchange.getRequest().getMethod() == HttpMethod.OPTIONS) {
-                if (origin == null || !validPreflight(exchange)) {
+                if (origin == null || !validPreflight(exchange, expectedMethod)) {
                   return problem(exchange, HttpStatus.FORBIDDEN, "CLIENT_CORS_DENIED");
                 }
                 exchange.getResponse().setStatusCode(HttpStatus.NO_CONTENT);
                 return exchange.getResponse().setComplete();
               }
-              if (exchange.getRequest().getMethod() != HttpMethod.GET) {
+              if (exchange.getRequest().getMethod() != expectedMethod) {
                 return problem(exchange, HttpStatus.METHOD_NOT_ALLOWED, "CLIENT_METHOD_DENIED");
               }
               exchange.getAttributes().put(SCOPE_ATTRIBUTE, scope);
@@ -79,19 +84,23 @@ public final class BrowserClientWebFilter implements WebFilter {
   }
 
   private static BrowserPath path(String value) {
-    if (!value.startsWith(PREFIX)) {
-      return null;
+    if (value.startsWith(SDK_PREFIX)) {
+      String[] parts = value.substring(SDK_PREFIX.length()).split("/", -1);
+      if (parts.length == 2 && ("snapshot".equals(parts[1]) || "stream".equals(parts[1]))) {
+        return new BrowserPath(parts[0], parts[1]);
+      }
+    } else if (value.startsWith(EVENTS_PREFIX)) {
+      String[] parts = value.substring(EVENTS_PREFIX.length()).split("/", -1);
+      if (parts.length == 3 && "evaluations".equals(parts[1]) && "batch".equals(parts[2])) {
+        return new BrowserPath(parts[0], "evaluations/batch");
+      }
     }
-    String[] parts = value.substring(PREFIX.length()).split("/", -1);
-    if (parts.length != 2 || !("snapshot".equals(parts[1]) || "stream".equals(parts[1]))) {
-      return null;
-    }
-    return new BrowserPath(parts[0], parts[1]);
+    return null;
   }
 
-  private static boolean validPreflight(ServerWebExchange exchange) {
+  private static boolean validPreflight(ServerWebExchange exchange, HttpMethod expectedMethod) {
     String method = exchange.getRequest().getHeaders().getFirst("Access-Control-Request-Method");
-    if (!"GET".equals(method)) {
+    if (!expectedMethod.name().equals(method)) {
       return false;
     }
     String requested =
@@ -107,12 +116,17 @@ public final class BrowserClientWebFilter implements WebFilter {
     return ALLOWED_REQUEST_HEADERS.containsAll(headers);
   }
 
-  private static void addCorsHeaders(ServerWebExchange exchange, String origin) {
+  private static void addCorsHeaders(
+      ServerWebExchange exchange, String origin, HttpMethod expectedMethod) {
     HttpHeaders headers = exchange.getResponse().getHeaders();
     headers.setAccessControlAllowOrigin(origin);
-    headers.setAccessControlAllowMethods(java.util.List.of(HttpMethod.GET));
+    headers.setAccessControlAllowMethods(java.util.List.of(expectedMethod));
     headers.setAccessControlAllowHeaders(
-        java.util.List.of(HttpHeaders.ACCEPT, HttpHeaders.IF_NONE_MATCH, "Last-Event-ID"));
+        java.util.List.of(
+            HttpHeaders.ACCEPT,
+            HttpHeaders.CONTENT_TYPE,
+            HttpHeaders.IF_NONE_MATCH,
+            "Last-Event-ID"));
     headers.setAccessControlExposeHeaders(Arrays.asList(EXPOSED_HEADERS.split(", ")));
     headers.setAccessControlMaxAge(600);
     headers.add(HttpHeaders.VARY, HttpHeaders.ORIGIN);

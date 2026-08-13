@@ -287,7 +287,30 @@ Strict Mode's effect rehearsal does not permanently close the owned client. Call
 context objects; changing context is an intentional local reevaluation and rerender, never a remote
 context upload.
 
-## 14. Cross-language compatibility
+## 14. Optional evaluation analytics
+
+Analytics is absent unless the caller explicitly opts in. Java uses
+`.analytics(AnalyticsOptions.defaults())`; the browser client requires
+`analytics: { enabled: true }`. The default opt-in settings use a finite queue, a finite batch size,
+a periodic flush, and a bounded request timeout. Queue saturation or transport failure increments
+local `queued`/`sent`/`dropped`/`failedBatches` diagnostics and may discard optional events. It never
+blocks, retries on, or changes the already computed evaluation result.
+
+Events carry a random event ID, evaluation timestamp, flag key, selected variation ID when known,
+bounded reason code, and active snapshot revision. They do not carry the subject key, a subject
+hash, or any evaluation-context attribute. Consequently every attribute is effectively private and
+excluded from M8 analytics; adding an attribute policy later requires a new reviewed contract, not
+an SDK-side accidental upload. Server SDK batches use `LF-SDK` authentication. Browser batches use
+the public client-key route with the same exact-origin and `credentials: omit` policy as browser
+snapshot delivery.
+
+Analytics flushing runs on transport-owned background resources. Local evaluation retains the same
+no-network/no-database/no-disk hot path whether analytics is disabled, enabled, congested, or
+unavailable. Java close performs one bounded best-effort flush. Browser callers that need a final
+attempt await `flushAnalytics()` before synchronous `close()`; close drops any remaining queued
+events and releases analytics resources.
+
+## 15. Cross-language compatibility
 
 Golden vectors are mandatory.
 
@@ -307,7 +330,7 @@ They must cover:
 
 Both Java and JS implementations run against the same fixtures in CI.
 
-## 15. Thread safety
+## 16. Thread safety
 
 The Java SDK is intended to be shared as a singleton application dependency.
 
@@ -320,7 +343,7 @@ Requirements:
 - client state has no unbounded queues;
 - mutable evaluation context is not shared between calls.
 
-## 16. Performance goals
+## 17. Performance goals
 
 Goals are not resume claims until measured.
 
@@ -335,7 +358,7 @@ The evaluator should be designed for:
 
 JMH benchmarks in Milestone 10 establish actual performance.
 
-## 17. Compatibility policy
+## 18. Compatibility policy
 
 Before public release:
 

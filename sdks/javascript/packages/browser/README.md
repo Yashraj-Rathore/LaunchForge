@@ -30,3 +30,21 @@ Config Edge can enforce that key's exact CORS origin allowlist during preflight.
 `credentials: 'omit'`; wildcard origins and credentialed CORS are unsupported. Client-visible flag
 configuration, values, rules, rollout salts, and the client key itself are inspectable by end users.
 Never put secrets in flags and never use a client-evaluated flag as an authorization decision.
+
+## Optional analytics
+
+Browser analytics requires the literal opt-in below; omitting `analytics` makes no event request:
+
+```ts
+const client = new LaunchForgeBrowserClient({
+  baseUrl: 'https://edge.example',
+  clientKey: import.meta.env.VITE_LAUNCHFORGE_CLIENT_KEY,
+  initialContext: createEvaluationContext('canada-pro-user', { country: 'CA', plan: 'pro' }),
+  analytics: { enabled: true },
+});
+```
+
+The browser uses a finite queue and bounded batches sent to the client-key analytics route with
+`credentials: 'omit'`. `getAnalyticsStatistics()` exposes queued/sent/dropped/failed-batch counts,
+and `flushAnalytics()` permits an explicit best-effort flush. Analytics failure never changes local
+evaluation. The event schema sends neither the subject key/hash nor any context attribute.

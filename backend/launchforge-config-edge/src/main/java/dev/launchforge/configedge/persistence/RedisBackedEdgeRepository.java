@@ -118,6 +118,11 @@ public class RedisBackedEdgeRepository implements EdgeRepository {
   }
 
   @Override
+  public Optional<EnvironmentScope> findEnvironmentScope(UUID environmentId) {
+    return database.findEnvironmentScope(environmentId);
+  }
+
+  @Override
   public Optional<StoredBrowserCredential> findBrowserCredential(String clientKey) {
     return database.findBrowserCredential(clientKey);
   }

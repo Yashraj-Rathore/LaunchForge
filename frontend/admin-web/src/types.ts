@@ -192,6 +192,21 @@ export interface SimulationResult {
   readonly configuration: 'DRAFT';
 }
 
+export interface AnalyticsBucket {
+  readonly bucketStart: string;
+  readonly flagKey: string;
+  readonly variationId: string | null;
+  readonly evaluations: number;
+}
+
+export interface AnalyticsResponse {
+  readonly from: string;
+  readonly to: string;
+  readonly bucket: 'HOUR' | 'DAY';
+  readonly interpretation: string;
+  readonly rows: readonly AnalyticsBucket[];
+}
+
 export interface Versioned<T> {
   readonly value: T;
   readonly etag: string;

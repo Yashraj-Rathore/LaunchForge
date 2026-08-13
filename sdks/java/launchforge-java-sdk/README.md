@@ -54,6 +54,24 @@ resources; the active in-memory snapshot remains evaluable after closure.
 The SDK key is accepted only through caller configuration and is never logged. Flag values are
 configuration, not secrets.
 
+## Optional analytics
+
+Analytics is disabled unless explicitly configured:
+
+```java
+LaunchForgeClient client = LaunchForgeClient.builder()
+    .sdkKey(System.getenv("LAUNCHFORGE_SDK_KEY"))
+    .baseUri(URI.create(System.getenv("LAUNCHFORGE_BASE_URI")))
+    .analytics(AnalyticsOptions.defaults())
+    .build();
+```
+
+The opt-in dispatcher uses a bounded queue, batches at most 100 events, and applies bounded flush
+and request timeouts. A full queue or failed request drops optional telemetry and increments
+`client.analyticsStatistics()`; it never changes or delays the local evaluation result. Events
+contain no subject identifier/hash or evaluation-context attributes. Omitting `.analytics(...)`
+guarantees that no analytics request is made.
+
 ## Typed APIs
 
 - `boolVariation` / `boolVariationDetail`

@@ -35,6 +35,7 @@ import tools.jackson.databind.ObjectMapper;
 public final class LaunchForgeClient implements AutoCloseable {
   private static final String SNAPSHOT_PATH = "sdk/v1/snapshot";
   private static final String STREAM_PATH = "sdk/v1/stream";
+  private static final String ANALYTICS_PATH = "events/v1/evaluations/batch";
   private static final int MAXIMUM_SSE_LINE_LENGTH = 4096;
   private static final int MAXIMUM_SSE_DATA_LENGTH = 16_384;
   private static final ObjectMapper EVENT_MAPPER = new ObjectMapper();
@@ -50,6 +51,7 @@ public final class LaunchForgeClient implements AutoCloseable {
   private final HttpClient httpClient;
   private final ScheduledExecutorService scheduler;
   private final ExecutorService streamExecutor;
+  private final AnalyticsDispatcher analytics;
   private final CountDownLatch closedSignal = new CountDownLatch(1);
   private final AtomicReference<ActiveSnapshot> active = new AtomicReference<>();
   private final AtomicReference<CompletableFuture<Boolean>> manualRefresh = new AtomicReference<>();
@@ -85,6 +87,14 @@ public final class LaunchForgeClient implements AutoCloseable {
               thread.setDaemon(true);
               return thread;
             });
+    analytics =
+        builder.analyticsOptions == null
+            ? null
+            : new AnalyticsDispatcher(
+                sdkKey,
+                endpointUri(builder.baseUri, ANALYTICS_PATH),
+                httpClient,
+                builder.analyticsOptions);
   }
 
   public static Builder builder() {
@@ -98,9 +108,12 @@ public final class LaunchForgeClient implements AutoCloseable {
   public EvaluationDetail<Boolean> boolVariationDetail(
       String flagKey, EvaluationContext context, boolean defaultValue) {
     ActiveSnapshot current = active.get();
-    return current == null
-        ? unavailable(defaultValue)
-        : Evaluator.evaluateBoolean(current.snapshot(), flagKey, context, defaultValue);
+    EvaluationDetail<Boolean> detail =
+        current == null
+            ? unavailable(defaultValue)
+            : Evaluator.evaluateBoolean(current.snapshot(), flagKey, context, defaultValue);
+    recordAnalytics(flagKey, detail);
+    return detail;
   }
 
   public String stringVariation(String flagKey, EvaluationContext context, String defaultValue) {
@@ -111,9 +124,12 @@ public final class LaunchForgeClient implements AutoCloseable {
       String flagKey, EvaluationContext context, String defaultValue) {
     Objects.requireNonNull(defaultValue, "defaultValue");
     ActiveSnapshot current = active.get();
-    return current == null
-        ? unavailable(defaultValue)
-        : Evaluator.evaluateString(current.snapshot(), flagKey, context, defaultValue);
+    EvaluationDetail<String> detail =
+        current == null
+            ? unavailable(defaultValue)
+            : Evaluator.evaluateString(current.snapshot(), flagKey, context, defaultValue);
+    recordAnalytics(flagKey, detail);
+    return detail;
   }
 
   public double numberVariation(String flagKey, EvaluationContext context, double defaultValue) {
@@ -126,9 +142,12 @@ public final class LaunchForgeClient implements AutoCloseable {
       throw new IllegalArgumentException("Default number must be finite binary64");
     }
     ActiveSnapshot current = active.get();
-    return current == null
-        ? unavailable(defaultValue == 0.0d ? 0.0d : defaultValue)
-        : Evaluator.evaluateNumber(current.snapshot(), flagKey, context, defaultValue);
+    EvaluationDetail<Double> detail =
+        current == null
+            ? unavailable(defaultValue == 0.0d ? 0.0d : defaultValue)
+            : Evaluator.evaluateNumber(current.snapshot(), flagKey, context, defaultValue);
+    recordAnalytics(flagKey, detail);
+    return detail;
   }
 
   public JsonValue jsonVariation(
@@ -140,9 +159,17 @@ public final class LaunchForgeClient implements AutoCloseable {
       String flagKey, EvaluationContext context, JsonValue defaultValue) {
     Objects.requireNonNull(defaultValue, "defaultValue");
     ActiveSnapshot current = active.get();
-    return current == null
-        ? unavailable(defaultValue)
-        : Evaluator.evaluateJson(current.snapshot(), flagKey, context, defaultValue);
+    EvaluationDetail<JsonValue> detail =
+        current == null
+            ? unavailable(defaultValue)
+            : Evaluator.evaluateJson(current.snapshot(), flagKey, context, defaultValue);
+    recordAnalytics(flagKey, detail);
+    return detail;
+  }
+
+  /** Returns aggregate counters only; no context or flag values are retained in diagnostics. */
+  public AnalyticsStatistics analyticsStatistics() {
+    return analytics == null ? new AnalyticsStatistics(0, 0, 0, 0) : analytics.statistics();
   }
 
   public OptionalLong currentRevision() {
@@ -191,6 +218,9 @@ public final class LaunchForgeClient implements AutoCloseable {
       }
       scheduler.shutdownNow();
       streamExecutor.shutdownNow();
+      if (analytics != null) {
+        analytics.close();
+      }
       httpClient.shutdownNow();
       closedSignal.countDown();
     }
@@ -498,6 +528,12 @@ public final class LaunchForgeClient implements AutoCloseable {
         Optional.of(EvaluationErrorKind.SNAPSHOT_UNAVAILABLE));
   }
 
+  private void recordAnalytics(String flagKey, EvaluationDetail<?> detail) {
+    if (analytics != null) {
+      analytics.record(flagKey, detail);
+    }
+  }
+
   private record ActiveSnapshot(CompiledSnapshot snapshot, String etag) {}
 
   public static final class Builder {
@@ -511,6 +547,7 @@ public final class LaunchForgeClient implements AutoCloseable {
     private Duration minimumStreamReconnectDelay = Duration.ofMillis(500);
     private Duration maximumStreamReconnectDelay = Duration.ofSeconds(30);
     private Duration blockingBootstrapTimeout;
+    private AnalyticsOptions analyticsOptions;
 
     private Builder() {}
 
@@ -562,6 +599,12 @@ public final class LaunchForgeClient implements AutoCloseable {
     /** Enables explicit blocking bootstrap; non-blocking bootstrap is the default. */
     public Builder blockingBootstrap(Duration timeout) {
       blockingBootstrapTimeout = requireDuration(timeout, "blockingBootstrapTimeout");
+      return this;
+    }
+
+    /** Explicitly opts into best-effort analytics. Evaluation context is never transported. */
+    public Builder analytics(AnalyticsOptions options) {
+      analyticsOptions = Objects.requireNonNull(options, "analyticsOptions");
       return this;
     }
 

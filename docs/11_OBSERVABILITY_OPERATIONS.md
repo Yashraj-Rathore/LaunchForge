@@ -112,6 +112,21 @@ Possible local counters:
 - ClickHouse insert latency/failure;
 - dropped optional events.
 
+M8 exposes bounded, identifier-free meters:
+
+- `launchforge.analytics.ingestion{outcome=accepted_batch|accepted_event|rejected|shed|broker_failure}`
+  at Config Edge;
+- `launchforge.analytics.queue.depth` and
+  `launchforge.analytics.worker{outcome=enqueued|stored|dropped|invalid|store_failure}` at Event
+  Worker;
+- `launchforge.analytics.clickhouse.insert.duration{outcome=success|failure}` at Event Worker;
+- `launchforge.analytics.query{outcome=success|failure|shed}` and
+  `launchforge.analytics.query.duration` at Control API.
+
+Alert on sustained broker/store/query failure, capacity shedding, or dropped events. These alerts
+describe loss of optional telemetry only; configuration health and publish-to-SDK convergence must
+remain separate signals.
+
 ## 5. Logs
 
 Use structured JSON in deployed environments.

@@ -1,5 +1,6 @@
 package dev.launchforge.configedge;
 
+import dev.launchforge.configedge.configuration.AnalyticsIngestionProperties;
 import dev.launchforge.configedge.configuration.ConfigEdgeProperties;
 import dev.launchforge.configedge.configuration.SdkKeyPepperProperties;
 import org.springframework.boot.SpringApplication;
@@ -7,7 +8,11 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 @SpringBootApplication
-@EnableConfigurationProperties({ConfigEdgeProperties.class, SdkKeyPepperProperties.class})
+@EnableConfigurationProperties({
+  ConfigEdgeProperties.class,
+  SdkKeyPepperProperties.class,
+  AnalyticsIngestionProperties.class
+})
 public class LaunchForgeConfigEdgeApplication {
   public static void main(String[] args) {
     SpringApplication.run(LaunchForgeConfigEdgeApplication.class, args);

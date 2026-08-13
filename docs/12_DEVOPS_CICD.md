@@ -23,8 +23,7 @@ Deployable images:
 launchforge-management
 launchforge-config-edge
 launchforge-web
-launchforge-projector        # if separate from worker
-launchforge-analytics        # later
+launchforge-event-worker     # distribution projector + optional analytics writer
 ```
 
 Requirements:

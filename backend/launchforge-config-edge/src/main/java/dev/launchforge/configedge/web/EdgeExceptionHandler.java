@@ -1,5 +1,8 @@
 package dev.launchforge.configedge.web;
 
+import dev.launchforge.configedge.analytics.AnalyticsCapacityException;
+import dev.launchforge.configedge.analytics.AnalyticsUnavailableException;
+import dev.launchforge.configedge.analytics.InvalidAnalyticsBatchException;
 import dev.launchforge.configedge.snapshot.SnapshotUnavailableException;
 import dev.launchforge.configedge.stream.ConnectionLimitExceededException;
 import java.net.URI;
@@ -26,6 +29,27 @@ public final class EdgeExceptionHandler {
         HttpStatus.TOO_MANY_REQUESTS,
         "STREAM_CONNECTION_LIMIT",
         "The authenticated stream connection limit was reached");
+  }
+
+  @ExceptionHandler(InvalidAnalyticsBatchException.class)
+  ProblemDetail invalidAnalytics() {
+    return problem(HttpStatus.BAD_REQUEST, "ANALYTICS_BATCH_INVALID", "Analytics batch is invalid");
+  }
+
+  @ExceptionHandler(AnalyticsCapacityException.class)
+  ProblemDetail analyticsCapacity() {
+    return problem(
+        HttpStatus.TOO_MANY_REQUESTS,
+        "ANALYTICS_CAPACITY_EXHAUSTED",
+        "Analytics ingestion capacity is temporarily exhausted");
+  }
+
+  @ExceptionHandler(AnalyticsUnavailableException.class)
+  ProblemDetail analyticsUnavailable() {
+    return problem(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "ANALYTICS_UNAVAILABLE",
+        "Optional analytics ingestion is temporarily unavailable");
   }
 
   private static ProblemDetail problem(HttpStatus status, String code, String detail) {

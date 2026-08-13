@@ -31,7 +31,9 @@ public final class SdkAuthenticationWebFilter implements WebFilter {
   @Override
   public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
     String path = exchange.getRequest().getPath().value();
-    if (!("/sdk/v1/snapshot".equals(path) || "/sdk/v1/stream".equals(path))) {
+    if (!("/sdk/v1/snapshot".equals(path)
+        || "/sdk/v1/stream".equals(path)
+        || "/events/v1/evaluations/batch".equals(path))) {
       return chain.filter(exchange);
     }
     String authorization = oneAuthorizationValue(exchange.getRequest().getHeaders());

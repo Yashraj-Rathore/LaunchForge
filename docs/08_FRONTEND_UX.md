@@ -38,7 +38,7 @@ Organization
             ├── SDK Keys
             ├── Revisions
             ├── Audit
-            └── Analytics (later)
+            └── Analytics
 ```
 
 Top-level environment context must always be visible on destructive or publish actions.
@@ -151,6 +151,15 @@ Show:
 - created/last-used/revoked timestamps when available.
 
 The secret is displayed only once on creation/rotation.
+
+### Analytics
+
+The environment-scoped M8 screen shows hour/day operational evaluation counts with time-range,
+flag, and variation filters. It must always state that the data comes only from explicitly opted-in
+SDKs and is not an experiment-significance or causal analysis. The screen discloses that no subject
+identifier or raw targeting context is collected. Disabled/unavailable/empty analytics have distinct
+states, and unavailable analytics explicitly says configuration delivery, publish, rollback, and
+local evaluation are unaffected.
 
 ## 5. Publish workflow
 

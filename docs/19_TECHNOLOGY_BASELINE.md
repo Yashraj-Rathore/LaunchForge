@@ -17,7 +17,7 @@ Exact patch versions must be verified from official release sources during `Prom
 | PostgreSQL | 18.x | Authoritative relational store |
 | Kafka | 4.3.x | Durable revision propagation |
 | Redis | 8.2.x | Rebuildable current snapshot/rate state |
-| ClickHouse | current stable when M8 begins | Optional analytics only |
+| ClickHouse | 26.7.x, pinned and verified in M8 | Optional analytics only |
 | Keycloak | 26.7.x, pinned and verified in M1 | Local/reference OIDC |
 | Docker | current supported | Local/runtime packaging |
 | Kubernetes | current supported local/cloud target | Portfolio deployment |
@@ -48,11 +48,11 @@ Verified against official release sources on **2026-08-10**; M1-owned tools were
 | Keycloak | `26.7.0`; image `quay.io/keycloak/keycloak:26.7.0`; manifest `sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13` | M1 |
 | Apache Kafka | `4.3.1`; image `apache/kafka:4.3.1`; manifest `sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837` | M7 |
 | Redis | `8.2.8`; image `redis:8.2.8-bookworm`; manifest `sha256:2f7462b9e93e0a7ae2edf3a0a0babc8a4d29f8bfc50849b906b7caaef925edc1` | M7 |
+| ClickHouse | `26.7.1.1315`; image `clickhouse:26.7.1.1315`; manifest `sha256:16537a9270ad63acbbee437ebbb826ea62b49690e863ae33e2fc5c16b7d9466c` | M8 |
 | Docker Engine | tested-tooling target `29.6.2` | M0 developer environment |
 | Docker Compose | tested-tooling target `5.4.0` | M0 developer environment |
 | Kubernetes | tested deployment target `1.36.2` | Re-verify in M11 |
 | Helm | tested deployment target `4.2.3` | Re-verify in M11 |
-| ClickHouse | intentionally not pinned | Select and verify only if M8 begins |
 
 TypeScript 7.0 is not the initial pin because its first release does not expose the programmatic API needed by the surrounding tooling ecosystem; re-evaluate TypeScript 7 after 7.1 and full lint/test/build compatibility. Deferred services are documented candidates, not permission to add them before their milestone.
 
@@ -66,11 +66,17 @@ Official verification references:
 - Vite/Vitest/Playwright: <https://github.com/vitejs/vite/releases>, <https://github.com/vitest-dev/vitest/releases>, and <https://github.com/microsoft/playwright/releases>
 - PostgreSQL: <https://www.postgresql.org/support/versioning/> and <https://hub.docker.com/_/postgres>
 - Kafka/Redis/Keycloak: <https://kafka.apache.org/community/downloads/>, <https://hub.docker.com/r/apache/kafka/tags>, <https://download.redis.io/releases/>, <https://hub.docker.com/_/redis>, <https://www.keycloak.org/2026/07/keycloak-2670-released>, and <https://github.com/keycloak/keycloak/releases/tag/26.7.0>
+- ClickHouse: <https://hub.docker.com/_/clickhouse/tags> and <https://hub.docker.com/_/clickhouse>
 - Docker/Kubernetes/Helm: <https://docs.docker.com/engine/release-notes/29/>, <https://github.com/docker/compose/releases>, <https://kubernetes.io/releases/>, and <https://github.com/helm/helm/releases>
 
 LF-0003 resolved and recorded the PostgreSQL image manifest digest after a successful pull. Compose uses the readable tag and digest together, so a tag move cannot silently change the local database image. PostgreSQL 18 Compose volumes mount the image's version-appropriate data root at `/var/lib/postgresql`, not the older `/var/lib/postgresql/data` path.
 
 LF-0103 re-verified Keycloak when M1 began and recorded the Quay manifest above. Local non-container validation used the official `keycloak-26.7.0.zip` release asset after verifying SHA-256 `e63bd0167199c0092b8a4d22cc137e6b7a70e0089070f6f7799b1be504b69a8a`; CI uses the digest-pinned container.
+
+LF-0803 re-verified the official ClickHouse image when M8 began on **2026-08-13**. Compose and the
+real integration test use the readable `26.7.1.1315` tag together with the multi-platform manifest
+digest above. The application uses Java's standard HTTP client for bounded inserts and aggregate
+queries, so M8 adds no ClickHouse client-library dependency to the domain or SDK hot path.
 
 ### M0 build and quality pins
 
@@ -187,7 +193,10 @@ Redis gives fast current snapshot access and distributed ephemeral controls, but
 
 ## 11. Why ClickHouse is optional
 
-High-volume evaluation analytics are structurally different from transactional control-plane data. ClickHouse is an appropriate analytical store if analytics becomes a real feature, but adding it before core usage is unnecessary.
+High-volume evaluation analytics are structurally different from transactional control-plane data.
+M8 introduces ClickHouse only behind the optional `analytics` Compose profile and disabled-by-default
+application properties. PostgreSQL remains the configuration system of record, and ClickHouse
+failure cannot affect management, distribution, or local evaluation.
 
 ## 12. Build strategy
 
@@ -215,4 +224,7 @@ Use one root `pnpm-lock.yaml`, one exact root `packageManager` declaration, and 
 
 ## 14. Pinning status
 
-Prompt 0 decisions are recorded above. M0 pins only the technologies it actually introduces. Deferred entries must be re-verified in their owning milestone, and ClickHouse remains unselected unless optional analytics work starts. Exact image digests and dependency lockfiles are implementation artifacts and must be recorded by the issue that first resolves/downloads them.
+Prompt 0 decisions are recorded above. M0 pins only the technologies it actually introduces.
+Deferred entries must be re-verified in their owning milestone; M8 has now selected and pinned
+ClickHouse for optional analytics. Exact image digests and dependency lockfiles are implementation
+artifacts and must be recorded by the issue that first resolves/downloads them.

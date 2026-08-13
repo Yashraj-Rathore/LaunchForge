@@ -189,7 +189,8 @@ It serves:
 ```text
 GET /sdk/v1/snapshot
 GET /sdk/v1/stream
-POST /sdk/v1/events   # optional analytics, later
+POST /events/v1/evaluations/batch
+POST /events/v1/client/{clientKey}/evaluations/batch
 ```
 
 The edge must be horizontally scalable and stateless except for ephemeral connection state.
@@ -206,6 +207,15 @@ subscription. Redis misses, malformed values, and connection failures use a sema
 PostgreSQL fallback with a bounded acquire timeout. A successful fallback backfills Redis only when
 its revision is newer. Periodic revision checks remain active, so a lost Pub/Sub hint cannot prevent
 convergence.
+
+M8 adds analytics as a separate, conditional route/controller/policy. It validates bounded
+context-free event batches, derives tenant scope from the authenticated server/browser key, and
+waits only for a bounded acknowledgement from the dedicated
+`launchforge.analytics.evaluations.v1` Kafka topic before returning `202`. Analytics concurrency,
+per-key request limits, errors, topic, and metrics are independent of snapshot and SSE paths. The
+Event Worker uses a separate consumer group and finite ClickHouse insert queue; congestion or store
+failure sheds/drops optional events instead of consuming unbounded memory or delaying configuration
+projection.
 
 ## 9. Snapshot resolution
 
@@ -375,10 +385,11 @@ Rules:
 ## 18. Local development
 
 Kafka and Redis are opt-in through the `distribution` Compose profile. PostgreSQL remains the
-system of record and also starts because it has no profile:
+system of record and also starts because it has no profile. M8 ClickHouse is separately opt-in:
 
 ```powershell
 docker compose --profile distribution up -d --wait
+docker compose --profile distribution --profile analytics up -d --wait
 ```
 
 With the database, Kafka, Redis, shared SDK-key pepper, and database variables from `.env.example`
@@ -394,7 +405,8 @@ The automated durability drill is:
 
 ```powershell
 .\mvnw.cmd -pl tests/integration-tests -am verify -Pintegration "-Dit.test=DistributionPipelineIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
+.\mvnw.cmd -pl tests/integration-tests -am verify -Pintegration "-Dit.test=AnalyticsClickHouseIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
 ```
 
 Stop the local services without deleting PostgreSQL data with
-`docker compose --profile distribution down`.
+`docker compose --profile distribution --profile analytics down`.

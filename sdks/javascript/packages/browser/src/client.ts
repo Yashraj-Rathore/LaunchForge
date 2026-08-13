@@ -17,6 +17,24 @@ const CLIENT_KEY = /^lf_client_[A-Za-z0-9_-]{32}$/u;
 const DEFAULT_POLL_INTERVAL_MS = 30_000;
 const DEFAULT_BOOTSTRAP_TIMEOUT_MS = 5_000;
 const DEFAULT_MAXIMUM_SNAPSHOT_BYTES = 1024 * 1024;
+const DEFAULT_ANALYTICS_FLUSH_INTERVAL_MS = 1_000;
+const DEFAULT_ANALYTICS_QUEUE_CAPACITY = 1_000;
+const DEFAULT_ANALYTICS_BATCH_SIZE = 50;
+
+export interface BrowserAnalyticsOptions {
+  /** Analytics is disabled unless this literal opt-in is present. */
+  readonly enabled: true;
+  readonly flushIntervalMs?: number;
+  readonly queueCapacity?: number;
+  readonly batchSize?: number;
+}
+
+export interface BrowserAnalyticsStatistics {
+  readonly queued: number;
+  readonly sent: number;
+  readonly dropped: number;
+  readonly failedBatches: number;
+}
 
 export interface BrowserClientOptions {
   readonly baseUrl: string;
@@ -28,6 +46,7 @@ export interface BrowserClientOptions {
   readonly streaming?: boolean;
   readonly fetcher?: typeof fetch;
   readonly random?: () => number;
+  readonly analytics?: BrowserAnalyticsOptions;
 }
 
 export interface BrowserClient {
@@ -39,6 +58,8 @@ export interface BrowserClient {
   getSnapshotRevision(): number | null;
   getVersion(): number;
   subscribe(listener: () => void): () => void;
+  flushAnalytics(): Promise<void>;
+  getAnalyticsStatistics(): BrowserAnalyticsStatistics;
   boolVariation(flagKey: string, defaultValue: boolean): boolean;
   boolVariationDetail(flagKey: string, defaultValue: boolean): EvaluationDetail<boolean>;
   stringVariation(flagKey: string, defaultValue: string): string;
@@ -73,6 +94,17 @@ export class LaunchForgeBrowserClient implements BrowserClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectResolver: (() => void) | null = null;
   private streamAbort: AbortController | null = null;
+  private readonly analyticsEnabled: boolean;
+  private readonly analyticsFlushIntervalMs: number;
+  private readonly analyticsQueueCapacity: number;
+  private readonly analyticsBatchSize: number;
+  private readonly analyticsQueue: AnalyticsEvent[] = [];
+  private analyticsTimer: ReturnType<typeof setTimeout> | null = null;
+  private analyticsFlush: Promise<void> | null = null;
+  private analyticsQueued = 0;
+  private analyticsSent = 0;
+  private analyticsDropped = 0;
+  private analyticsFailedBatches = 0;
 
   constructor(options: BrowserClientOptions) {
     this.baseUrl = requireBaseUrl(options.baseUrl);
@@ -102,6 +134,28 @@ export class LaunchForgeBrowserClient implements BrowserClient {
     this.streaming = options.streaming ?? true;
     this.fetcher = options.fetcher ?? globalThis.fetch.bind(globalThis);
     this.random = options.random ?? Math.random;
+    this.analyticsEnabled = options.analytics?.enabled === true;
+    this.analyticsFlushIntervalMs = boundedInteger(
+      options.analytics?.flushIntervalMs ?? DEFAULT_ANALYTICS_FLUSH_INTERVAL_MS,
+      100,
+      5 * 60 * 1000,
+      'analytics.flushIntervalMs',
+    );
+    this.analyticsQueueCapacity = boundedInteger(
+      options.analytics?.queueCapacity ?? DEFAULT_ANALYTICS_QUEUE_CAPACITY,
+      1,
+      100_000,
+      'analytics.queueCapacity',
+    );
+    this.analyticsBatchSize = boundedInteger(
+      options.analytics?.batchSize ?? DEFAULT_ANALYTICS_BATCH_SIZE,
+      1,
+      100,
+      'analytics.batchSize',
+    );
+    if (this.analyticsBatchSize > this.analyticsQueueCapacity) {
+      throw new Error('analytics.batchSize must fit analytics.queueCapacity');
+    }
   }
 
   async start(): Promise<void> {
@@ -151,6 +205,12 @@ export class LaunchForgeBrowserClient implements BrowserClient {
     }
     this.streamAbort?.abort();
     this.streamAbort = null;
+    if (this.analyticsTimer !== null) {
+      clearTimeout(this.analyticsTimer);
+      this.analyticsTimer = null;
+    }
+    this.analyticsDropped += this.analyticsQueue.length;
+    this.analyticsQueue.length = 0;
     this.listeners.clear();
   }
 
@@ -182,7 +242,9 @@ export class LaunchForgeBrowserClient implements BrowserClient {
   }
 
   boolVariationDetail(flagKey: string, defaultValue: boolean): EvaluationDetail<boolean> {
-    return evaluateBoolean(this.snapshot, flagKey, this.context, defaultValue);
+    const detail = evaluateBoolean(this.snapshot, flagKey, this.context, defaultValue);
+    this.recordAnalytics(flagKey, detail);
+    return detail;
   }
 
   stringVariation(flagKey: string, defaultValue: string): string {
@@ -190,7 +252,9 @@ export class LaunchForgeBrowserClient implements BrowserClient {
   }
 
   stringVariationDetail(flagKey: string, defaultValue: string): EvaluationDetail<string> {
-    return evaluateString(this.snapshot, flagKey, this.context, defaultValue);
+    const detail = evaluateString(this.snapshot, flagKey, this.context, defaultValue);
+    this.recordAnalytics(flagKey, detail);
+    return detail;
   }
 
   numberVariation(flagKey: string, defaultValue: number): number {
@@ -198,7 +262,9 @@ export class LaunchForgeBrowserClient implements BrowserClient {
   }
 
   numberVariationDetail(flagKey: string, defaultValue: number): EvaluationDetail<number> {
-    return evaluateNumber(this.snapshot, flagKey, this.context, defaultValue);
+    const detail = evaluateNumber(this.snapshot, flagKey, this.context, defaultValue);
+    this.recordAnalytics(flagKey, detail);
+    return detail;
   }
 
   jsonVariation<T extends JsonValue>(flagKey: string, defaultValue: T): JsonValue | T {
@@ -209,7 +275,29 @@ export class LaunchForgeBrowserClient implements BrowserClient {
     flagKey: string,
     defaultValue: T,
   ): EvaluationDetail<JsonValue | T> {
-    return evaluateJson(this.snapshot, flagKey, this.context, defaultValue);
+    const detail = evaluateJson(this.snapshot, flagKey, this.context, defaultValue);
+    this.recordAnalytics(flagKey, detail);
+    return detail;
+  }
+
+  flushAnalytics(): Promise<void> {
+    if (!this.analyticsEnabled || this.closed || this.analyticsQueue.length === 0) {
+      return Promise.resolve();
+    }
+    this.analyticsFlush ??= this.sendAnalyticsBatch().finally(() => {
+      this.analyticsFlush = null;
+      if (!this.closed && this.analyticsQueue.length > 0) this.scheduleAnalyticsFlush();
+    });
+    return this.analyticsFlush;
+  }
+
+  getAnalyticsStatistics(): BrowserAnalyticsStatistics {
+    return {
+      queued: this.analyticsQueued,
+      sent: this.analyticsSent,
+      dropped: this.analyticsDropped,
+      failedBatches: this.analyticsFailedBatches,
+    };
   }
 
   private async fetchSnapshot(): Promise<boolean> {
@@ -356,6 +444,66 @@ export class LaunchForgeBrowserClient implements BrowserClient {
     }
   }
 
+  private recordAnalytics(flagKey: string, detail: EvaluationDetail<unknown>): void {
+    if (!this.analyticsEnabled || this.closed || detail.snapshotRevision === undefined) return;
+    if (this.analyticsQueue.length >= this.analyticsQueueCapacity) {
+      this.analyticsDropped += 1;
+      return;
+    }
+    this.analyticsQueue.push({
+      eventId: crypto.randomUUID(),
+      occurredAt: new Date().toISOString(),
+      flagKey,
+      variationId: detail.variationId ?? null,
+      reason: detail.reason,
+      revision: detail.snapshotRevision,
+    });
+    this.analyticsQueued += 1;
+    if (this.analyticsQueue.length >= this.analyticsBatchSize) {
+      void this.flushAnalytics();
+    } else {
+      this.scheduleAnalyticsFlush();
+    }
+  }
+
+  private scheduleAnalyticsFlush(): void {
+    if (this.analyticsTimer !== null || this.closed) return;
+    this.analyticsTimer = setTimeout(() => {
+      this.analyticsTimer = null;
+      void this.flushAnalytics();
+    }, this.analyticsFlushIntervalMs);
+  }
+
+  private async sendAnalyticsBatch(): Promise<void> {
+    if (this.analyticsTimer !== null) {
+      clearTimeout(this.analyticsTimer);
+      this.analyticsTimer = null;
+    }
+    const events = this.analyticsQueue.splice(0, this.analyticsBatchSize);
+    try {
+      const response = await this.fetcher(this.analyticsUrl(), {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        credentials: 'omit',
+        redirect: 'error',
+        body: JSON.stringify({
+          eventType: 'analytics.evaluation-batch.v1',
+          schemaVersion: 1,
+          events,
+        }),
+      });
+      if (response.status >= 200 && response.status < 300) {
+        this.analyticsSent += events.length;
+      } else {
+        this.analyticsFailedBatches += 1;
+        this.analyticsDropped += events.length;
+      }
+    } catch {
+      this.analyticsFailedBatches += 1;
+      this.analyticsDropped += events.length;
+    }
+  }
+
   private snapshotUrl(): string {
     return `${this.baseUrl}/sdk/v1/client/${this.clientKey}/snapshot`;
   }
@@ -363,6 +511,19 @@ export class LaunchForgeBrowserClient implements BrowserClient {
   private streamUrl(): string {
     return `${this.baseUrl}/sdk/v1/client/${this.clientKey}/stream`;
   }
+
+  private analyticsUrl(): string {
+    return `${this.baseUrl}/events/v1/client/${this.clientKey}/evaluations/batch`;
+  }
+}
+
+interface AnalyticsEvent {
+  readonly eventId: string;
+  readonly occurredAt: string;
+  readonly flagKey: string;
+  readonly variationId: string | null;
+  readonly reason: string;
+  readonly revision: number;
 }
 
 export function defaultEvaluationContext(key: string): EvaluationContext {

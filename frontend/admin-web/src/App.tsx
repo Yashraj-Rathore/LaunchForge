@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from './api';
 import { AuditPage } from './pages/AuditPage';
+import { AnalyticsPage } from './pages/AnalyticsPage';
 import { FlagEditorPage, FlagsPage } from './pages/FlagsPage';
 import { KeysPage } from './pages/KeysPage';
 import { RevisionsPage } from './pages/RevisionsPage';
@@ -76,6 +77,7 @@ function AuthenticatedRoutes({ session }: { readonly session: Session }) {
         <Route path="revisions" element={<RevisionsPage />} />
         <Route path="keys" element={<KeysPage />} />
         <Route path="audit" element={<AuditPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
       </Route>
       <Route path="*" element={<Navigate replace to="/" />} />
     </Routes>

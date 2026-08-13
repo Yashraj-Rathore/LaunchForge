@@ -6,7 +6,7 @@ Expected artifacts include:
 
 ```text
 config-snapshot.schema.json
-analytics-event.schema.json
+events/evaluation-event-batch-v1.schema.json
 management-openapi.yaml
 golden-vectors/
 ```
@@ -34,3 +34,11 @@ corepack pnpm --filter @launchforge/js-core test
 ```
 
 Never manually edit expected cryptographic outputs. Any semantic change requires an explicit algorithm/schema decision and both Java and JavaScript suites to pass this same corpus. CI runs both gates together in the `evaluator-compatibility` job.
+
+## Analytics event version 1
+
+`events/evaluation-event-batch-v1.schema.json` and its example define the opt-in M8 SDK-to-edge
+contract. A bounded batch carries event ID/time, flag, optional variation, reason, and revision only.
+It deliberately has no subject, context, tenant, credential, or arbitrary-metadata field. Config
+Edge rejects unknown fields and adds tenant scope only after authenticating the server/browser key.
+An incompatible privacy or semantic change requires a new event version.

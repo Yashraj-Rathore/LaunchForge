@@ -100,6 +100,7 @@ export function ConsoleShell({ session }: { readonly session: Session }) {
           <NavLink to={`${base}/revisions`}>Revisions</NavLink>
           <NavLink to={`${base}/keys`}>SDK keys</NavLink>
           <NavLink to={`${base}/audit`}>Audit</NavLink>
+          <NavLink to={`${base}/analytics`}>Analytics</NavLink>
         </nav>
         <div className="sidebar-footer">
           <span>{session.displayName}</span>

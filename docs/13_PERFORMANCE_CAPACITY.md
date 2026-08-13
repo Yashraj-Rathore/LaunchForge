@@ -140,7 +140,9 @@ Compute distributions across repeated runs.
 - context max attributes/bytes;
 - SSE connections/key/IP;
 - management mutation rate;
-- analytics batch max;
+- analytics request max 256 KiB and batch max 100 events;
+- SDK analytics queue/batch bounds and Event Worker queue/500-row insert bound;
+- analytics ingestion/query concurrency and per-key request limits;
 - Kafka consumer batch;
 - Redis value max.
 
@@ -204,6 +206,11 @@ A Redis outage can shift load to PostgreSQL. Prevent cascading failure with:
 - alerting.
 
 A reconnect storm can overload edge. Use exponential backoff/jitter and connection rate limiting.
+
+M8 analytics uses independent finite queues, non-blocking SDK enqueue, bounded Kafka publication,
+bounded ClickHouse insert batches/timeouts, and separate ingestion/query semaphores. When those
+limits are exhausted, optional events or queries are shed; configuration work is not queued behind
+analytics. Exact defaults live in each process's `application.yml` and `.env.example`.
 
 ## 12. Portfolio benchmark report
 

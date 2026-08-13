@@ -1,5 +1,6 @@
 import type {
   AuditEvent,
+  AnalyticsResponse,
   BrowserKey,
   Draft,
   Environment,
@@ -173,6 +174,10 @@ export const api = {
   audit: (organizationId: string, search: URLSearchParams) =>
     request<readonly AuditEvent[]>(
       `/api/v1/organizations/${organizationId}/audit?${search.toString()}`,
+    ),
+  analytics: (environmentId: string, search: URLSearchParams) =>
+    request<AnalyticsResponse>(
+      `/api/v1/environments/${environmentId}/analytics/evaluations?${search.toString()}`,
     ),
   logout: () => mutate<void>('/api/v1/auth/logout', 'POST'),
 };

@@ -86,7 +86,7 @@ Prompt 0 verification is recorded in `docs/19_TECHNOLOGY_BASELINE.md`. Deferred 
 - PostgreSQL 18.x + Flyway
 - Apache Kafka 4.3.x in KRaft mode
 - Redis 8.2.x
-- ClickHouse, deferred until analytics milestone
+- ClickHouse 26.7.1.1315 in the optional M8 analytics profile
 - Keycloak 26.7.0 as the digest-pinned local/reference OIDC provider
 - Docker Compose
 - Kubernetes + Helm
@@ -328,6 +328,31 @@ java -jar backend/launchforge-config-edge/target/launchforge-config-edge-0.1.0-S
 broker/cache outage, rebuild, and Java SDK last-known-good drill is recorded in
 `docs/18_FAILURE_MODES_RUNBOOKS.md`.
 
+### Optional evaluation analytics
+
+M8 implements LF-0801 through LF-0805 as an isolated, disabled-by-default pipeline. Java and
+browser SDKs emit only after an explicit analytics opt-in, use bounded in-memory queues and batch
+requests, and never send subject identifiers or arbitrary evaluation context. Config Edge derives
+organization/project/environment scope from the authenticated server or browser key and publishes
+validated batches to a dedicated Kafka topic. Event Worker performs bounded batched inserts into
+ClickHouse; insert failure drops optional telemetry and cannot affect snapshot delivery, publish,
+rollback, or local SDK evaluation.
+
+Start the digest-pinned analytics dependencies, then enable analytics in the three backend
+processes using the local-only values in `.env.example`:
+
+```powershell
+docker compose --profile distribution --profile analytics up -d --wait
+$env:LAUNCHFORGE_ANALYTICS_ENABLED='true'
+$env:LAUNCHFORGE_CLICKHOUSE_PASSWORD='<local-only password from .env>'
+```
+
+The admin console's Analytics page queries tenant-authorized, hour/day aggregate counts with
+bounded time, row, concurrency, and ClickHouse execution limits. Counts are operational telemetry,
+not experiment-significance or causal results. ClickHouse retains events for 90 days; its table has
+no subject or raw-context columns. SDK opt-in examples and local counters are documented in the SDK
+READMEs.
+
 ### JavaScript, browser, and React SDKs
 
 M5 implements LF-0501 through LF-0505. `@launchforge/js-core` is the strict algorithm-version-1
@@ -370,8 +395,9 @@ only in transient one-time dialog state. Run its isolated browser acceptance flo
 pnpm --filter @launchforge/admin-web test:e2e
 ```
 
-The opt-in local SQL seed now includes a fictional Development environment so a successful OIDC
-login lands directly in the console. Analytics remains deferred to its owning milestone.
+The opt-in local SQL seed includes a fictional Development environment so a successful OIDC login
+lands directly in the console. The Analytics page handles disabled or unavailable telemetry
+without implying that configuration delivery is degraded.
 
 On Unix-like systems, use `./mvnw` in place of `.\mvnw.cmd`. After initializing Git on Windows, record the executable bit with `git update-index --chmod=+x mvnw`.
 

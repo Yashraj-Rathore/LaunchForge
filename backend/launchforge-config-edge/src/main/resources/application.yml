@@ -17,6 +17,16 @@ spring:
       port: ${LAUNCHFORGE_REDIS_PORT:56379}
       connect-timeout: 2s
       timeout: 2s
+  kafka:
+    bootstrap-servers: ${LAUNCHFORGE_KAFKA_BOOTSTRAP_SERVERS:localhost:59092}
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        enable.idempotence: true
+        delivery.timeout.ms: 5000
+        request.timeout.ms: 2000
   codec:
     max-in-memory-size: 1MB
 
@@ -40,6 +50,15 @@ launchforge:
     maximum-concurrent-database-fallbacks: ${LAUNCHFORGE_EDGE_MAX_DB_FALLBACKS:8}
     database-fallback-acquire-timeout: ${LAUNCHFORGE_EDGE_DB_FALLBACK_ACQUIRE_TIMEOUT:100ms}
     invalidation-channel: ${LAUNCHFORGE_REDIS_INVALIDATION_CHANNEL:launchforge:config:revision-hints:v1}
+  analytics:
+    ingestion:
+      enabled: ${LAUNCHFORGE_ANALYTICS_ENABLED:false}
+      topic: ${LAUNCHFORGE_KAFKA_ANALYTICS_TOPIC:launchforge.analytics.evaluations.v1}
+      maximum-request-bytes: 262144
+      maximum-batch-size: 100
+      maximum-concurrent-requests: ${LAUNCHFORGE_ANALYTICS_MAX_CONCURRENT_INGESTS:16}
+      requests-per-key-per-minute: ${LAUNCHFORGE_ANALYTICS_REQUESTS_PER_KEY_PER_MINUTE:600}
+      publish-timeout: 2s
 
 management:
   endpoint:

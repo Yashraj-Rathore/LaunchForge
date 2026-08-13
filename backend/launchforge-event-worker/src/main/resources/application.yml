@@ -41,6 +41,17 @@ launchforge:
     topic: ${LAUNCHFORGE_KAFKA_CONFIG_TOPIC:launchforge.config.revision-published.v1}
     consumer-group: ${LAUNCHFORGE_KAFKA_CONSUMER_GROUP:launchforge-config-projector-v1}
     invalidation-channel: ${LAUNCHFORGE_REDIS_INVALIDATION_CHANNEL:launchforge:config:revision-hints:v1}
+  analytics:
+    worker:
+      enabled: ${LAUNCHFORGE_ANALYTICS_ENABLED:false}
+      topic: ${LAUNCHFORGE_KAFKA_ANALYTICS_TOPIC:launchforge.analytics.evaluations.v1}
+      consumer-group: ${LAUNCHFORGE_KAFKA_ANALYTICS_CONSUMER_GROUP:launchforge-analytics-writer-v1}
+      queue-capacity: ${LAUNCHFORGE_ANALYTICS_QUEUE_CAPACITY:10000}
+      insert-batch-size: ${LAUNCHFORGE_ANALYTICS_INSERT_BATCH_SIZE:500}
+      flush-interval: ${LAUNCHFORGE_ANALYTICS_FLUSH_INTERVAL:1s}
+      click-house-url: ${LAUNCHFORGE_CLICKHOUSE_URL:http://localhost:58123}
+      click-house-user: ${LAUNCHFORGE_CLICKHOUSE_USER:launchforge}
+      click-house-password: ${LAUNCHFORGE_CLICKHOUSE_PASSWORD:}
 
 management:
   endpoints:

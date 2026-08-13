@@ -90,6 +90,41 @@ describe('LaunchForgeBrowserClient', () => {
     client.close();
     client.close();
   });
+
+  it('keeps analytics opt-in, context-free, batched, and isolated from evaluation', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(snapshotResponse(3, true))
+      .mockResolvedValueOnce(new Response('{}', { status: 503 }));
+    const client = new LaunchForgeBrowserClient({
+      baseUrl: 'https://edge.example',
+      clientKey: CLIENT_KEY,
+      initialContext: createEvaluationContext('private-subject', {
+        email: 'person@example.test',
+      }),
+      streaming: false,
+      fetcher,
+      analytics: { enabled: true, batchSize: 1, queueCapacity: 2, flushIntervalMs: 100 },
+    });
+    await client.start();
+
+    expect(client.boolVariation('new-checkout', false)).toBe(true);
+    await client.flushAnalytics();
+
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    const request = fetcher.mock.calls[1]?.[1];
+    expect(String(request?.body)).not.toContain('private-subject');
+    expect(String(request?.body)).not.toContain('person@example.test');
+    expect(String(request?.body)).not.toContain('attributes');
+    expect(client.getAnalyticsStatistics()).toMatchObject({
+      queued: 1,
+      sent: 0,
+      dropped: 1,
+      failedBatches: 1,
+    });
+    expect(client.boolVariation('new-checkout', false)).toBe(true);
+    client.close();
+  });
 });
 
 function clientWith(fetcher: typeof fetch, streaming = false): LaunchForgeBrowserClient {

@@ -17,6 +17,10 @@ public interface EdgeRepository {
 
   void recordUse(UUID keyId);
 
+  default Optional<EnvironmentScope> findEnvironmentScope(UUID environmentId) {
+    return Optional.empty();
+  }
+
   default Optional<StoredBrowserCredential> findBrowserCredential(String clientKey) {
     return Optional.empty();
   }
@@ -69,4 +73,11 @@ public interface EdgeRepository {
 
   record BrowserCredentialLifecycle(
       UUID environmentId, String status, Instant expiresAt, boolean scopeActive) {}
+
+  record EnvironmentScope(
+      UUID organizationId,
+      UUID projectId,
+      UUID environmentId,
+      String projectKey,
+      String environmentKey) {}
 }

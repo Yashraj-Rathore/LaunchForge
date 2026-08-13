@@ -129,6 +129,14 @@ one-time key secrets, key rotation/revocation, audit safety, and Viewer denial. 
 integration coverage proves stable-ID variation updates, same-evaluator draft results, audit filters,
 and cross-tenant denial for both simulator and audit routes.
 
+The M8 suites prove that analytics-disabled Java/browser clients make no event request, enabled
+clients omit subject/context data, and transport failure leaves local evaluation unchanged. Config
+Edge tests cover strict batch decoding, derived tenant scope, and dedicated publication. Event
+Worker tests force ClickHouse failure and verify bounded drop behavior. Control API tests verify
+tenant-scoped typed ClickHouse parameters, duplicate-tolerant aggregation, and isolated outage
+errors. `AnalyticsClickHouseIT` starts the digest-pinned real image and proves batched writes,
+`uniqExact(event_id)`, the 90-day TTL, and the absence of subject/context columns.
+
 ### Performance
 
 - JMH evaluator microbenchmarks;

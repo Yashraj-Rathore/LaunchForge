@@ -1,0 +1,14 @@
+{
+  "eventType": "analytics.evaluation-batch.v1",
+  "schemaVersion": 1,
+  "events": [
+    {
+      "eventId": "5d63160a-c7e0-45fe-aa65-7af23bc9f860",
+      "occurredAt": "2026-08-13T12:00:00Z",
+      "flagKey": "new-checkout",
+      "variationId": "on",
+      "reason": "RULE_MATCH",
+      "revision": 12
+    }
+  ]
+}

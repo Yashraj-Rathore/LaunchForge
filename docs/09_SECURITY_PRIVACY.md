@@ -234,7 +234,14 @@ By default:
 - snapshot fetch has no end-user context;
 - analytics is opt-in;
 - analytics payload uses only bounded fields required for aggregate measurement;
-- support private attributes or exclusion lists before analytics is enabled.
+- analytics sends neither a subject identifier/hash nor any context attribute;
+- organization/project/environment scope is derived from the authenticated SDK/client key, not
+  trusted from the event body.
+
+M8 treats every evaluation-context attribute as private/excluded: the version-1 schema has no field
+through which an SDK can transmit one, and Config Edge rejects unknown fields. Any future attribute
+collection requires an explicit versioned privacy design and opt-in policy; it cannot be added as
+an unreviewed additive event field.
 
 Never log full evaluation context.
 
@@ -386,6 +393,11 @@ Define separate policies for:
 - key metadata.
 
 Configuration revision history should be long-lived because it supports rollback/audit. Retention jobs require dry-run/preview and explicit documentation before destructive behavior.
+
+M8 ClickHouse evaluation events have a 90-day table TTL and monthly partitions. The table stores
+only event/time, tenant resource IDs/keys, flag, variation, reason, revision, and SDK class. It has no
+subject, context, email, IP, cookie, authorization, or SDK-key column. The TTL is an operational data
+lifecycle guarantee, not permission to log excluded data elsewhere.
 
 ## 20. Security definition of done
 

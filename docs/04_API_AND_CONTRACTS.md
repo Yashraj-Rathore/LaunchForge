@@ -234,9 +234,45 @@ requires a new versioned event type/topic.
 ```text
 POST /events/v1/evaluations/batch
 Authorization: LF-SDK <key>
+Content-Type: application/json
+
+POST /events/v1/client/{clientKey}/evaluations/batch
+Origin: https://allowed.example
+Content-Type: application/json
 ```
 
-Bounded count/body, no arbitrary context map, optional pseudonymous subject hash, bounded clock skew.
+Both routes accept the version-1 batch in
+`contracts/events/evaluation-event-batch-v1.schema.json`. A batch contains 1–100 events and the
+body is capped at 256 KiB. Each event contains only a UUID event ID, timestamp, bounded flag key,
+optional bounded variation ID, version-1 reason code, and positive revision. Subject identifiers,
+pseudonymous hashes, evaluation-context attributes, organization IDs, project IDs, and environment
+IDs are not client-supplied fields. Unknown fields are rejected. Config Edge derives tenant scope
+from the authenticated environment-scoped server key or the public browser key and its exact-origin
+policy.
+
+Accepted batches return `202` with `batchId` and `acceptedEvents`. Invalid batches return
+`ANALYTICS_BATCH_INVALID`; exhausted per-key/global capacity returns
+`ANALYTICS_CAPACITY_EXHAUSTED`; a bounded Kafka publication failure returns
+`ANALYTICS_UNAVAILABLE`. Analytics responses and failures never change an evaluation result.
+
+The operator query is separate and tenant-authorized:
+
+```text
+GET /api/v1/environments/{environmentId}/analytics/evaluations
+    ?from={instant}
+    &to={instant}
+    &flagKey={optional}
+    &variationId={optional}
+    &bucket={HOUR|DAY}
+    &limit={1..1000}
+```
+
+The default range is the prior 24 hours and the maximum range is 31 days. Results are unique-event
+counts grouped by bucket, flag, and variation; duplicate delivery is tolerated by aggregating
+`uniqExact(event_id)`. The query path has its own concurrency, request timeout, ClickHouse execution,
+and result-row bounds. Its response explicitly labels the counts as operational and makes no
+experiment-significance or causal claim. Disabled/unavailable analytics returns
+`ANALYTICS_UNAVAILABLE`; capacity shedding returns `ANALYTICS_QUERY_CAPACITY_EXHAUSTED`.
 
 Analytics is off by default.
 

@@ -205,16 +205,32 @@ Actions:
 Expected:
 
 - config/publish/evaluation unaffected;
-- optional analytics can be dropped/buffered within bounded policy.
+- Java/browser SDKs keep returning the local evaluation result and may drop when their finite queue
+  fills or a batch request fails;
+- Config Edge sheds analytics independently at its concurrency/per-key limits and returns `429`, or
+  `503` when the dedicated Kafka publication fails;
+- Event Worker drains only finite insert batches and drops a failed batch instead of retrying
+  indefinitely or blocking its configuration projector;
+- Control API returns isolated `429`/`503` analytics errors while management and configuration APIs
+  remain available.
 
 Actions:
 
-1. verify isolation;
-2. inspect bounded queue/backpressure;
-3. restore ClickHouse;
-4. resume inserts;
-5. accept/document event gap if drop policy activated;
-6. never slow config edge to preserve analytics.
+1. verify snapshot reads, publish, rollback, SSE/polling convergence, and local evaluation remain
+   healthy before investigating telemetry;
+2. inspect `launchforge.analytics.*` ingestion, queue, worker, insert-duration, query, and drop
+   signals without adding tenant/flag/subject labels;
+3. confirm the dedicated analytics Kafka topic is available and consumer lag is bounded;
+4. restore ClickHouse and verify `/ping` plus a bounded aggregate query;
+5. verify new inserts resume; do not replay SDK-local dropped events or introduce an unbounded
+   recovery queue;
+6. record the event-gap interval and whether ingestion, worker, or SDK drop policy activated;
+7. never slow Config Edge snapshot/stream work or SDK evaluation to preserve analytics.
+
+The M8 worker unit test forces a ClickHouse insert failure and proves the batch is counted/dropped
+without escaping the scheduled flush. `AnalyticsClickHouseIT` starts the pinned real image and
+proves batched writes, duplicate-tolerant `uniqExact(event_id)` aggregation, the 90-day TTL, and the
+absence of subject/context columns.
 
 ---
 

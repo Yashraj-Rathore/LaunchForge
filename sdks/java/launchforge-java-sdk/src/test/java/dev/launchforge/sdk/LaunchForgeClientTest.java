@@ -272,6 +272,42 @@ class LaunchForgeClientTest {
     }
   }
 
+  @Test
+  void analyticsIsExplicitPrivacyBoundedAndCannotBreakEvaluation() throws Exception {
+    AtomicReference<Response> response =
+        new AtomicReference<>(new Response(200, snapshot(8, true), "\"revision:8:valid\""));
+    try (TestServer server =
+        new TestServer(response, new AtomicReference<>(), new AtomicReference<>())) {
+      EvaluationContext sensitive =
+          EvaluationContext.builder("private-subject")
+              .attribute("email", "person@example.test")
+              .build();
+      try (LaunchForgeClient disabled = blockingClient(server.uri())) {
+        assertTrue(disabled.boolVariation("release", sensitive, false));
+        TimeUnit.MILLISECONDS.sleep(150);
+        assertEquals(0, server.analyticsRequests());
+      }
+
+      server.setAnalyticsStatus(503);
+      try (LaunchForgeClient enabled =
+          LaunchForgeClient.builder()
+              .sdkKey("sdk_test_secret")
+              .baseUri(server.uri())
+              .pollingInterval(Duration.ofMinutes(5), Duration.ofMinutes(5))
+              .blockingBootstrap(Duration.ofSeconds(2))
+              .analytics(new AnalyticsOptions(4, 1, Duration.ofMillis(100), Duration.ofMillis(500)))
+              .build()) {
+        assertTrue(enabled.boolVariation("release", sensitive, false));
+        await(() -> server.analyticsRequests() == 1, Duration.ofSeconds(2));
+
+        assertFalse(server.analyticsBody().contains("private-subject"));
+        assertFalse(server.analyticsBody().contains("person@example.test"));
+        assertFalse(server.analyticsBody().contains("attributes"));
+        assertTrue(enabled.boolVariation("release", sensitive, false));
+      }
+    }
+  }
+
   private static LaunchForgeClient blockingClient(URI uri) {
     return LaunchForgeClient.builder()
         .sdkKey("sdk_test_secret")
@@ -326,6 +362,9 @@ class LaunchForgeClientTest {
     private final AtomicReference<String> lastEventId;
     private final AtomicInteger snapshotRequests;
     private final AtomicInteger streamRequests;
+    private final AtomicInteger analyticsRequests = new AtomicInteger();
+    private final AtomicInteger analyticsStatus = new AtomicInteger(202);
+    private final AtomicReference<String> analyticsBody = new AtomicReference<>("");
 
     TestServer(
         AtomicReference<Response> response,
@@ -378,6 +417,18 @@ class LaunchForgeClientTest {
       serving.set(value);
     }
 
+    void setAnalyticsStatus(int value) {
+      analyticsStatus.set(value);
+    }
+
+    int analyticsRequests() {
+      return analyticsRequests.get();
+    }
+
+    String analyticsBody() {
+      return analyticsBody.get();
+    }
+
     private void acceptRequests() {
       while (running.get()) {
         try {
@@ -401,6 +452,7 @@ class LaunchForgeClientTest {
         if (requestLine == null || !serving.get()) {
           return;
         }
+        int contentLength = 0;
         for (String line = reader.readLine();
             line != null && !line.isEmpty();
             line = reader.readLine()) {
@@ -414,8 +466,19 @@ class LaunchForgeClientTest {
               ifNoneMatch.set(value);
             } else if (name.equalsIgnoreCase("Last-Event-ID")) {
               lastEventId.compareAndSet(null, value);
+            } else if (name.equalsIgnoreCase("Content-Length")) {
+              contentLength = Integer.parseInt(value);
             }
           }
+        }
+        char[] requestBody = new char[contentLength];
+        int offset = 0;
+        while (offset < requestBody.length) {
+          int read = reader.read(requestBody, offset, requestBody.length - offset);
+          if (read < 0) {
+            break;
+          }
+          offset += read;
         }
         if (requestLine.startsWith("GET /sdk/v1/snapshot ")) {
           snapshotRequests.incrementAndGet();
@@ -423,6 +486,11 @@ class LaunchForgeClientTest {
         } else if (requestLine.startsWith("GET /sdk/v1/stream ") && streamBody != null) {
           streamRequests.incrementAndGet();
           writeStream(connection.getOutputStream(), streamBody.get());
+        } else if (requestLine.startsWith("POST /events/v1/evaluations/batch ")) {
+          analyticsBody.set(new String(requestBody, 0, offset));
+          analyticsRequests.incrementAndGet();
+          writeResponse(
+              connection.getOutputStream(), new Response(analyticsStatus.get(), "{}", null));
         }
       } catch (IOException exception) {
         if (running.get()) {

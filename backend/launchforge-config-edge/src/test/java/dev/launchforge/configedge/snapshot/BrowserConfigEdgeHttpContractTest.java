@@ -115,6 +115,27 @@ class BrowserConfigEdgeHttpContractTest {
         .doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS);
   }
 
+  @Test
+  void analyticsPreflightAllowsOnlyPostWithJsonForTheExactOrigin() {
+    client
+        .options()
+        .uri("/events/v1/client/" + CLIENT_KEY + "/evaluations/batch")
+        .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
+        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "Content-Type")
+        .exchange()
+        .expectStatus()
+        .isNoContent()
+        .expectHeader()
+        .valueEquals(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ALLOWED_ORIGIN)
+        .expectHeader()
+        .valueEquals(HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS, "POST")
+        .expectHeader()
+        .value(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, value -> value.contains("Content-Type"))
+        .expectHeader()
+        .doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS);
+  }
+
   private static StoredSnapshot snapshot(ObjectMapper objectMapper) throws Exception {
     Map<String, Object> document = new LinkedHashMap<>();
     document.put("schemaVersion", 1);

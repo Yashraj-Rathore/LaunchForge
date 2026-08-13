@@ -132,6 +132,30 @@ public class JdbcEdgeRepository implements EdgeRepository {
   }
 
   @Override
+  public Optional<EnvironmentScope> findEnvironmentScope(UUID environmentId) {
+    List<EnvironmentScope> matches =
+        jdbcTemplate.query(
+            """
+            SELECT e.organization_id, e.project_id, e.id AS environment_id,
+                   p.project_key, e.environment_key
+              FROM environments e
+              JOIN projects p ON p.id = e.project_id AND p.organization_id = e.organization_id
+              JOIN organizations o ON o.id = e.organization_id
+             WHERE e.id = ? AND e.status = 'ACTIVE'
+               AND p.status = 'ACTIVE' AND o.status = 'ACTIVE'
+            """,
+            (resultSet, rowNumber) ->
+                new EnvironmentScope(
+                    resultSet.getObject("organization_id", UUID.class),
+                    resultSet.getObject("project_id", UUID.class),
+                    resultSet.getObject("environment_id", UUID.class),
+                    resultSet.getString("project_key"),
+                    resultSet.getString("environment_key")),
+            environmentId);
+    return matches.stream().findFirst();
+  }
+
+  @Override
   public Optional<StoredBrowserCredential> findBrowserCredential(String clientKey) {
     List<StoredBrowserCredential> matches =
         jdbcTemplate.query(

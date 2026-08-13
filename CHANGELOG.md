@@ -16,6 +16,7 @@
 - Finalized the M5 public browser-key and exact-origin CORS contract, separate client-visible projection checksum/ETag behavior, JavaScript numeric compatibility, React context/subscription lifecycle, and Northstar storefront workflow.
 - Finalized the M6 draft-backed simulator, safe tenant-scoped audit query, typed variation-edit contract, production publish review, stale-write reconciliation, and one-time credential display behavior.
 - Finalized the M7 leased outbox, environment-keyed revision event, monotonic Redis materialization, global bounded invalidation, Redis-first edge fallback, and failure-recovery operating contracts.
+- Finalized the M8 privacy-minimized evaluation event, separate server/browser ingestion paths, ClickHouse retention and aggregation contract, bounded operational query semantics, and analytics failure-isolation runbook.
 
 ### Implementation
 
@@ -49,3 +50,5 @@
 - Implemented LF-0701–LF-0706 with multi-worker expiring outbox leases, broker-acknowledged publication, bounded retry/permanent-failure handling, a versioned additive Kafka contract keyed by environment, and an idempotent PostgreSQL-validating projector.
 - Added atomic monotonic Redis snapshot hashes, a PostgreSQL reconciliation rebuild, one global bounded Pub/Sub hint channel, Redis-first Config Edge reads, monotonic cache backfill, and semaphore-bounded PostgreSQL fallback with cache/projection/outbox metrics.
 - Added digest-pinned Kafka 4.3.1 and Redis 8.2.8 distribution services plus a Testcontainers drill proving lease recovery, duplicate safety, Kafka catch-up, projector recovery, Redis rebuild/outage fallback, two-edge convergence/restart, and Java SDK last-known-good evaluation.
+- Implemented LF-0801–LF-0805 with explicit opt-in Java/browser SDK analytics, context-free bounded batches, tenant scope derived from server/browser keys, a dedicated Kafka topic and bounded Event Worker buffer, and best-effort failure behavior that never changes local evaluation results.
+- Added digest-pinned ClickHouse 26.7.1.1315, a 90-day privacy-bounded MergeTree schema, duplicate-tolerant aggregate queries, a tenant-authorized operational analytics UI, Micrometer ingestion/worker/query signals, and real ClickHouse integration coverage for storage, retention, privacy, and duplicate handling.

@@ -94,7 +94,7 @@ Prompt 0 verification is recorded in `docs/19_TECHNOLOGY_BASELINE.md`. Deferred 
 - PostgreSQL 18.x + Flyway
 - Apache Kafka 4.3.x in KRaft mode
 - Redis 8.2.x
-- ClickHouse, deferred until analytics milestone
+- ClickHouse 26.7.1.1315 in the optional M8 analytics profile
 - Keycloak 26.7.0 as the digest-pinned local/reference OIDC provider
 - Docker Compose
 - Kubernetes + Helm
@@ -336,6 +336,31 @@ java -jar backend/launchforge-config-edge/target/launchforge-config-edge-0.1.0-S
 broker/cache outage, rebuild, and Java SDK last-known-good drill is recorded in
 `docs/18_FAILURE_MODES_RUNBOOKS.md`.
 
+### Optional evaluation analytics
+
+M8 implements LF-0801 through LF-0805 as an isolated, disabled-by-default pipeline. Java and
+browser SDKs emit only after an explicit analytics opt-in, use bounded in-memory queues and batch
+requests, and never send subject identifiers or arbitrary evaluation context. Config Edge derives
+organization/project/environment scope from the authenticated server or browser key and publishes
+validated batches to a dedicated Kafka topic. Event Worker performs bounded batched inserts into
+ClickHouse; insert failure drops optional telemetry and cannot affect snapshot delivery, publish,
+rollback, or local SDK evaluation.
+
+Start the digest-pinned analytics dependencies, then enable analytics in the three backend
+processes using the local-only values in `.env.example`:
+
+```powershell
+docker compose --profile distribution --profile analytics up -d --wait
+$env:LAUNCHFORGE_ANALYTICS_ENABLED='true'
+$env:LAUNCHFORGE_CLICKHOUSE_PASSWORD='<local-only password from .env>'
+```
+
+The admin console's Analytics page queries tenant-authorized, hour/day aggregate counts with
+bounded time, row, concurrency, and ClickHouse execution limits. Counts are operational telemetry,
+not experiment-significance or causal results. ClickHouse retains events for 90 days; its table has
+no subject or raw-context columns. SDK opt-in examples and local counters are documented in the SDK
+READMEs.
+
 ### JavaScript, browser, and React SDKs
 
 M5 implements LF-0501 through LF-0505. `@launchforge/js-core` is the strict algorithm-version-1
@@ -378,8 +403,9 @@ only in transient one-time dialog state. Run its isolated browser acceptance flo
 pnpm --filter @launchforge/admin-web test:e2e
 ```
 
-The opt-in local SQL seed now includes a fictional Development environment so a successful OIDC
-login lands directly in the console. Analytics remains deferred to its owning milestone.
+The opt-in local SQL seed includes a fictional Development environment so a successful OIDC login
+lands directly in the console. The Analytics page handles disabled or unavailable telemetry
+without implying that configuration delivery is degraded.
 
 On Unix-like systems, use `./mvnw` in place of `.\mvnw.cmd`. After initializing Git on Windows, record the executable bit with `git update-index --chmod=+x mvnw`.
 
@@ -592,9 +618,9 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 
 # Project Status
 
-**Status:** Prompt 8 Kafka and Redis distribution implementation complete.
+**Status:** Prompt 9 optional analytics implementation complete.
 
-**Current milestone:** M7 Kafka/Redis scale-out (LF-0701–LF-0706) complete; stop point before Prompt 9 / M8 optional analytics.
+**Current milestone:** M8 optional analytics (LF-0801–LF-0805) complete; stop point before Prompt 10 / M9 security hardening.
 
 **Specification baseline:** Canonical module paths, snapshot/checksum representation, algorithm-version-1 types and reason codes, milestone dependencies, and exact Prompt 0 toolchain pins were normalized on 2026-08-10.
 
@@ -608,7 +634,7 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 | M5 JavaScript/React SDKs | LF-0501–LF-0505 | Complete (2026-08-12) |
 | M6 Admin console | LF-0601–LF-0606 | Complete (2026-08-12) |
 | M7 Kafka/Redis scale-out | LF-0701–LF-0706 | Complete (2026-08-13) |
-| M8 Analytics | LF-0801–LF-0805 | Not started |
+| M8 Analytics | LF-0801–LF-0805 | Complete (2026-08-13) |
 | M9 Security hardening | LF-0901–LF-0906 | Not started |
 | M10 Reliability/performance | LF-1001–LF-1006 | Not started |
 | M11 Containers/Helm | LF-1101–LF-1104 | Not started |
@@ -709,11 +735,11 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 
 ## M8 Optional analytics
 
-- [ ] LF-0801
-- [ ] LF-0802
-- [ ] LF-0803
-- [ ] LF-0804
-- [ ] LF-0805
+- [x] LF-0801
+- [x] LF-0802
+- [x] LF-0803
+- [x] LF-0804
+- [x] LF-0805
 
 ## M9 Security
 
@@ -1778,9 +1804,45 @@ requires a new versioned event type/topic.
 ```text
 POST /events/v1/evaluations/batch
 Authorization: LF-SDK <key>
+Content-Type: application/json
+
+POST /events/v1/client/{clientKey}/evaluations/batch
+Origin: https://allowed.example
+Content-Type: application/json
 ```
 
-Bounded count/body, no arbitrary context map, optional pseudonymous subject hash, bounded clock skew.
+Both routes accept the version-1 batch in
+`contracts/events/evaluation-event-batch-v1.schema.json`. A batch contains 1–100 events and the
+body is capped at 256 KiB. Each event contains only a UUID event ID, timestamp, bounded flag key,
+optional bounded variation ID, version-1 reason code, and positive revision. Subject identifiers,
+pseudonymous hashes, evaluation-context attributes, organization IDs, project IDs, and environment
+IDs are not client-supplied fields. Unknown fields are rejected. Config Edge derives tenant scope
+from the authenticated environment-scoped server key or the public browser key and its exact-origin
+policy.
+
+Accepted batches return `202` with `batchId` and `acceptedEvents`. Invalid batches return
+`ANALYTICS_BATCH_INVALID`; exhausted per-key/global capacity returns
+`ANALYTICS_CAPACITY_EXHAUSTED`; a bounded Kafka publication failure returns
+`ANALYTICS_UNAVAILABLE`. Analytics responses and failures never change an evaluation result.
+
+The operator query is separate and tenant-authorized:
+
+```text
+GET /api/v1/environments/{environmentId}/analytics/evaluations
+    ?from={instant}
+    &to={instant}
+    &flagKey={optional}
+    &variationId={optional}
+    &bucket={HOUR|DAY}
+    &limit={1..1000}
+```
+
+The default range is the prior 24 hours and the maximum range is 31 days. Results are unique-event
+counts grouped by bucket, flag, and variation; duplicate delivery is tolerated by aggregating
+`uniqExact(event_id)`. The query path has its own concurrency, request timeout, ClickHouse execution,
+and result-row bounds. Its response explicitly labels the counts as operational and makes no
+experiment-significance or causal claim. Disabled/unavailable analytics returns
+`ANALYTICS_UNAVAILABLE`; capacity shedding returns `ANALYTICS_QUERY_CAPACITY_EXHAUSTED`.
 
 Analytics is off by default.
 
@@ -2330,7 +2392,30 @@ Strict Mode's effect rehearsal does not permanently close the owned client. Call
 context objects; changing context is an intentional local reevaluation and rerender, never a remote
 context upload.
 
-## 14. Cross-language compatibility
+## 14. Optional evaluation analytics
+
+Analytics is absent unless the caller explicitly opts in. Java uses
+`.analytics(AnalyticsOptions.defaults())`; the browser client requires
+`analytics: { enabled: true }`. The default opt-in settings use a finite queue, a finite batch size,
+a periodic flush, and a bounded request timeout. Queue saturation or transport failure increments
+local `queued`/`sent`/`dropped`/`failedBatches` diagnostics and may discard optional events. It never
+blocks, retries on, or changes the already computed evaluation result.
+
+Events carry a random event ID, evaluation timestamp, flag key, selected variation ID when known,
+bounded reason code, and active snapshot revision. They do not carry the subject key, a subject
+hash, or any evaluation-context attribute. Consequently every attribute is effectively private and
+excluded from M8 analytics; adding an attribute policy later requires a new reviewed contract, not
+an SDK-side accidental upload. Server SDK batches use `LF-SDK` authentication. Browser batches use
+the public client-key route with the same exact-origin and `credentials: omit` policy as browser
+snapshot delivery.
+
+Analytics flushing runs on transport-owned background resources. Local evaluation retains the same
+no-network/no-database/no-disk hot path whether analytics is disabled, enabled, congested, or
+unavailable. Java close performs one bounded best-effort flush. Browser callers that need a final
+attempt await `flushAnalytics()` before synchronous `close()`; close drops any remaining queued
+events and releases analytics resources.
+
+## 15. Cross-language compatibility
 
 Golden vectors are mandatory.
 
@@ -2350,7 +2435,7 @@ They must cover:
 
 Both Java and JS implementations run against the same fixtures in CI.
 
-## 15. Thread safety
+## 16. Thread safety
 
 The Java SDK is intended to be shared as a singleton application dependency.
 
@@ -2363,7 +2448,7 @@ Requirements:
 - client state has no unbounded queues;
 - mutable evaluation context is not shared between calls.
 
-## 16. Performance goals
+## 17. Performance goals
 
 Goals are not resume claims until measured.
 
@@ -2378,7 +2463,7 @@ The evaluator should be designed for:
 
 JMH benchmarks in Milestone 10 establish actual performance.
 
-## 17. Compatibility policy
+## 18. Compatibility policy
 
 Before public release:
 
@@ -2584,7 +2669,8 @@ It serves:
 ```text
 GET /sdk/v1/snapshot
 GET /sdk/v1/stream
-POST /sdk/v1/events   # optional analytics, later
+POST /events/v1/evaluations/batch
+POST /events/v1/client/{clientKey}/evaluations/batch
 ```
 
 The edge must be horizontally scalable and stateless except for ephemeral connection state.
@@ -2601,6 +2687,15 @@ subscription. Redis misses, malformed values, and connection failures use a sema
 PostgreSQL fallback with a bounded acquire timeout. A successful fallback backfills Redis only when
 its revision is newer. Periodic revision checks remain active, so a lost Pub/Sub hint cannot prevent
 convergence.
+
+M8 adds analytics as a separate, conditional route/controller/policy. It validates bounded
+context-free event batches, derives tenant scope from the authenticated server/browser key, and
+waits only for a bounded acknowledgement from the dedicated
+`launchforge.analytics.evaluations.v1` Kafka topic before returning `202`. Analytics concurrency,
+per-key request limits, errors, topic, and metrics are independent of snapshot and SSE paths. The
+Event Worker uses a separate consumer group and finite ClickHouse insert queue; congestion or store
+failure sheds/drops optional events instead of consuming unbounded memory or delaying configuration
+projection.
 
 ## 9. Snapshot resolution
 
@@ -2770,10 +2865,11 @@ Rules:
 ## 18. Local development
 
 Kafka and Redis are opt-in through the `distribution` Compose profile. PostgreSQL remains the
-system of record and also starts because it has no profile:
+system of record and also starts because it has no profile. M8 ClickHouse is separately opt-in:
 
 ```powershell
 docker compose --profile distribution up -d --wait
+docker compose --profile distribution --profile analytics up -d --wait
 ```
 
 With the database, Kafka, Redis, shared SDK-key pepper, and database variables from `.env.example`
@@ -2789,10 +2885,11 @@ The automated durability drill is:
 
 ```powershell
 .\mvnw.cmd -pl tests/integration-tests -am verify -Pintegration "-Dit.test=DistributionPipelineIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
+.\mvnw.cmd -pl tests/integration-tests -am verify -Pintegration "-Dit.test=AnalyticsClickHouseIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
 ```
 
 Stop the local services without deleting PostgreSQL data with
-`docker compose --profile distribution down`.
+`docker compose --profile distribution --profile analytics down`.
 
 ---
 
@@ -2838,7 +2935,7 @@ Organization
             ├── SDK Keys
             ├── Revisions
             ├── Audit
-            └── Analytics (later)
+            └── Analytics
 ```
 
 Top-level environment context must always be visible on destructive or publish actions.
@@ -2951,6 +3048,15 @@ Show:
 - created/last-used/revoked timestamps when available.
 
 The secret is displayed only once on creation/rotation.
+
+### Analytics
+
+The environment-scoped M8 screen shows hour/day operational evaluation counts with time-range,
+flag, and variation filters. It must always state that the data comes only from explicitly opted-in
+SDKs and is not an experiment-significance or causal analysis. The screen discloses that no subject
+identifier or raw targeting context is collected. Disabled/unavailable/empty analytics have distinct
+states, and unavailable analytics explicitly says configuration delivery, publish, rollback, and
+local evaluation are unaffected.
 
 ## 5. Publish workflow
 
@@ -3346,7 +3452,14 @@ By default:
 - snapshot fetch has no end-user context;
 - analytics is opt-in;
 - analytics payload uses only bounded fields required for aggregate measurement;
-- support private attributes or exclusion lists before analytics is enabled.
+- analytics sends neither a subject identifier/hash nor any context attribute;
+- organization/project/environment scope is derived from the authenticated SDK/client key, not
+  trusted from the event body.
+
+M8 treats every evaluation-context attribute as private/excluded: the version-1 schema has no field
+through which an SDK can transmit one, and Config Edge rejects unknown fields. Any future attribute
+collection requires an explicit versioned privacy design and opt-in policy; it cannot be added as
+an unreviewed additive event field.
 
 Never log full evaluation context.
 
@@ -3499,6 +3612,11 @@ Define separate policies for:
 
 Configuration revision history should be long-lived because it supports rollback/audit. Retention jobs require dry-run/preview and explicit documentation before destructive behavior.
 
+M8 ClickHouse evaluation events have a 90-day table TTL and monthly partitions. The table stores
+only event/time, tenant resource IDs/keys, flag, variation, reason, revision, and SDK class. It has no
+subject, context, email, IP, cookie, authorization, or SDK-key column. The TTL is an operational data
+lifecycle guarantee, not permission to log excluded data elsewhere.
+
 ## 20. Security definition of done
 
 A release is not production-ready until:
@@ -3647,6 +3765,14 @@ Java-backed simulation result rendering, production confirmation/reason, publish
 one-time key secrets, key rotation/revocation, audit safety, and Viewer denial. PostgreSQL
 integration coverage proves stable-ID variation updates, same-evaluator draft results, audit filters,
 and cross-tenant denial for both simulator and audit routes.
+
+The M8 suites prove that analytics-disabled Java/browser clients make no event request, enabled
+clients omit subject/context data, and transport failure leaves local evaluation unchanged. Config
+Edge tests cover strict batch decoding, derived tenant scope, and dedicated publication. Event
+Worker tests force ClickHouse failure and verify bounded drop behavior. Control API tests verify
+tenant-scoped typed ClickHouse parameters, duplicate-tolerant aggregation, and isolated outage
+errors. `AnalyticsClickHouseIT` starts the digest-pinned real image and proves batched writes,
+`uniqExact(event_id)`, the 90-day TTL, and the absence of subject/context columns.
 
 ### Performance
 
@@ -3984,6 +4110,21 @@ Possible local counters:
 - ClickHouse insert latency/failure;
 - dropped optional events.
 
+M8 exposes bounded, identifier-free meters:
+
+- `launchforge.analytics.ingestion{outcome=accepted_batch|accepted_event|rejected|shed|broker_failure}`
+  at Config Edge;
+- `launchforge.analytics.queue.depth` and
+  `launchforge.analytics.worker{outcome=enqueued|stored|dropped|invalid|store_failure}` at Event
+  Worker;
+- `launchforge.analytics.clickhouse.insert.duration{outcome=success|failure}` at Event Worker;
+- `launchforge.analytics.query{outcome=success|failure|shed}` and
+  `launchforge.analytics.query.duration` at Control API.
+
+Alert on sustained broker/store/query failure, capacity shedding, or dropped events. These alerts
+describe loss of optional telemetry only; configuration health and publish-to-SDK convergence must
+remain separate signals.
+
 ## 5. Logs
 
 Use structured JSON in deployed environments.
@@ -4184,8 +4325,7 @@ Deployable images:
 launchforge-management
 launchforge-config-edge
 launchforge-web
-launchforge-projector        # if separate from worker
-launchforge-analytics        # later
+launchforge-event-worker     # distribution projector + optional analytics writer
 ```
 
 Requirements:
@@ -4583,7 +4723,9 @@ Compute distributions across repeated runs.
 - context max attributes/bytes;
 - SSE connections/key/IP;
 - management mutation rate;
-- analytics batch max;
+- analytics request max 256 KiB and batch max 100 events;
+- SDK analytics queue/batch bounds and Event Worker queue/500-row insert bound;
+- analytics ingestion/query concurrency and per-key request limits;
 - Kafka consumer batch;
 - Redis value max.
 
@@ -4647,6 +4789,11 @@ A Redis outage can shift load to PostgreSQL. Prevent cascading failure with:
 - alerting.
 
 A reconnect storm can overload edge. Use exponential backoff/jitter and connection rate limiting.
+
+M8 analytics uses independent finite queues, non-blocking SDK enqueue, bounded Kafka publication,
+bounded ClickHouse insert batches/timeouts, and separate ingestion/query semaphores. When those
+limits are exhausted, optional events or queries are shed; configuration work is not queued behind
+analytics. Exact defaults live in each process's `application.yml` and `.env.example`.
 
 ## 12. Portfolio benchmark report
 
@@ -6511,16 +6658,32 @@ Actions:
 Expected:
 
 - config/publish/evaluation unaffected;
-- optional analytics can be dropped/buffered within bounded policy.
+- Java/browser SDKs keep returning the local evaluation result and may drop when their finite queue
+  fills or a batch request fails;
+- Config Edge sheds analytics independently at its concurrency/per-key limits and returns `429`, or
+  `503` when the dedicated Kafka publication fails;
+- Event Worker drains only finite insert batches and drops a failed batch instead of retrying
+  indefinitely or blocking its configuration projector;
+- Control API returns isolated `429`/`503` analytics errors while management and configuration APIs
+  remain available.
 
 Actions:
 
-1. verify isolation;
-2. inspect bounded queue/backpressure;
-3. restore ClickHouse;
-4. resume inserts;
-5. accept/document event gap if drop policy activated;
-6. never slow config edge to preserve analytics.
+1. verify snapshot reads, publish, rollback, SSE/polling convergence, and local evaluation remain
+   healthy before investigating telemetry;
+2. inspect `launchforge.analytics.*` ingestion, queue, worker, insert-duration, query, and drop
+   signals without adding tenant/flag/subject labels;
+3. confirm the dedicated analytics Kafka topic is available and consumer lag is bounded;
+4. restore ClickHouse and verify `/ping` plus a bounded aggregate query;
+5. verify new inserts resume; do not replay SDK-local dropped events or introduce an unbounded
+   recovery queue;
+6. record the event-gap interval and whether ingestion, worker, or SDK drop policy activated;
+7. never slow Config Edge snapshot/stream work or SDK evaluation to preserve analytics.
+
+The M8 worker unit test forces a ClickHouse insert failure and proves the batch is counted/dropped
+without escaping the scheduled flush. `AnalyticsClickHouseIT` starts the pinned real image and
+proves batched writes, duplicate-tolerant `uniqExact(event_id)` aggregation, the 90-day TTL, and the
+absence of subject/context columns.
 
 ---
 
@@ -6631,7 +6794,7 @@ Exact patch versions must be verified from official release sources during `Prom
 | PostgreSQL | 18.x | Authoritative relational store |
 | Kafka | 4.3.x | Durable revision propagation |
 | Redis | 8.2.x | Rebuildable current snapshot/rate state |
-| ClickHouse | current stable when M8 begins | Optional analytics only |
+| ClickHouse | 26.7.x, pinned and verified in M8 | Optional analytics only |
 | Keycloak | 26.7.x, pinned and verified in M1 | Local/reference OIDC |
 | Docker | current supported | Local/runtime packaging |
 | Kubernetes | current supported local/cloud target | Portfolio deployment |
@@ -6662,11 +6825,11 @@ Verified against official release sources on **2026-08-10**; M1-owned tools were
 | Keycloak | `26.7.0`; image `quay.io/keycloak/keycloak:26.7.0`; manifest `sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13` | M1 |
 | Apache Kafka | `4.3.1`; image `apache/kafka:4.3.1`; manifest `sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837` | M7 |
 | Redis | `8.2.8`; image `redis:8.2.8-bookworm`; manifest `sha256:2f7462b9e93e0a7ae2edf3a0a0babc8a4d29f8bfc50849b906b7caaef925edc1` | M7 |
+| ClickHouse | `26.7.1.1315`; image `clickhouse:26.7.1.1315`; manifest `sha256:16537a9270ad63acbbee437ebbb826ea62b49690e863ae33e2fc5c16b7d9466c` | M8 |
 | Docker Engine | tested-tooling target `29.6.2` | M0 developer environment |
 | Docker Compose | tested-tooling target `5.4.0` | M0 developer environment |
 | Kubernetes | tested deployment target `1.36.2` | Re-verify in M11 |
 | Helm | tested deployment target `4.2.3` | Re-verify in M11 |
-| ClickHouse | intentionally not pinned | Select and verify only if M8 begins |
 
 TypeScript 7.0 is not the initial pin because its first release does not expose the programmatic API needed by the surrounding tooling ecosystem; re-evaluate TypeScript 7 after 7.1 and full lint/test/build compatibility. Deferred services are documented candidates, not permission to add them before their milestone.
 
@@ -6680,11 +6843,17 @@ Official verification references:
 - Vite/Vitest/Playwright: <https://github.com/vitejs/vite/releases>, <https://github.com/vitest-dev/vitest/releases>, and <https://github.com/microsoft/playwright/releases>
 - PostgreSQL: <https://www.postgresql.org/support/versioning/> and <https://hub.docker.com/_/postgres>
 - Kafka/Redis/Keycloak: <https://kafka.apache.org/community/downloads/>, <https://hub.docker.com/r/apache/kafka/tags>, <https://download.redis.io/releases/>, <https://hub.docker.com/_/redis>, <https://www.keycloak.org/2026/07/keycloak-2670-released>, and <https://github.com/keycloak/keycloak/releases/tag/26.7.0>
+- ClickHouse: <https://hub.docker.com/_/clickhouse/tags> and <https://hub.docker.com/_/clickhouse>
 - Docker/Kubernetes/Helm: <https://docs.docker.com/engine/release-notes/29/>, <https://github.com/docker/compose/releases>, <https://kubernetes.io/releases/>, and <https://github.com/helm/helm/releases>
 
 LF-0003 resolved and recorded the PostgreSQL image manifest digest after a successful pull. Compose uses the readable tag and digest together, so a tag move cannot silently change the local database image. PostgreSQL 18 Compose volumes mount the image's version-appropriate data root at `/var/lib/postgresql`, not the older `/var/lib/postgresql/data` path.
 
 LF-0103 re-verified Keycloak when M1 began and recorded the Quay manifest above. Local non-container validation used the official `keycloak-26.7.0.zip` release asset after verifying SHA-256 `e63bd0167199c0092b8a4d22cc137e6b7a70e0089070f6f7799b1be504b69a8a`; CI uses the digest-pinned container.
+
+LF-0803 re-verified the official ClickHouse image when M8 began on **2026-08-13**. Compose and the
+real integration test use the readable `26.7.1.1315` tag together with the multi-platform manifest
+digest above. The application uses Java's standard HTTP client for bounded inserts and aggregate
+queries, so M8 adds no ClickHouse client-library dependency to the domain or SDK hot path.
 
 ### M0 build and quality pins
 
@@ -6801,7 +6970,10 @@ Redis gives fast current snapshot access and distributed ephemeral controls, but
 
 ## 11. Why ClickHouse is optional
 
-High-volume evaluation analytics are structurally different from transactional control-plane data. ClickHouse is an appropriate analytical store if analytics becomes a real feature, but adding it before core usage is unnecessary.
+High-volume evaluation analytics are structurally different from transactional control-plane data.
+M8 introduces ClickHouse only behind the optional `analytics` Compose profile and disabled-by-default
+application properties. PostgreSQL remains the configuration system of record, and ClickHouse
+failure cannot affect management, distribution, or local evaluation.
 
 ## 12. Build strategy
 
@@ -6829,7 +7001,10 @@ Use one root `pnpm-lock.yaml`, one exact root `packageManager` declaration, and 
 
 ## 14. Pinning status
 
-Prompt 0 decisions are recorded above. M0 pins only the technologies it actually introduces. Deferred entries must be re-verified in their owning milestone, and ClickHouse remains unselected unless optional analytics work starts. Exact image digests and dependency lockfiles are implementation artifacts and must be recorded by the issue that first resolves/downloads them.
+Prompt 0 decisions are recorded above. M0 pins only the technologies it actually introduces.
+Deferred entries must be re-verified in their owning milestone; M8 has now selected and pinned
+ClickHouse for optional analytics. Exact image digests and dependency lockfiles are implementation
+artifacts and must be recorded by the issue that first resolves/downloads them.
 
 ---
 
@@ -7488,7 +7663,7 @@ The browser never receives a server SDK key.
 
 # ADR-0007 - ClickHouse Only for Optional Evaluation Analytics
 
-- Status: Accepted for M8, deferred until needed
+- Status: Accepted and implemented in M8
 - Date: 2026-08-10
 
 ## Context
@@ -7497,7 +7672,8 @@ High-volume evaluation/exposure events are analytical/time-series-like and may d
 
 ## Decision
 
-If analytics M8 is implemented, use ClickHouse for bounded evaluation-event storage and aggregate queries.
+M8 uses ClickHouse for bounded evaluation-event storage and aggregate queries. The official
+`26.7.1.1315` image is tag-and-digest pinned in Compose and integration tests.
 
 Analytics is opt-in and isolated. Configuration publish, snapshot delivery, SDK refresh and local evaluation must work when ClickHouse is unavailable.
 
@@ -7506,7 +7682,7 @@ Analytics is opt-in and isolated. Configuration publish, snapshot delivery, SDK 
 - better analytical fit;
 - adds operational complexity;
 - requires privacy/retention decisions;
-- not started until core product is already useful.
+- introduced only after the core product and M7 distribution path were complete.
 
 This component may be skipped without invalidating the main portfolio project.
 

@@ -7,6 +7,8 @@ import dev.launchforge.application.organization.OperationForbiddenException;
 import dev.launchforge.application.organization.OrganizationConflictException;
 import dev.launchforge.application.organization.OrganizationNotFoundException;
 import dev.launchforge.application.sdkkey.SdkKeyConflictException;
+import dev.launchforge.controlapi.analytics.AnalyticsQueryCapacityException;
+import dev.launchforge.controlapi.analytics.AnalyticsUnavailableException;
 import dev.launchforge.domain.controlplane.ControlPlaneRuleViolationException;
 import dev.launchforge.domain.organization.DomainRuleViolationException;
 import java.net.URI;
@@ -61,6 +63,22 @@ public final class ApiExceptionHandler {
         HttpStatus.PRECONDITION_REQUIRED,
         "IF_MATCH_REQUIRED",
         "A valid If-Match resource version is required");
+  }
+
+  @ExceptionHandler(AnalyticsQueryCapacityException.class)
+  ProblemDetail analyticsCapacity() {
+    return problem(
+        HttpStatus.TOO_MANY_REQUESTS,
+        "ANALYTICS_QUERY_CAPACITY_EXHAUSTED",
+        "Analytics query capacity is temporarily exhausted");
+  }
+
+  @ExceptionHandler(AnalyticsUnavailableException.class)
+  ProblemDetail analyticsUnavailable() {
+    return problem(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "ANALYTICS_UNAVAILABLE",
+        "Optional analytics is disabled or temporarily unavailable");
   }
 
   @ExceptionHandler({

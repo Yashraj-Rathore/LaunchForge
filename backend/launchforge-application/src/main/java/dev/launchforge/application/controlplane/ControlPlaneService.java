@@ -530,6 +530,17 @@ public final class ControlPlaneService {
         .orElseThrow(ControlPlaneNotFoundException::new);
   }
 
+  public AnalyticsScope analyticsScope(OidcIdentity actor, EnvironmentId environmentId) {
+    ScopedEnvironment scoped = requireEnvironment(actor, environmentId);
+    requireAbility(scoped.access(), OrganizationAbility.VIEW_CONFIGURATION);
+    return new AnalyticsScope(
+        scoped.access().organization().id().value(),
+        scoped.project().id().value(),
+        scoped.environment().id().value(),
+        scoped.project().key().value(),
+        scoped.environment().key().value());
+  }
+
   public SnapshotCodec.RevisionDiff diff(
       OidcIdentity actor, EnvironmentId environmentId, long fromRevision, long toRevision) {
     PublishedRevision from = revision(actor, environmentId, fromRevision);
@@ -540,6 +551,13 @@ public final class ControlPlaneService {
   public String canonicalizeJsonValue(String rawJson) {
     return snapshotCodec.canonicalizeJsonValue(rawJson);
   }
+
+  public record AnalyticsScope(
+      UUID organizationId,
+      UUID projectId,
+      UUID environmentId,
+      String projectKey,
+      String environmentKey) {}
 
   private PublishedRevision publishCurrentDraft(
       ScopedEnvironment scoped,
