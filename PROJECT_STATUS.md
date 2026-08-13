@@ -1,8 +1,8 @@
 # Project Status
 
-**Status:** Prompt 7 React admin console implementation complete.
+**Status:** Prompt 8 Kafka and Redis distribution implementation complete.
 
-**Current milestone:** M6 Admin console (LF-0601–LF-0606) complete; stop point before Prompt 8 / M7 Kafka and Redis scale-out.
+**Current milestone:** M7 Kafka/Redis scale-out (LF-0701–LF-0706) complete; stop point before Prompt 9 / M8 optional analytics.
 
 **Specification baseline:** Canonical module paths, snapshot/checksum representation, algorithm-version-1 types and reason codes, milestone dependencies, and exact Prompt 0 toolchain pins were normalized on 2026-08-10.
 
@@ -15,7 +15,7 @@
 | M4 Data plane & streaming | LF-0401–LF-0406 | Complete (2026-08-11) |
 | M5 JavaScript/React SDKs | LF-0501–LF-0505 | Complete (2026-08-12) |
 | M6 Admin console | LF-0601–LF-0606 | Complete (2026-08-12) |
-| M7 Kafka/Redis scale-out | LF-0701–LF-0706 | Not started |
+| M7 Kafka/Redis scale-out | LF-0701–LF-0706 | Complete (2026-08-13) |
 | M8 Analytics | LF-0801–LF-0805 | Not started |
 | M9 Security hardening | LF-0901–LF-0906 | Not started |
 | M10 Reliability/performance | LF-1001–LF-1006 | Not started |

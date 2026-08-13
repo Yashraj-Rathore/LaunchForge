@@ -259,7 +259,39 @@ Gaps:
 Follow-up issue IDs:
 ```
 
-## 3. Destructive action warning
+## 3. M7 local distribution drill - 2026-08-13
+
+**Environment:** Local Testcontainers on Docker Desktop; PostgreSQL 18.4, Apache Kafka 4.3.1, and
+Redis 8.2.8. The repository base was `22b0a27` plus the Prompt 8 working tree.
+
+**Command:**
+
+```powershell
+.\mvnw.cmd -pl tests/integration-tests -am verify -Pintegration "-Dit.test=DistributionPipelineIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
+```
+
+**Expected and observed:**
+
+| Scenario | Expected | Observed |
+|---|---|---|
+| Two outbox workers claim one event | Only one live lease; an expired lease is recoverable | Worker B was denied while Worker A's lease was live, then claimed it after expiry |
+| Permanent invalid outbox envelope | No blind transient retry | Row became `FAILED` with bounded code `OUTBOX_EVENT_INVALID` |
+| Duplicate Kafka event | Materialized revision never regresses/repeats | Redis remained on revision 1 |
+| Kafka paused during revision 2 publish | PostgreSQL commit/outbox survive, then catch up | Row remained unpublished with retry attempts; after unpause it became `PUBLISHED` and Redis/edge reached revision 2 |
+| Projector stopped during revision 3 | Kafka retains work; prior valid state remains | Redis stayed on revision 2 and advanced to 3 after the listener restarted |
+| Redis `FLUSHALL` | Current snapshots rebuild from authoritative data | Reconciliation restored revision 3 from PostgreSQL |
+| Two Config Edge processes | Both serve the same current revision without affinity | Both independently reported revisions 1, 2, and PostgreSQL fallback revision 3 |
+| Edge restart / SDK source loss | Restarted edge converges; SDK retains local evaluation | Restarted edge bootstrapped revision 2; Java SDK continued evaluating its last-known-good snapshot after its edge context closed |
+| Redis paused | Controlled PostgreSQL fallback, no snapshot regression | Both edges returned revision 3 through the semaphore-bounded fallback |
+
+The focused reactor completed with `BUILD SUCCESS`: one drill test, zero failures/errors. Detection
+and recovery time were not benchmarked; test await bounds are safety timeouts, not latency or
+availability claims. No revision, configuration, or evaluation state was lost. During Kafka or
+projector interruption only the newer revision was delayed; already loaded SDK behavior remained
+available. No follow-up correctness gap was found within LF-0701 through LF-0706. Capacity, SLO,
+chaos-duration, and production alert-threshold evidence remains owned by M10.
+
+## 4. Destructive action warning
 
 Never:
 

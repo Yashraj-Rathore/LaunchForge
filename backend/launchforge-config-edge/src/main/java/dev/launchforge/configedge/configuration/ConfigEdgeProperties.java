@@ -2,6 +2,7 @@ package dev.launchforge.configedge.configuration;
 
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 @ConfigurationProperties("launchforge.config-edge")
@@ -10,7 +11,28 @@ public record ConfigEdgeProperties(
     @DefaultValue("1s") Duration revisionPollInterval,
     @DefaultValue("15s") Duration heartbeatInterval,
     @DefaultValue("1000") int maximumConnections,
-    @DefaultValue("5") int maximumConnectionsPerKey) {
+    @DefaultValue("5") int maximumConnectionsPerKey,
+    @DefaultValue("8") int maximumConcurrentDatabaseFallbacks,
+    @DefaultValue("100ms") Duration databaseFallbackAcquireTimeout,
+    @DefaultValue("launchforge:config:revision-hints:v1") String invalidationChannel) {
+  public ConfigEdgeProperties(
+      int maximumSnapshotBytes,
+      Duration revisionPollInterval,
+      Duration heartbeatInterval,
+      int maximumConnections,
+      int maximumConnectionsPerKey) {
+    this(
+        maximumSnapshotBytes,
+        revisionPollInterval,
+        heartbeatInterval,
+        maximumConnections,
+        maximumConnectionsPerKey,
+        8,
+        Duration.ofMillis(100),
+        "launchforge:config:revision-hints:v1");
+  }
+
+  @ConstructorBinding
   public ConfigEdgeProperties {
     if (maximumSnapshotBytes < 1 || maximumSnapshotBytes > 8 * 1024 * 1024) {
       throw new IllegalArgumentException("maximumSnapshotBytes is invalid");
@@ -33,6 +55,19 @@ public record ConfigEdgeProperties(
         || maximumConnectionsPerKey < 1
         || maximumConnectionsPerKey > maximumConnections) {
       throw new IllegalArgumentException("SSE connection limits are invalid");
+    }
+    if (maximumConcurrentDatabaseFallbacks < 1 || maximumConcurrentDatabaseFallbacks > 1000) {
+      throw new IllegalArgumentException("maximumConcurrentDatabaseFallbacks is invalid");
+    }
+    if (databaseFallbackAcquireTimeout == null
+        || databaseFallbackAcquireTimeout.isNegative()
+        || databaseFallbackAcquireTimeout.compareTo(Duration.ofSeconds(5)) > 0) {
+      throw new IllegalArgumentException("databaseFallbackAcquireTimeout is invalid");
+    }
+    if (invalidationChannel == null
+        || invalidationChannel.isBlank()
+        || invalidationChannel.length() > 249) {
+      throw new IllegalArgumentException("invalidationChannel is invalid");
     }
   }
 }

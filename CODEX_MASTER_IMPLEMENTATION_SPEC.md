@@ -276,7 +276,7 @@ docker compose down -v
 
 M2 implements the authenticated management API for projects, environments, typed flags/variations, environment drafts, ordered targeting rules, 100,000-bucket percentage allocations, publication history/diff, and rollback. Mutable routes use ETag/`If-Match`; browser mutations retain the M1 CSRF requirement. Rollout salt is server-owned and can change only through the explicit reason-required reseed route.
 
-Flyway applies `V2__flag_control_plane.sql` when the Control API starts. Publication validates the full draft and commits the RFC 8785 canonical revision, current pointer, audit event, and pending outbox intent atomically. PostgreSQL rejects update/delete of revision rows. Kafka publication remains intentionally deferred to M7.
+Flyway applies `V2__flag_control_plane.sql` when the Control API starts. Publication validates the full draft and commits the RFC 8785 canonical revision, current pointer, audit event, and pending outbox intent atomically. PostgreSQL rejects update/delete of revision rows. Kafka publication was deliberately deferred until the M7 distribution implementation described below.
 
 ### Java evaluator and SDK
 
@@ -290,7 +290,8 @@ WebFlux Config Edge validates those keys, serves the authoritative immutable Pos
 with ETag/304/revision/checksum headers, and exposes a bounded authenticated SSE stream containing
 revision hints only. The Java SDK can opt into the stream, fetches the authoritative snapshot after
 a newer hint, reconnects with exponential jitter, and retains conditional polling plus in-memory
-last-known-good behavior. Kafka and Redis remain deferred to M7.
+last-known-good behavior. M7 keeps these HTTP/SSE semantics and adds Redis-first snapshot reads plus
+durable Kafka-backed fan-out.
 
 Control API and Config Edge must receive the same uncommitted HMAC pepper. Start the Control API
 first so Flyway applies V3, then start the edge in a second terminal:
@@ -305,6 +306,35 @@ The fictional Spring storefront in `demos/spring-demo` enables streaming by defa
 active snapshot revision in `/demo/{subject}`, and keeps evaluating after Config Edge becomes
 unavailable. Its README contains the interactive flow and the reproducible PostgreSQL/WebFlux/SDK
 E2E command.
+
+### Durable Kafka and Redis distribution
+
+M7 implements LF-0701 through LF-0706 in `launchforge-event-worker` and Config Edge. Multiple
+workers safely lease the PostgreSQL outbox, require a Kafka acknowledgement before marking a row
+published, and retry transient broker failures with bounded exponential backoff. Versioned
+revision events are keyed by environment. The idempotent projector validates immutable PostgreSQL
+content before atomically advancing a rebuildable Redis hash and publishing a bounded hint on one
+global channel. Config Edge reads Redis first and uses a semaphore-bounded PostgreSQL fallback;
+Redis is never authoritative.
+
+Start the digest-pinned local KRaft broker and Redis cache with PostgreSQL:
+
+```powershell
+docker compose --profile distribution up -d --wait
+.\mvnw.cmd -pl backend/launchforge-event-worker,backend/launchforge-config-edge -am package
+```
+
+Then run these in separate terminals after exporting the database, Redis, Kafka, and shared SDK-key
+pepper values from `.env.example`:
+
+```powershell
+java -jar backend/launchforge-event-worker/target/launchforge-event-worker-0.1.0-SNAPSHOT-exec.jar
+java -jar backend/launchforge-config-edge/target/launchforge-config-edge-0.1.0-SNAPSHOT-exec.jar
+```
+
+`contracts/events/` contains the versioned event schema/example. The repeatable two-edge,
+broker/cache outage, rebuild, and Java SDK last-known-good drill is recorded in
+`docs/18_FAILURE_MODES_RUNBOOKS.md`.
 
 ### JavaScript, browser, and React SDKs
 
@@ -349,8 +379,7 @@ pnpm --filter @launchforge/admin-web test:e2e
 ```
 
 The opt-in local SQL seed now includes a fictional Development environment so a successful OIDC
-login lands directly in the console. Kafka, Redis, and analytics remain deferred to their owning
-milestones.
+login lands directly in the console. Analytics remains deferred to its owning milestone.
 
 On Unix-like systems, use `./mvnw` in place of `.\mvnw.cmd`. After initializing Git on Windows, record the executable bit with `git update-index --chmod=+x mvnw`.
 
@@ -563,9 +592,9 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 
 # Project Status
 
-**Status:** Prompt 7 React admin console implementation complete.
+**Status:** Prompt 8 Kafka and Redis distribution implementation complete.
 
-**Current milestone:** M6 Admin console (LF-0601–LF-0606) complete; stop point before Prompt 8 / M7 Kafka and Redis scale-out.
+**Current milestone:** M7 Kafka/Redis scale-out (LF-0701–LF-0706) complete; stop point before Prompt 9 / M8 optional analytics.
 
 **Specification baseline:** Canonical module paths, snapshot/checksum representation, algorithm-version-1 types and reason codes, milestone dependencies, and exact Prompt 0 toolchain pins were normalized on 2026-08-10.
 
@@ -578,7 +607,7 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 | M4 Data plane & streaming | LF-0401–LF-0406 | Complete (2026-08-11) |
 | M5 JavaScript/React SDKs | LF-0501–LF-0505 | Complete (2026-08-12) |
 | M6 Admin console | LF-0601–LF-0606 | Complete (2026-08-12) |
-| M7 Kafka/Redis scale-out | LF-0701–LF-0706 | Not started |
+| M7 Kafka/Redis scale-out | LF-0701–LF-0706 | Complete (2026-08-13) |
 | M8 Analytics | LF-0801–LF-0805 | Not started |
 | M9 Security hardening | LF-0901–LF-0906 | Not started |
 | M10 Reliability/performance | LF-1001–LF-1006 | Not started |
@@ -652,29 +681,29 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 
 ## M5 JavaScript/React SDKs
 
-- [ ] LF-0501
-- [ ] LF-0502
-- [ ] LF-0503
-- [ ] LF-0504
-- [ ] LF-0505
+- [x] LF-0501
+- [x] LF-0502
+- [x] LF-0503
+- [x] LF-0504
+- [x] LF-0505
 
 ## M6 Admin console
 
-- [ ] LF-0601
-- [ ] LF-0602
-- [ ] LF-0603
-- [ ] LF-0604
-- [ ] LF-0605
-- [ ] LF-0606
+- [x] LF-0601
+- [x] LF-0602
+- [x] LF-0603
+- [x] LF-0604
+- [x] LF-0605
+- [x] LF-0606
 
 ## M7 Kafka/Redis
 
-- [ ] LF-0701
-- [ ] LF-0702
-- [ ] LF-0703
-- [ ] LF-0704
-- [ ] LF-0705
-- [ ] LF-0706
+- [x] LF-0701
+- [x] LF-0702
+- [x] LF-0703
+- [x] LF-0704
+- [x] LF-0705
+- [x] LF-0706
 
 **Resume/interview checkpoint B**
 
@@ -1433,6 +1462,17 @@ transaction. The console audit query reads existing bounded safe columns with te
 actor, action, time, and limit filters. Draft simulation compiles an in-memory candidate snapshot
 from authoritative draft rows and does not store evaluation subjects or attributes.
 
+### M7 distribution persistence baseline
+
+Flyway migration `V5__distribution_outbox_leases.sql` adds nullable `lease_owner` and
+`lease_until` fields with a constraint requiring both fields exactly while an event is
+`PROCESSING`. The claim index covers only `PENDING` and `PROCESSING` rows. A worker atomically
+claims due pending or expired processing rows with `FOR UPDATE SKIP LOCKED`; only the matching lease
+owner may publish, release, or permanently fail that claim. `PUBLISHED` means Kafka acknowledged
+the send. `FAILED` is reserved for an invalid permanent envelope and retains only a bounded safe
+error code. Kafka/Redis introduce no new system-of-record tables: immutable
+`environment_revisions`, the current environment pointer, and the outbox remain authoritative.
+
 Rule trees may initially be validated `jsonb` inside `flag_environment_configs` if domain validation remains explicit. Normalize only if query requirements justify it. Published snapshots remain immutable `jsonb`.
 
 ## Constraints
@@ -1712,6 +1752,26 @@ data: {"revision":43}
 The stream carries revision hints only. It also emits heartbeat comments; the SDK retrieves the
 authoritative snapshot with a conditional GET. `Last-Event-ID` is a convergence hint, never an
 ordering authority.
+
+## Internal revision event
+
+M7 publishes `config.revision-published.v1` records to
+`launchforge.config.revision-published.v1`, keyed by the canonical environment UUID so all events
+for one environment share a Kafka partition. Required fields are event ID/type/schema version, UTC
+occurrence time, organization/project/environment IDs, positive revision, snapshot checksum, and a
+bounded trace ID. The event contains no snapshot body, SDK credential, OIDC material, evaluation
+context, or full audit payload. The projector reloads and validates the immutable PostgreSQL
+revision before advancing Redis.
+
+The authoritative version-1 artifacts are:
+
+- `contracts/events/config-revision-published-v1.schema.json`;
+- `contracts/events/config-revision-published-v1.example.json`;
+- `dev.launchforge.contracts.events.ConfigRevisionPublishedEvent`.
+
+Unknown additive fields are accepted within version 1. Missing/invalid required fields and an
+unsupported event type or schema version are permanent contract failures; an incompatible change
+requires a new versioned event type/topic.
 
 ## Analytics ingestion
 
@@ -2391,9 +2451,17 @@ The publisher retries until acknowledgement. It records publication state only a
 
 Consumers must remain idempotent because the contract is at-least-once.
 
-### M2 implemented boundary
+### M7 implemented publisher
 
-M2 writes one `PENDING` outbox row in the same PostgreSQL transaction as the immutable revision, current-revision pointer, and audit event. The JSON payload uses the `config.revision-published.v1` envelope with event/schema identifiers, UTC occurrence time, organization/project/environment IDs, revision, trace ID, and snapshot checksum. No Kafka client, publisher loop, lease processing, or delivery-state transition is implemented before M7; committed pending rows are durable intent only.
+M2 writes one `PENDING` outbox row in the same PostgreSQL transaction as the immutable revision,
+current-revision pointer, and audit event. M7 completes that boundary in
+`launchforge-event-worker`. Workers claim bounded batches with one PostgreSQL
+`UPDATE ... FOR UPDATE SKIP LOCKED` statement, attach an owner and expiry, and may reclaim only an
+expired lease. A row becomes `PUBLISHED` only after the Kafka send future returns a broker
+acknowledgement. Transient broker failures release the lease with bounded exponential backoff;
+malformed or unsupported envelopes become visible `FAILED` rows instead of being retried forever.
+Worker termination before acknowledgement or before the status update can create a duplicate, so
+consumers remain idempotent by design.
 
 ## 4. Kafka role
 
@@ -2409,6 +2477,13 @@ launchforge.key.lifecycle.v1
 
 Do not create a topic per tenant or project.
 
+M7 creates `launchforge.config.revision-published.v1` with 12 partitions and replication factor
+one for the single-broker local Compose profile. Production must configure the partition count and
+a replication factor supported by the deployed broker cluster; it must not copy the local
+single-replica assumption. The producer requires `acks=all` and idempotence. The projector group is
+`launchforge-config-projector-v1`, disables auto-commit, uses record acknowledgement, and starts at
+the earliest retained event when it has no committed offset.
+
 ### Event envelope
 
 Every event should include:
@@ -2417,14 +2492,21 @@ Every event should include:
 {
   "eventId": "uuid",
   "eventType": "config.revision-published.v1",
+  "schemaVersion": 1,
   "occurredAt": "...",
   "organizationId": "...",
   "projectId": "...",
   "environmentId": "...",
   "revision": 43,
+  "snapshotChecksum": "64 lowercase hexadecimal characters",
   "traceId": "..."
 }
 ```
+
+The machine-readable schema and example are
+`contracts/events/config-revision-published-v1.schema.json` and
+`contracts/events/config-revision-published-v1.example.json`. Version 1 consumers tolerate unknown
+additive fields, but reject a different event type/schema version or invalid required fields.
 
 Do not place SDK keys, OIDC tokens, arbitrary user attributes, or full audit payloads in Kafka.
 
@@ -2462,6 +2544,11 @@ Redis is not:
 
 A total Redis flush must be recoverable from PostgreSQL/Kafka.
 
+M7 stores one hash per environment at
+`launchforge:config:snapshot:<environment-uuid>` with `revision`, `schemaVersion`, `checksum`, and
+the canonical `snapshot`. A Lua compare-and-set writes and notifies only when the incoming revision
+is strictly newer, preventing stale consumers and PostgreSQL fallbacks from regressing state.
+
 ## 7. Projection consumer
 
 The configuration projection consumer:
@@ -2476,6 +2563,11 @@ The configuration projection consumer:
 8. commits Kafka progress only after safe processing.
 
 A duplicate or older event is a no-op.
+
+The projector validates the Kafka key, event envelope, PostgreSQL organization/project/revision and
+snapshot checksum before materialization. A bounded scheduled reconciliation scan loads current
+immutable revisions directly from PostgreSQL, so Redis can be rebuilt even when retained Kafka
+history is insufficient.
 
 ## 8. Config Edge service
 
@@ -2497,16 +2589,18 @@ POST /sdk/v1/events   # optional analytics, later
 
 The edge must be horizontally scalable and stateless except for ephemeral connection state.
 
-### M4 PostgreSQL-first implementation
+### M4 contract and M7 scale-out implementation
 
 LF-0401 through LF-0406 implement this as an independent Spring Boot WebFlux process. The M4 edge
 authenticates the structured server key, validates the immutable canonical snapshot and checksum,
 and reads the current published revision directly from PostgreSQL on a bounded elastic scheduler.
 Each bounded SSE connection periodically revalidates key/scope lifecycle and checks the current
-environment revision; only strictly newer revision notices are emitted. This deliberately proves
-the contract and failure behavior before Kafka/Redis. LF-0701 through LF-0706 later replace the
-database polling/fan-out path with durable distribution and rebuildable materialization without
-changing the public snapshot/SSE contract.
+environment revision; only strictly newer revision notices are emitted. M7 preserves that public
+contract while adding a Redis-first snapshot/revision path and a single global Pub/Sub hint
+subscription. Redis misses, malformed values, and connection failures use a semaphore-bounded
+PostgreSQL fallback with a bounded acquire timeout. A successful fallback backfills Redis only when
+its revision is newer. Periodic revision checks remain active, so a lost Pub/Sub hint cannot prevent
+convergence.
 
 ## 9. Snapshot resolution
 
@@ -2589,7 +2683,10 @@ WebSockets can be revisited if future product requirements require bidirectional
 
 ## 13. Redis Pub/Sub
 
-Each edge instance may subscribe to bounded invalidation channels such as one global namespaced channel whose payload includes environment ID/revision.
+Each edge instance subscribes to the one global namespaced channel
+`launchforge:config:revision-hints:v1`. Its bounded version-1 JSON payload contains only schema
+version, environment ID, and revision; messages larger than 512 bytes or with invalid fields are
+discarded.
 
 Do not create an unbounded subscription channel per environment.
 
@@ -2672,20 +2769,30 @@ Rules:
 
 ## 18. Local development
 
-The first milestones do not require Kafka or Redis.
+Kafka and Redis are opt-in through the `distribution` Compose profile. PostgreSQL remains the
+system of record and also starts because it has no profile:
 
-Later Docker Compose should provide:
+```powershell
+docker compose --profile distribution up -d --wait
+```
 
-- PostgreSQL;
-- Kafka in KRaft mode;
-- Redis;
-- optional Kafka UI;
-- management API;
-- config edge;
-- React app;
-- demo apps.
+With the database, Kafka, Redis, shared SDK-key pepper, and database variables from `.env.example`
+exported, package and start the worker and Config Edge in separate terminals:
 
-This sequencing prevents infrastructure from hiding correctness problems in the domain/evaluator.
+```powershell
+.\mvnw.cmd -pl backend/launchforge-event-worker,backend/launchforge-config-edge -am package
+java -jar backend/launchforge-event-worker/target/launchforge-event-worker-0.1.0-SNAPSHOT-exec.jar
+java -jar backend/launchforge-config-edge/target/launchforge-config-edge-0.1.0-SNAPSHOT-exec.jar
+```
+
+The automated durability drill is:
+
+```powershell
+.\mvnw.cmd -pl tests/integration-tests -am verify -Pintegration "-Dit.test=DistributionPipelineIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
+```
+
+Stop the local services without deleting PostgreSQL data with
+`docker compose --profile distribution down`.
 
 ---
 
@@ -3832,6 +3939,15 @@ Do not include flag values/context attributes as high-cardinality metric labels.
 - projection errors;
 - stale/duplicate events.
 
+M7 exposes bounded custom meters through the Event Worker actuator:
+
+- `launchforge.outbox.pending` and `launchforge.outbox.oldest.age.seconds` gauges;
+- `launchforge.outbox.publish{outcome=published|retry|failed}`;
+- `launchforge.projection{outcome=advanced|ignored|error}`.
+
+Standard Kafka client metrics supply producer errors/latency and consumer lag. Metric labels never
+contain organization, environment, event, key, or subject identifiers.
+
 ### Edge
 
 - snapshot request count;
@@ -3842,6 +3958,12 @@ Do not include flag values/context attributes as high-cardinality metric labels.
 - reconnects;
 - stream authentication denials;
 - served revision watermark.
+
+M7 adds `launchforge.edge.snapshot.cache{outcome=hit|miss|error}`,
+`launchforge.edge.snapshot.fallback{outcome=read|rejected}`, and
+`launchforge.edge.revision.hint{outcome=accepted|rejected}`. Snapshot response headers and each
+edge's current-revision lookup provide the per-node revision diagnostic used by the two-edge drill;
+no anonymous cross-tenant diagnostic route is introduced.
 
 ### SDK (local or opt-in telemetry)
 
@@ -4014,6 +4136,10 @@ For portfolio hardening, run documented drills:
 - publish bad-but-valid demo flag then rollback.
 
 Capture timestamps and results in a fictional reliability report.
+
+The first automated M7 drill and its actual outcomes are recorded in
+`docs/18_FAILURE_MODES_RUNBOOKS.md`. No availability or latency SLO is inferred from that local
+functional evidence.
 
 ## 15. Cost awareness
 
@@ -6439,7 +6565,39 @@ Gaps:
 Follow-up issue IDs:
 ```
 
-## 3. Destructive action warning
+## 3. M7 local distribution drill - 2026-08-13
+
+**Environment:** Local Testcontainers on Docker Desktop; PostgreSQL 18.4, Apache Kafka 4.3.1, and
+Redis 8.2.8. The repository base was `22b0a27` plus the Prompt 8 working tree.
+
+**Command:**
+
+```powershell
+.\mvnw.cmd -pl tests/integration-tests -am verify -Pintegration "-Dit.test=DistributionPipelineIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
+```
+
+**Expected and observed:**
+
+| Scenario | Expected | Observed |
+|---|---|---|
+| Two outbox workers claim one event | Only one live lease; an expired lease is recoverable | Worker B was denied while Worker A's lease was live, then claimed it after expiry |
+| Permanent invalid outbox envelope | No blind transient retry | Row became `FAILED` with bounded code `OUTBOX_EVENT_INVALID` |
+| Duplicate Kafka event | Materialized revision never regresses/repeats | Redis remained on revision 1 |
+| Kafka paused during revision 2 publish | PostgreSQL commit/outbox survive, then catch up | Row remained unpublished with retry attempts; after unpause it became `PUBLISHED` and Redis/edge reached revision 2 |
+| Projector stopped during revision 3 | Kafka retains work; prior valid state remains | Redis stayed on revision 2 and advanced to 3 after the listener restarted |
+| Redis `FLUSHALL` | Current snapshots rebuild from authoritative data | Reconciliation restored revision 3 from PostgreSQL |
+| Two Config Edge processes | Both serve the same current revision without affinity | Both independently reported revisions 1, 2, and PostgreSQL fallback revision 3 |
+| Edge restart / SDK source loss | Restarted edge converges; SDK retains local evaluation | Restarted edge bootstrapped revision 2; Java SDK continued evaluating its last-known-good snapshot after its edge context closed |
+| Redis paused | Controlled PostgreSQL fallback, no snapshot regression | Both edges returned revision 3 through the semaphore-bounded fallback |
+
+The focused reactor completed with `BUILD SUCCESS`: one drill test, zero failures/errors. Detection
+and recovery time were not benchmarked; test await bounds are safety timeouts, not latency or
+availability claims. No revision, configuration, or evaluation state was lost. During Kafka or
+projector interruption only the newer revision was delayed; already loaded SDK behavior remained
+available. No follow-up correctness gap was found within LF-0701 through LF-0706. Capacity, SLO,
+chaos-duration, and production alert-threshold evidence remains owned by M10.
+
+## 4. Destructive action warning
 
 Never:
 
@@ -6502,8 +6660,8 @@ Verified against official release sources on **2026-08-10**; M1-owned tools were
 | Zod | `4.4.3` | M6 |
 | PostgreSQL | `18.4`; image `postgres:18.4-bookworm`; manifest `sha256:d9c83446333daec3f0588cc709adb80c26090b7f9f0f7ec8d43c243385d79818` | M0 |
 | Keycloak | `26.7.0`; image `quay.io/keycloak/keycloak:26.7.0`; manifest `sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13` | M1 |
-| Apache Kafka | `4.3.1`; image `apache/kafka:4.3.1` | Re-verify in M7 |
-| Redis | `8.2.8`; image `redis:8.2.8-bookworm` | Re-verify in M7 |
+| Apache Kafka | `4.3.1`; image `apache/kafka:4.3.1`; manifest `sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837` | M7 |
+| Redis | `8.2.8`; image `redis:8.2.8-bookworm`; manifest `sha256:2f7462b9e93e0a7ae2edf3a0a0babc8a4d29f8bfc50849b906b7caaef925edc1` | M7 |
 | Docker Engine | tested-tooling target `29.6.2` | M0 developer environment |
 | Docker Compose | tested-tooling target `5.4.0` | M0 developer environment |
 | Kubernetes | tested deployment target `1.36.2` | Re-verify in M11 |
@@ -6521,7 +6679,7 @@ Official verification references:
 - React/TypeScript: <https://react.dev/versions>, <https://github.com/Microsoft/TypeScript/releases>, and <https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/>
 - Vite/Vitest/Playwright: <https://github.com/vitejs/vite/releases>, <https://github.com/vitest-dev/vitest/releases>, and <https://github.com/microsoft/playwright/releases>
 - PostgreSQL: <https://www.postgresql.org/support/versioning/> and <https://hub.docker.com/_/postgres>
-- Kafka/Redis/Keycloak: <https://kafka.apache.org/community/downloads/>, <https://download.redis.io/releases/>, <https://hub.docker.com/_/redis>, <https://www.keycloak.org/2026/07/keycloak-2670-released>, and <https://github.com/keycloak/keycloak/releases/tag/26.7.0>
+- Kafka/Redis/Keycloak: <https://kafka.apache.org/community/downloads/>, <https://hub.docker.com/r/apache/kafka/tags>, <https://download.redis.io/releases/>, <https://hub.docker.com/_/redis>, <https://www.keycloak.org/2026/07/keycloak-2670-released>, and <https://github.com/keycloak/keycloak/releases/tag/26.7.0>
 - Docker/Kubernetes/Helm: <https://docs.docker.com/engine/release-notes/29/>, <https://github.com/docker/compose/releases>, <https://kubernetes.io/releases/>, and <https://github.com/helm/helm/releases>
 
 LF-0003 resolved and recorded the PostgreSQL image manifest digest after a successful pull. Compose uses the readable tag and digest together, so a tag move cannot silently change the local database image. PostgreSQL 18 Compose volumes mount the image's version-appropriate data root at `/var/lib/postgresql`, not the older `/var/lib/postgresql/data` path.

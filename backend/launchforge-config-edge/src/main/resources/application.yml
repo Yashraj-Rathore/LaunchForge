@@ -11,6 +11,12 @@ spring:
       maximum-pool-size: 20
   flyway:
     enabled: false
+  data:
+    redis:
+      host: ${LAUNCHFORGE_REDIS_HOST:localhost}
+      port: ${LAUNCHFORGE_REDIS_PORT:56379}
+      connect-timeout: 2s
+      timeout: 2s
   codec:
     max-in-memory-size: 1MB
 
@@ -25,11 +31,15 @@ launchforge:
     peppers:
       v1: ${LAUNCHFORGE_SDK_KEY_PEPPER}
   config-edge:
+    redis-enabled: ${LAUNCHFORGE_EDGE_REDIS_ENABLED:true}
     maximum-snapshot-bytes: 1048576
     revision-poll-interval: ${LAUNCHFORGE_EDGE_REVISION_POLL_INTERVAL:1s}
     heartbeat-interval: ${LAUNCHFORGE_EDGE_HEARTBEAT_INTERVAL:15s}
     maximum-connections: ${LAUNCHFORGE_EDGE_MAX_CONNECTIONS:1000}
     maximum-connections-per-key: ${LAUNCHFORGE_EDGE_MAX_CONNECTIONS_PER_KEY:5}
+    maximum-concurrent-database-fallbacks: ${LAUNCHFORGE_EDGE_MAX_DB_FALLBACKS:8}
+    database-fallback-acquire-timeout: ${LAUNCHFORGE_EDGE_DB_FALLBACK_ACQUIRE_TIMEOUT:100ms}
+    invalidation-channel: ${LAUNCHFORGE_REDIS_INVALIDATION_CHANNEL:launchforge:config:revision-hints:v1}
 
 management:
   endpoint:

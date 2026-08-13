@@ -24,6 +24,7 @@ public final class RevisionStreamController {
   private final EdgeRepository repository;
   private final SdkAuthenticationService authenticationService;
   private final StreamConnectionLimiter connectionLimiter;
+  private final RevisionSignalBus signalBus;
   private final Duration revisionPollInterval;
   private final Duration heartbeatInterval;
 
@@ -31,10 +32,12 @@ public final class RevisionStreamController {
       EdgeRepository repository,
       SdkAuthenticationService authenticationService,
       StreamConnectionLimiter connectionLimiter,
+      RevisionSignalBus signalBus,
       ConfigEdgeProperties properties) {
     this.repository = repository;
     this.authenticationService = authenticationService;
     this.connectionLimiter = connectionLimiter;
+    this.signalBus = signalBus;
     this.revisionPollInterval = properties.revisionPollInterval();
     this.heartbeatInterval = properties.heartbeatInterval();
   }
@@ -58,7 +61,11 @@ public final class RevisionStreamController {
       SdkCredentialScope scope, long lastSeen) {
     AtomicLong delivered = new AtomicLong(lastSeen);
     AtomicBoolean first = new AtomicBoolean(true);
-    return Flux.interval(Duration.ZERO, revisionPollInterval)
+    Flux<Long> triggers =
+        Flux.merge(
+            Flux.interval(Duration.ZERO, revisionPollInterval),
+            signalBus.forEnvironment(scope.environmentId()).map(hint -> hint.revision()));
+    return triggers
         .onBackpressureDrop()
         .concatMap(
             ignored ->

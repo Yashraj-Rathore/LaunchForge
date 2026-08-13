@@ -15,6 +15,7 @@
 - Finalized the M4 server SDK-key lifecycle, authoritative snapshot headers, revision-only SSE contract, Java SDK stream/fallback behavior, PostgreSQL-first delivery boundary, and reproducible fictional live-update demo.
 - Finalized the M5 public browser-key and exact-origin CORS contract, separate client-visible projection checksum/ETag behavior, JavaScript numeric compatibility, React context/subscription lifecycle, and Northstar storefront workflow.
 - Finalized the M6 draft-backed simulator, safe tenant-scoped audit query, typed variation-edit contract, production publish review, stale-write reconciliation, and one-time credential display behavior.
+- Finalized the M7 leased outbox, environment-keyed revision event, monotonic Redis materialization, global bounded invalidation, Redis-first edge fallback, and failure-recovery operating contracts.
 
 ### Implementation
 
@@ -45,3 +46,6 @@
 - Implemented LF-0601–LF-0606 with an authenticated responsive React console for project/environment navigation, typed flag and variation editing, ordered rules, exact rollout allocation, Java-backed draft simulation, publish review, immutable revision history/diff/rollback, SDK key lifecycle, and filtered audit history.
 - Added React Router, TanStack Query, and Zod with exact pins; accessible loading/empty/denied/error states; unmistakable production context; optimistic-conflict messaging that preserves local edits; and Chromium coverage for the production flag journey, key create/rotate/revoke, one-time secrets, and Viewer denial.
 - Added a tenant-authorized audit read API, stable-ID variation updates in the existing optimistic transaction, and a narrowly isolated Control API simulator that reuses the pure Java SDK evaluator without persisting or logging evaluation context.
+- Implemented LF-0701–LF-0706 with multi-worker expiring outbox leases, broker-acknowledged publication, bounded retry/permanent-failure handling, a versioned additive Kafka contract keyed by environment, and an idempotent PostgreSQL-validating projector.
+- Added atomic monotonic Redis snapshot hashes, a PostgreSQL reconciliation rebuild, one global bounded Pub/Sub hint channel, Redis-first Config Edge reads, monotonic cache backfill, and semaphore-bounded PostgreSQL fallback with cache/projection/outbox metrics.
+- Added digest-pinned Kafka 4.3.1 and Redis 8.2.8 distribution services plus a Testcontainers drill proving lease recovery, duplicate safety, Kafka catch-up, projector recovery, Redis rebuild/outage fallback, two-edge convergence/restart, and Java SDK last-known-good evaluation.

@@ -67,6 +67,15 @@ Do not include flag values/context attributes as high-cardinality metric labels.
 - projection errors;
 - stale/duplicate events.
 
+M7 exposes bounded custom meters through the Event Worker actuator:
+
+- `launchforge.outbox.pending` and `launchforge.outbox.oldest.age.seconds` gauges;
+- `launchforge.outbox.publish{outcome=published|retry|failed}`;
+- `launchforge.projection{outcome=advanced|ignored|error}`.
+
+Standard Kafka client metrics supply producer errors/latency and consumer lag. Metric labels never
+contain organization, environment, event, key, or subject identifiers.
+
 ### Edge
 
 - snapshot request count;
@@ -77,6 +86,12 @@ Do not include flag values/context attributes as high-cardinality metric labels.
 - reconnects;
 - stream authentication denials;
 - served revision watermark.
+
+M7 adds `launchforge.edge.snapshot.cache{outcome=hit|miss|error}`,
+`launchforge.edge.snapshot.fallback{outcome=read|rejected}`, and
+`launchforge.edge.revision.hint{outcome=accepted|rejected}`. Snapshot response headers and each
+edge's current-revision lookup provide the per-node revision diagnostic used by the two-edge drill;
+no anonymous cross-tenant diagnostic route is introduced.
 
 ### SDK (local or opt-in telemetry)
 
@@ -249,6 +264,10 @@ For portfolio hardening, run documented drills:
 - publish bad-but-valid demo flag then rollback.
 
 Capture timestamps and results in a fictional reliability report.
+
+The first automated M7 drill and its actual outcomes are recorded in
+`docs/18_FAILURE_MODES_RUNBOOKS.md`. No availability or latency SLO is inferred from that local
+functional evidence.
 
 ## 15. Cost awareness
 

@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: launchforge-event-worker
+  datasource:
+    url: ${LAUNCHFORGE_DB_URL:jdbc:postgresql://localhost:5432/launchforge?connectTimeout=5&socketTimeout=15&tcpKeepAlive=true}
+    username: ${LAUNCHFORGE_DB_USER:launchforge}
+    password: ${LAUNCHFORGE_DB_PASSWORD:launchforge-local}
+    hikari:
+      connection-timeout: 5000
+      validation-timeout: 2000
+      maximum-pool-size: 8
+  kafka:
+    bootstrap-servers: ${LAUNCHFORGE_KAFKA_BOOTSTRAP_SERVERS:localhost:59092}
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        enable.idempotence: true
+        delivery.timeout.ms: 10000
+        request.timeout.ms: 5000
+    consumer:
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      group-id: ${LAUNCHFORGE_KAFKA_CONSUMER_GROUP:launchforge-config-projector-v1}
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        isolation.level: read_committed
+    listener:
+      ack-mode: record
+  data:
+    redis:
+      host: ${LAUNCHFORGE_REDIS_HOST:localhost}
+      port: ${LAUNCHFORGE_REDIS_PORT:56379}
+      connect-timeout: 2s
+      timeout: 2s
+
+launchforge:
+  distribution:
+    topic: ${LAUNCHFORGE_KAFKA_CONFIG_TOPIC:launchforge.config.revision-published.v1}
+    consumer-group: ${LAUNCHFORGE_KAFKA_CONSUMER_GROUP:launchforge-config-projector-v1}
+    invalidation-channel: ${LAUNCHFORGE_REDIS_INVALIDATION_CHANNEL:launchforge:config:revision-hints:v1}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true

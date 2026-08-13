@@ -1,6 +1,6 @@
 package dev.launchforge.eventworker;
 
-/** Marker for deferred outbox, distribution, and analytics workers. */
+/** Marker for the durable configuration-distribution worker. */
 public final class EventWorkerModule {
   private EventWorkerModule() {}
 }

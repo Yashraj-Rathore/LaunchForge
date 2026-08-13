@@ -180,3 +180,5 @@ jobs:
           python -m json.tool templates/config-snapshot.example.json > /dev/null
           python -m json.tool templates/sdk-golden-vectors.json > /dev/null
           python -m json.tool templates/demo-seed.example.json > /dev/null
+          python -m json.tool contracts/events/config-revision-published-v1.schema.json > /dev/null
+          python -m json.tool contracts/events/config-revision-published-v1.example.json > /dev/null

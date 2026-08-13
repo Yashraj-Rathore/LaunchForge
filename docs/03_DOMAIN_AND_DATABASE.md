@@ -202,6 +202,17 @@ transaction. The console audit query reads existing bounded safe columns with te
 actor, action, time, and limit filters. Draft simulation compiles an in-memory candidate snapshot
 from authoritative draft rows and does not store evaluation subjects or attributes.
 
+### M7 distribution persistence baseline
+
+Flyway migration `V5__distribution_outbox_leases.sql` adds nullable `lease_owner` and
+`lease_until` fields with a constraint requiring both fields exactly while an event is
+`PROCESSING`. The claim index covers only `PENDING` and `PROCESSING` rows. A worker atomically
+claims due pending or expired processing rows with `FOR UPDATE SKIP LOCKED`; only the matching lease
+owner may publish, release, or permanently fail that claim. `PUBLISHED` means Kafka acknowledged
+the send. `FAILED` is reserved for an invalid permanent envelope and retains only a bounded safe
+error code. Kafka/Redis introduce no new system-of-record tables: immutable
+`environment_revisions`, the current environment pointer, and the outbox remain authoritative.
+
 Rule trees may initially be validated `jsonb` inside `flag_environment_configs` if domain validation remains explicit. Normalize only if query requirements justify it. Published snapshots remain immutable `jsonb`.
 
 ## Constraints

@@ -56,9 +56,17 @@ The publisher retries until acknowledgement. It records publication state only a
 
 Consumers must remain idempotent because the contract is at-least-once.
 
-### M2 implemented boundary
+### M7 implemented publisher
 
-M2 writes one `PENDING` outbox row in the same PostgreSQL transaction as the immutable revision, current-revision pointer, and audit event. The JSON payload uses the `config.revision-published.v1` envelope with event/schema identifiers, UTC occurrence time, organization/project/environment IDs, revision, trace ID, and snapshot checksum. No Kafka client, publisher loop, lease processing, or delivery-state transition is implemented before M7; committed pending rows are durable intent only.
+M2 writes one `PENDING` outbox row in the same PostgreSQL transaction as the immutable revision,
+current-revision pointer, and audit event. M7 completes that boundary in
+`launchforge-event-worker`. Workers claim bounded batches with one PostgreSQL
+`UPDATE ... FOR UPDATE SKIP LOCKED` statement, attach an owner and expiry, and may reclaim only an
+expired lease. A row becomes `PUBLISHED` only after the Kafka send future returns a broker
+acknowledgement. Transient broker failures release the lease with bounded exponential backoff;
+malformed or unsupported envelopes become visible `FAILED` rows instead of being retried forever.
+Worker termination before acknowledgement or before the status update can create a duplicate, so
+consumers remain idempotent by design.
 
 ## 4. Kafka role
 
@@ -74,6 +82,13 @@ launchforge.key.lifecycle.v1
 
 Do not create a topic per tenant or project.
 
+M7 creates `launchforge.config.revision-published.v1` with 12 partitions and replication factor
+one for the single-broker local Compose profile. Production must configure the partition count and
+a replication factor supported by the deployed broker cluster; it must not copy the local
+single-replica assumption. The producer requires `acks=all` and idempotence. The projector group is
+`launchforge-config-projector-v1`, disables auto-commit, uses record acknowledgement, and starts at
+the earliest retained event when it has no committed offset.
+
 ### Event envelope
 
 Every event should include:
@@ -82,14 +97,21 @@ Every event should include:
 {
   "eventId": "uuid",
   "eventType": "config.revision-published.v1",
+  "schemaVersion": 1,
   "occurredAt": "...",
   "organizationId": "...",
   "projectId": "...",
   "environmentId": "...",
   "revision": 43,
+  "snapshotChecksum": "64 lowercase hexadecimal characters",
   "traceId": "..."
 }
 ```
+
+The machine-readable schema and example are
+`contracts/events/config-revision-published-v1.schema.json` and
+`contracts/events/config-revision-published-v1.example.json`. Version 1 consumers tolerate unknown
+additive fields, but reject a different event type/schema version or invalid required fields.
 
 Do not place SDK keys, OIDC tokens, arbitrary user attributes, or full audit payloads in Kafka.
 
@@ -127,6 +149,11 @@ Redis is not:
 
 A total Redis flush must be recoverable from PostgreSQL/Kafka.
 
+M7 stores one hash per environment at
+`launchforge:config:snapshot:<environment-uuid>` with `revision`, `schemaVersion`, `checksum`, and
+the canonical `snapshot`. A Lua compare-and-set writes and notifies only when the incoming revision
+is strictly newer, preventing stale consumers and PostgreSQL fallbacks from regressing state.
+
 ## 7. Projection consumer
 
 The configuration projection consumer:
@@ -141,6 +168,11 @@ The configuration projection consumer:
 8. commits Kafka progress only after safe processing.
 
 A duplicate or older event is a no-op.
+
+The projector validates the Kafka key, event envelope, PostgreSQL organization/project/revision and
+snapshot checksum before materialization. A bounded scheduled reconciliation scan loads current
+immutable revisions directly from PostgreSQL, so Redis can be rebuilt even when retained Kafka
+history is insufficient.
 
 ## 8. Config Edge service
 
@@ -162,16 +194,18 @@ POST /sdk/v1/events   # optional analytics, later
 
 The edge must be horizontally scalable and stateless except for ephemeral connection state.
 
-### M4 PostgreSQL-first implementation
+### M4 contract and M7 scale-out implementation
 
 LF-0401 through LF-0406 implement this as an independent Spring Boot WebFlux process. The M4 edge
 authenticates the structured server key, validates the immutable canonical snapshot and checksum,
 and reads the current published revision directly from PostgreSQL on a bounded elastic scheduler.
 Each bounded SSE connection periodically revalidates key/scope lifecycle and checks the current
-environment revision; only strictly newer revision notices are emitted. This deliberately proves
-the contract and failure behavior before Kafka/Redis. LF-0701 through LF-0706 later replace the
-database polling/fan-out path with durable distribution and rebuildable materialization without
-changing the public snapshot/SSE contract.
+environment revision; only strictly newer revision notices are emitted. M7 preserves that public
+contract while adding a Redis-first snapshot/revision path and a single global Pub/Sub hint
+subscription. Redis misses, malformed values, and connection failures use a semaphore-bounded
+PostgreSQL fallback with a bounded acquire timeout. A successful fallback backfills Redis only when
+its revision is newer. Periodic revision checks remain active, so a lost Pub/Sub hint cannot prevent
+convergence.
 
 ## 9. Snapshot resolution
 
@@ -254,7 +288,10 @@ WebSockets can be revisited if future product requirements require bidirectional
 
 ## 13. Redis Pub/Sub
 
-Each edge instance may subscribe to bounded invalidation channels such as one global namespaced channel whose payload includes environment ID/revision.
+Each edge instance subscribes to the one global namespaced channel
+`launchforge:config:revision-hints:v1`. Its bounded version-1 JSON payload contains only schema
+version, environment ID, and revision; messages larger than 512 bytes or with invalid fields are
+discarded.
 
 Do not create an unbounded subscription channel per environment.
 
@@ -337,17 +374,27 @@ Rules:
 
 ## 18. Local development
 
-The first milestones do not require Kafka or Redis.
+Kafka and Redis are opt-in through the `distribution` Compose profile. PostgreSQL remains the
+system of record and also starts because it has no profile:
 
-Later Docker Compose should provide:
+```powershell
+docker compose --profile distribution up -d --wait
+```
 
-- PostgreSQL;
-- Kafka in KRaft mode;
-- Redis;
-- optional Kafka UI;
-- management API;
-- config edge;
-- React app;
-- demo apps.
+With the database, Kafka, Redis, shared SDK-key pepper, and database variables from `.env.example`
+exported, package and start the worker and Config Edge in separate terminals:
 
-This sequencing prevents infrastructure from hiding correctness problems in the domain/evaluator.
+```powershell
+.\mvnw.cmd -pl backend/launchforge-event-worker,backend/launchforge-config-edge -am package
+java -jar backend/launchforge-event-worker/target/launchforge-event-worker-0.1.0-SNAPSHOT-exec.jar
+java -jar backend/launchforge-config-edge/target/launchforge-config-edge-0.1.0-SNAPSHOT-exec.jar
+```
+
+The automated durability drill is:
+
+```powershell
+.\mvnw.cmd -pl tests/integration-tests -am verify -Pintegration "-Dit.test=DistributionPipelineIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
+```
+
+Stop the local services without deleting PostgreSQL data with
+`docker compose --profile distribution down`.

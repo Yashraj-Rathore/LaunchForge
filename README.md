@@ -268,7 +268,7 @@ docker compose down -v
 
 M2 implements the authenticated management API for projects, environments, typed flags/variations, environment drafts, ordered targeting rules, 100,000-bucket percentage allocations, publication history/diff, and rollback. Mutable routes use ETag/`If-Match`; browser mutations retain the M1 CSRF requirement. Rollout salt is server-owned and can change only through the explicit reason-required reseed route.
 
-Flyway applies `V2__flag_control_plane.sql` when the Control API starts. Publication validates the full draft and commits the RFC 8785 canonical revision, current pointer, audit event, and pending outbox intent atomically. PostgreSQL rejects update/delete of revision rows. Kafka publication remains intentionally deferred to M7.
+Flyway applies `V2__flag_control_plane.sql` when the Control API starts. Publication validates the full draft and commits the RFC 8785 canonical revision, current pointer, audit event, and pending outbox intent atomically. PostgreSQL rejects update/delete of revision rows. Kafka publication was deliberately deferred until the M7 distribution implementation described below.
 
 ### Java evaluator and SDK
 
@@ -282,7 +282,8 @@ WebFlux Config Edge validates those keys, serves the authoritative immutable Pos
 with ETag/304/revision/checksum headers, and exposes a bounded authenticated SSE stream containing
 revision hints only. The Java SDK can opt into the stream, fetches the authoritative snapshot after
 a newer hint, reconnects with exponential jitter, and retains conditional polling plus in-memory
-last-known-good behavior. Kafka and Redis remain deferred to M7.
+last-known-good behavior. M7 keeps these HTTP/SSE semantics and adds Redis-first snapshot reads plus
+durable Kafka-backed fan-out.
 
 Control API and Config Edge must receive the same uncommitted HMAC pepper. Start the Control API
 first so Flyway applies V3, then start the edge in a second terminal:
@@ -297,6 +298,35 @@ The fictional Spring storefront in `demos/spring-demo` enables streaming by defa
 active snapshot revision in `/demo/{subject}`, and keeps evaluating after Config Edge becomes
 unavailable. Its README contains the interactive flow and the reproducible PostgreSQL/WebFlux/SDK
 E2E command.
+
+### Durable Kafka and Redis distribution
+
+M7 implements LF-0701 through LF-0706 in `launchforge-event-worker` and Config Edge. Multiple
+workers safely lease the PostgreSQL outbox, require a Kafka acknowledgement before marking a row
+published, and retry transient broker failures with bounded exponential backoff. Versioned
+revision events are keyed by environment. The idempotent projector validates immutable PostgreSQL
+content before atomically advancing a rebuildable Redis hash and publishing a bounded hint on one
+global channel. Config Edge reads Redis first and uses a semaphore-bounded PostgreSQL fallback;
+Redis is never authoritative.
+
+Start the digest-pinned local KRaft broker and Redis cache with PostgreSQL:
+
+```powershell
+docker compose --profile distribution up -d --wait
+.\mvnw.cmd -pl backend/launchforge-event-worker,backend/launchforge-config-edge -am package
+```
+
+Then run these in separate terminals after exporting the database, Redis, Kafka, and shared SDK-key
+pepper values from `.env.example`:
+
+```powershell
+java -jar backend/launchforge-event-worker/target/launchforge-event-worker-0.1.0-SNAPSHOT-exec.jar
+java -jar backend/launchforge-config-edge/target/launchforge-config-edge-0.1.0-SNAPSHOT-exec.jar
+```
+
+`contracts/events/` contains the versioned event schema/example. The repeatable two-edge,
+broker/cache outage, rebuild, and Java SDK last-known-good drill is recorded in
+`docs/18_FAILURE_MODES_RUNBOOKS.md`.
 
 ### JavaScript, browser, and React SDKs
 
@@ -341,8 +371,7 @@ pnpm --filter @launchforge/admin-web test:e2e
 ```
 
 The opt-in local SQL seed now includes a fictional Development environment so a successful OIDC
-login lands directly in the console. Kafka, Redis, and analytics remain deferred to their owning
-milestones.
+login lands directly in the console. Analytics remains deferred to its owning milestone.
 
 On Unix-like systems, use `./mvnw` in place of `.\mvnw.cmd`. After initializing Git on Windows, record the executable bit with `git update-index --chmod=+x mvnw`.
 

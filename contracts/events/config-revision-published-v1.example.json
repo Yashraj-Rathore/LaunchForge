@@ -1,0 +1,12 @@
+{
+  "eventId": "78000000-0000-0000-0000-000000000001",
+  "eventType": "config.revision-published.v1",
+  "schemaVersion": 1,
+  "occurredAt": "2026-08-13T12:00:00Z",
+  "organizationId": "71000000-0000-0000-0000-000000000001",
+  "projectId": "72000000-0000-0000-0000-000000000001",
+  "environmentId": "73000000-0000-0000-0000-000000000001",
+  "revision": 1,
+  "snapshotChecksum": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "traceId": "79000000-0000-0000-0000-000000000001"
+}

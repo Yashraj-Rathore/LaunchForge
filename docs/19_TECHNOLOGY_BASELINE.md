@@ -46,8 +46,8 @@ Verified against official release sources on **2026-08-10**; M1-owned tools were
 | Zod | `4.4.3` | M6 |
 | PostgreSQL | `18.4`; image `postgres:18.4-bookworm`; manifest `sha256:d9c83446333daec3f0588cc709adb80c26090b7f9f0f7ec8d43c243385d79818` | M0 |
 | Keycloak | `26.7.0`; image `quay.io/keycloak/keycloak:26.7.0`; manifest `sha256:0f198be292568439d700cdbfb893e69a6009bb43a94a06a945b1d3d506c76b13` | M1 |
-| Apache Kafka | `4.3.1`; image `apache/kafka:4.3.1` | Re-verify in M7 |
-| Redis | `8.2.8`; image `redis:8.2.8-bookworm` | Re-verify in M7 |
+| Apache Kafka | `4.3.1`; image `apache/kafka:4.3.1`; manifest `sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837` | M7 |
+| Redis | `8.2.8`; image `redis:8.2.8-bookworm`; manifest `sha256:2f7462b9e93e0a7ae2edf3a0a0babc8a4d29f8bfc50849b906b7caaef925edc1` | M7 |
 | Docker Engine | tested-tooling target `29.6.2` | M0 developer environment |
 | Docker Compose | tested-tooling target `5.4.0` | M0 developer environment |
 | Kubernetes | tested deployment target `1.36.2` | Re-verify in M11 |
@@ -65,7 +65,7 @@ Official verification references:
 - React/TypeScript: <https://react.dev/versions>, <https://github.com/Microsoft/TypeScript/releases>, and <https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/>
 - Vite/Vitest/Playwright: <https://github.com/vitejs/vite/releases>, <https://github.com/vitest-dev/vitest/releases>, and <https://github.com/microsoft/playwright/releases>
 - PostgreSQL: <https://www.postgresql.org/support/versioning/> and <https://hub.docker.com/_/postgres>
-- Kafka/Redis/Keycloak: <https://kafka.apache.org/community/downloads/>, <https://download.redis.io/releases/>, <https://hub.docker.com/_/redis>, <https://www.keycloak.org/2026/07/keycloak-2670-released>, and <https://github.com/keycloak/keycloak/releases/tag/26.7.0>
+- Kafka/Redis/Keycloak: <https://kafka.apache.org/community/downloads/>, <https://hub.docker.com/r/apache/kafka/tags>, <https://download.redis.io/releases/>, <https://hub.docker.com/_/redis>, <https://www.keycloak.org/2026/07/keycloak-2670-released>, and <https://github.com/keycloak/keycloak/releases/tag/26.7.0>
 - Docker/Kubernetes/Helm: <https://docs.docker.com/engine/release-notes/29/>, <https://github.com/docker/compose/releases>, <https://kubernetes.io/releases/>, and <https://github.com/helm/helm/releases>
 
 LF-0003 resolved and recorded the PostgreSQL image manifest digest after a successful pull. Compose uses the readable tag and digest together, so a tag move cannot silently change the local database image. PostgreSQL 18 Compose volumes mount the image's version-appropriate data root at `/var/lib/postgresql`, not the older `/var/lib/postgresql/data` path.

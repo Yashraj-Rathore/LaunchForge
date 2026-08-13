@@ -58,29 +58,29 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 
 ## M5 JavaScript/React SDKs
 
-- [ ] LF-0501
-- [ ] LF-0502
-- [ ] LF-0503
-- [ ] LF-0504
-- [ ] LF-0505
+- [x] LF-0501
+- [x] LF-0502
+- [x] LF-0503
+- [x] LF-0504
+- [x] LF-0505
 
 ## M6 Admin console
 
-- [ ] LF-0601
-- [ ] LF-0602
-- [ ] LF-0603
-- [ ] LF-0604
-- [ ] LF-0605
-- [ ] LF-0606
+- [x] LF-0601
+- [x] LF-0602
+- [x] LF-0603
+- [x] LF-0604
+- [x] LF-0605
+- [x] LF-0606
 
 ## M7 Kafka/Redis
 
-- [ ] LF-0701
-- [ ] LF-0702
-- [ ] LF-0703
-- [ ] LF-0704
-- [ ] LF-0705
-- [ ] LF-0706
+- [x] LF-0701
+- [x] LF-0702
+- [x] LF-0703
+- [x] LF-0704
+- [x] LF-0705
+- [x] LF-0706
 
 **Resume/interview checkpoint B**
 

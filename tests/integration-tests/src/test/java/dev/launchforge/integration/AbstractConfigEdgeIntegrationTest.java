@@ -26,7 +26,8 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
       "launchforge.config-edge.revision-poll-interval=25ms",
       "launchforge.config-edge.heartbeat-interval=100ms",
       "launchforge.config-edge.maximum-connections=4",
-      "launchforge.config-edge.maximum-connections-per-key=1"
+      "launchforge.config-edge.maximum-connections-per-key=1",
+      "launchforge.config-edge.redis-enabled=false"
     })
 abstract class AbstractConfigEdgeIntegrationTest {
   static final String TEST_PEPPER = "integration-test-pepper-value-with-more-than-thirty-two-bytes";

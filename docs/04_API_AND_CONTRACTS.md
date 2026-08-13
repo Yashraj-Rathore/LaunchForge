@@ -209,6 +209,26 @@ The stream carries revision hints only. It also emits heartbeat comments; the SD
 authoritative snapshot with a conditional GET. `Last-Event-ID` is a convergence hint, never an
 ordering authority.
 
+## Internal revision event
+
+M7 publishes `config.revision-published.v1` records to
+`launchforge.config.revision-published.v1`, keyed by the canonical environment UUID so all events
+for one environment share a Kafka partition. Required fields are event ID/type/schema version, UTC
+occurrence time, organization/project/environment IDs, positive revision, snapshot checksum, and a
+bounded trace ID. The event contains no snapshot body, SDK credential, OIDC material, evaluation
+context, or full audit payload. The projector reloads and validates the immutable PostgreSQL
+revision before advancing Redis.
+
+The authoritative version-1 artifacts are:
+
+- `contracts/events/config-revision-published-v1.schema.json`;
+- `contracts/events/config-revision-published-v1.example.json`;
+- `dev.launchforge.contracts.events.ConfigRevisionPublishedEvent`.
+
+Unknown additive fields are accepted within version 1. Missing/invalid required fields and an
+unsupported event type or schema version are permanent contract failures; an incompatible change
+requires a new versioned event type/topic.
+
 ## Analytics ingestion
 
 ```text

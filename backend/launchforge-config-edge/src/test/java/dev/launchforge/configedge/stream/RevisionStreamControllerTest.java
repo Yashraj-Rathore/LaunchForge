@@ -24,6 +24,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
 import reactor.test.StepVerifier;
+import tools.jackson.databind.ObjectMapper;
 
 class RevisionStreamControllerTest {
   private static final String PEPPER = "test-pepper-that-is-at-least-thirty-two-bytes";
@@ -65,10 +66,12 @@ class RevisionStreamControllerTest {
             Clock.fixed(Instant.parse("2026-08-11T12:00:00Z"), ZoneOffset.UTC));
     StreamConnectionLimiter limiter =
         new StreamConnectionLimiter(properties, new SimpleMeterRegistry());
+    RevisionSignalBus signalBus =
+        new RevisionSignalBus(new ObjectMapper(), new SimpleMeterRegistry());
     return new Fixture(
         repository,
         limiter,
-        new RevisionStreamController(repository, authentication, limiter, properties));
+        new RevisionStreamController(repository, authentication, limiter, signalBus, properties));
   }
 
   private record Fixture(
