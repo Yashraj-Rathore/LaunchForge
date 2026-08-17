@@ -297,3 +297,9 @@ Control:
 - debug logging duration.
 
 Never label metrics with raw user IDs, flag keys at very high cardinality, emails, or SDK secrets.
+
+M9 adds `launchforge.security.rate.limit` counters with only `plane=control|edge` and
+`outcome=allowed|rejected|fallback`, plus `launchforge.security.stream.connection` counters with
+fixed distributed-rejection/local-fallback outcomes. Request-completion logging is deliberately
+limited to method, route family, and status; identifiers remain available through safe product
+audit where appropriate, not operational request logs.

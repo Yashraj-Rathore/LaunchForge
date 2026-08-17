@@ -1,5 +1,6 @@
 package dev.launchforge.configedge.snapshot;
 
+import dev.launchforge.configedge.observability.SnapshotMetrics;
 import dev.launchforge.configedge.persistence.EdgeRepository;
 import dev.launchforge.configedge.security.SdkAuthenticationWebFilter;
 import dev.launchforge.configedge.security.SdkCredentialScope;
@@ -24,10 +25,13 @@ public final class SnapshotController {
 
   private final EdgeRepository repository;
   private final SnapshotIntegrityVerifier verifier;
+  private final SnapshotMetrics metrics;
 
-  public SnapshotController(EdgeRepository repository, SnapshotIntegrityVerifier verifier) {
+  public SnapshotController(
+      EdgeRepository repository, SnapshotIntegrityVerifier verifier, SnapshotMetrics metrics) {
     this.repository = repository;
     this.verifier = verifier;
+    this.metrics = metrics;
   }
 
   @GetMapping(value = "/sdk/v1/snapshot", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -36,14 +40,16 @@ public final class SnapshotController {
       @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false)
           List<String> ifNoneMatch) {
     SdkCredentialScope scope = scope(exchange);
-    return Mono.fromCallable(
-            () ->
-                repository
-                    .findCurrentSnapshot(scope.environmentId())
-                    .map(verifier::verify)
-                    .orElseThrow(SnapshotUnavailableException::new))
-        .subscribeOn(Schedulers.boundedElastic())
-        .map(snapshot -> response(snapshot, ifNoneMatch));
+    Mono<ResponseEntity<String>> operation =
+        Mono.fromCallable(
+                () ->
+                    repository
+                        .findCurrentSnapshot(scope.environmentId())
+                        .map(verifier::verify)
+                        .orElseThrow(SnapshotUnavailableException::new))
+            .subscribeOn(Schedulers.boundedElastic())
+            .map(snapshot -> response(snapshot, ifNoneMatch));
+    return metrics.observe("server", operation);
   }
 
   private static ResponseEntity<String> response(

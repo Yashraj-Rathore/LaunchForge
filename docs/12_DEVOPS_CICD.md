@@ -181,6 +181,28 @@ Require:
 - documented rollback target;
 - no outstanding critical/high unaccepted security findings.
 
+### M9 security release checklist
+
+Before promoting a release, record evidence that:
+
+- backend format, static analysis, unit tests, and PostgreSQL/Redis integration tests pass;
+- frontend lint, tests, and production build pass;
+- cross-tenant path, query-filter, and body manipulation tests pass;
+- wrong/revoked server and browser credential classes fail closed;
+- snapshot, stream-start, active SSE, analytics, management, and key-lifecycle limits return the
+  documented contract without exposing identifiers in metric labels;
+- secure responses contain HSTS/CSP/nosniff/referrer/frame policy and browser CORS remains exact,
+  non-credentialed, and absent from server endpoints;
+- captured-log privacy tests contain no fake SDK secret, cookie/session, authorization value,
+  email, query, request body, or evaluation context;
+- audit export remains tenant-scoped and retention deletion remains disabled unless explicitly
+  approved, previewed, count-confirmed, and within the policy cutoff;
+- dependency/secret/image scans have no unaccepted critical/high finding;
+- `docs/22_SECURITY_HARDENING_REVIEW.md` residual risks have an owner/decision and no new untracked
+  security fix is bundled into the release;
+- application rollback, configuration rollback, compromised-key response, Redis fallback, and SSE
+  reconnect procedures are current.
+
 ## 11. Rollback
 
 Application rollback:

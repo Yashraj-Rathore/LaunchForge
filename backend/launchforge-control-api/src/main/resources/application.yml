@@ -22,6 +22,12 @@ spring:
   jackson:
     deserialization:
       fail-on-unknown-properties: true
+  data:
+    redis:
+      host: ${LAUNCHFORGE_REDIS_HOST:localhost}
+      port: ${LAUNCHFORGE_REDIS_PORT:56379}
+      connect-timeout: 500ms
+      timeout: 500ms
   security:
     oauth2:
       client:
@@ -57,9 +63,23 @@ launchforge:
     current-pepper-version: ${LAUNCHFORGE_SDK_KEY_PEPPER_VERSION:v1}
     peppers:
       v1: ${LAUNCHFORGE_SDK_KEY_PEPPER}
+  audit:
+    retention:
+      deletion-enabled: ${LAUNCHFORGE_AUDIT_RETENTION_DELETION_ENABLED:false}
+      minimum-age: ${LAUNCHFORGE_AUDIT_RETENTION_MINIMUM_AGE:365d}
+      preview-ttl: 15m
+      maximum-batch-size: 1000
   security:
     session:
       absolute-lifetime: ${LAUNCHFORGE_SESSION_ABSOLUTE_LIFETIME:12h}
+    abuse:
+      redis-enabled: ${LAUNCHFORGE_SECURITY_RATE_LIMIT_REDIS_ENABLED:true}
+      window: 1m
+      login-requests-per-window: ${LAUNCHFORGE_LOGIN_REQUESTS_PER_MINUTE:60}
+      management-read-requests-per-window: ${LAUNCHFORGE_MANAGEMENT_READS_PER_MINUTE:600}
+      management-mutation-requests-per-window: ${LAUNCHFORGE_MANAGEMENT_MUTATIONS_PER_MINUTE:120}
+      key-lifecycle-requests-per-window: ${LAUNCHFORGE_KEY_LIFECYCLE_REQUESTS_PER_MINUTE:30}
+      maximum-request-bytes: 1048576
   analytics:
     query:
       enabled: ${LAUNCHFORGE_ANALYTICS_ENABLED:false}
@@ -71,10 +91,40 @@ launchforge:
       maximum-rows: 1000
 
 management:
+  otlp:
+    metrics:
+      export:
+        enabled: ${LAUNCHFORGE_OTLP_METRICS_ENABLED:false}
+  opentelemetry:
+    enabled: ${LAUNCHFORGE_OTEL_ENABLED:false}
+    resource-attributes:
+      deployment.environment.name: ${LAUNCHFORGE_DEPLOYMENT_ENVIRONMENT:local}
+    tracing:
+      export:
+        otlp:
+          endpoint: ${LAUNCHFORGE_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+          connect-timeout: 1s
+          timeout: 3s
+      limits:
+        max-attributes: 64
+        max-attribute-value-length: 256
+  tracing:
+    export:
+      otlp:
+        enabled: ${LAUNCHFORGE_OTEL_ENABLED:false}
+    propagation:
+      type: w3c
+    sampling:
+      probability: ${LAUNCHFORGE_TRACE_SAMPLING_PROBABILITY:0.1}
   endpoint:
     health:
       show-details: never
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
+
+logging:
+  structured:
+    format:
+      console: ${LAUNCHFORGE_LOG_FORMAT:ecs}

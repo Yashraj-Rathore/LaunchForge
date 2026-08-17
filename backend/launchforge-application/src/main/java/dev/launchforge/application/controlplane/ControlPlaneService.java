@@ -512,13 +512,38 @@ public final class ControlPlaneService {
       OidcIdentity actor, OrganizationId organizationId, AuditQuery query) {
     OrganizationAccess access = requireOrganization(actor, organizationId);
     requireAbility(access, OrganizationAbility.VIEW_CONFIGURATION);
-    return repository.findAuditEvents(access, Objects.requireNonNull(query, "query"));
+    AuditQuery requested = Objects.requireNonNull(query, "query");
+    ScopedProject project = null;
+    if (requested.projectId() != null) {
+      project =
+          repository
+              .findProjectFor(actor, new ProjectId(requested.projectId()))
+              .filter(candidate -> candidate.access().organization().id().equals(organizationId))
+              .orElseThrow(ControlPlaneNotFoundException::new);
+    }
+    if (requested.environmentId() != null) {
+      ScopedEnvironment environment =
+          repository
+              .findEnvironmentFor(actor, new EnvironmentId(requested.environmentId()))
+              .filter(candidate -> candidate.access().organization().id().equals(organizationId))
+              .orElseThrow(ControlPlaneNotFoundException::new);
+      if (project != null && !environment.project().id().equals(project.project().id())) {
+        throw new ControlPlaneNotFoundException();
+      }
+    }
+    return repository.findAuditEvents(access, requested);
   }
 
   public List<PublishedRevision> revisionHistory(OidcIdentity actor, EnvironmentId environmentId) {
     ScopedEnvironment scoped = requireEnvironment(actor, environmentId);
     requireAbility(scoped.access(), OrganizationAbility.VIEW_CONFIGURATION);
     return repository.findRevisions(scoped.access(), environmentId);
+  }
+
+  public RevisionDiagnostics revisionDiagnostics(OidcIdentity actor, EnvironmentId environmentId) {
+    ScopedEnvironment scoped = requireEnvironment(actor, environmentId);
+    requireAbility(scoped.access(), OrganizationAbility.VIEW_CONFIGURATION);
+    return repository.findRevisionDiagnostics(scoped.access(), environmentId);
   }
 
   public PublishedRevision revision(

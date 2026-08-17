@@ -17,6 +17,7 @@
 - Finalized the M6 draft-backed simulator, safe tenant-scoped audit query, typed variation-edit contract, production publish review, stale-write reconciliation, and one-time credential display behavior.
 - Finalized the M7 leased outbox, environment-keyed revision event, monotonic Redis materialization, global bounded invalidation, Redis-first edge fallback, and failure-recovery operating contracts.
 - Finalized the M8 privacy-minimized evaluation event, separate server/browser ingestion paths, ClickHouse retention and aggregation contract, bounded operational query semantics, and analytics failure-isolation runbook.
+- Finalized the M9 threat review, SDK credential hardening, distributed abuse controls, browser security headers, privacy-safe logging, and governed audit export/retention contracts.
 
 ### Implementation
 
@@ -52,3 +53,5 @@
 - Added digest-pinned Kafka 4.3.1 and Redis 8.2.8 distribution services plus a Testcontainers drill proving lease recovery, duplicate safety, Kafka catch-up, projector recovery, Redis rebuild/outage fallback, two-edge convergence/restart, and Java SDK last-known-good evaluation.
 - Implemented LF-0801–LF-0805 with explicit opt-in Java/browser SDK analytics, context-free bounded batches, tenant scope derived from server/browser keys, a dedicated Kafka topic and bounded Event Worker buffer, and best-effort failure behavior that never changes local evaluation results.
 - Added digest-pinned ClickHouse 26.7.1.1315, a 90-day privacy-bounded MergeTree schema, duplicate-tolerant aggregate queries, a tenant-authorized operational analytics UI, Micrometer ingestion/worker/query signals, and real ClickHouse integration coverage for storage, retention, privacy, and duplicate handling.
+- Implemented LF-0901–LF-0906 with constant-time server SDK-key verification and unknown-pepper rejection, Redis-backed per-credential/IP rate limits, cluster-wide SSE leases, bounded request bodies, hardened browser headers, and privacy-safe request logging.
+- Added tenant-governed CSV audit export and preview-confirm retention deletion with PostgreSQL enforcement, plus unit, HTTP-contract, PostgreSQL, and two-edge Redis integration evidence for security boundaries and failure-safe behavior.

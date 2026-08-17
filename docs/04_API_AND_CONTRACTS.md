@@ -148,6 +148,35 @@ time filters are combined, newest events are returned first, and output is limit
 metadata. Cross-organization direct IDs remain not-found and response fields never contain request
 bodies, credentials, cookies, authorization headers, or simulator context.
 
+M9 validates every optional project/environment filter against the authenticated organization
+before querying. It also provides a bounded CSV representation of the same safe projection:
+
+```text
+GET /api/v1/organizations/{organizationId}/audit/export
+    ?projectId={projectId}&environmentId={environmentId}&actor={exactSubject}
+    &action={exactAction}&from={instant}&to={instant}&limit={1..200}
+```
+
+The response is `text/csv;charset=UTF-8`, is attachment-dispositioned, quotes every field, and
+prefixes spreadsheet formula-leading cells. Export never bypasses normal tenant authorization or
+filter validation.
+
+Governed retention uses two CSRF-protected management mutations:
+
+```text
+POST /api/v1/organizations/{organizationId}/audit/retention/preview
+{"deleteBefore":"2025-01-01T00:00:00Z","limit":1000}
+
+POST /api/v1/organizations/{organizationId}/audit/retention/{previewId}/apply
+{"expectedCandidateCount":37}
+```
+
+Only Owner/Admin roles may use these routes. The default minimum age is 365 days, preview lifetime
+is 15 minutes, and one preview contains at most 1,000 exact event IDs. Applying is disabled unless
+`LAUNCHFORGE_AUDIT_RETENTION_DELETION_ENABLED=true`. Missing/cross-tenant previews return `404`;
+disabled, expired, already-applied, count-mismatched, or changed candidate sets return `409` with
+`AUDIT_RETENTION_CONFLICT`.
+
 ## SDK bootstrap
 
 ```text
@@ -171,6 +200,12 @@ A `200` or `304` includes `ETag`, `X-LaunchForge-Revision`,
 validated canonical server projection stored in the immutable PostgreSQL revision.
 
 Browser client keys only receive client-visible projection.
+
+M9 applies independent Redis-backed fixed-window policies to snapshots, stream starts, and
+analytics ingestion after credential resolution, so the partition is the trusted server/browser
+key ID. A rejection returns `429`, `Retry-After`, and the stable endpoint-class code
+`SNAPSHOT_RATE_LIMITED`, `STREAM_RATE_LIMITED`, or `ANALYTICS_RATE_LIMITED`. Redis failure falls
+back to bounded per-process counters; it never skips all limiting.
 
 Projection happens before checksum and ETag calculation. A server projection and browser projection for the same environment revision may therefore have different checksums/ETags, and a client must validate the exact representation it received.
 

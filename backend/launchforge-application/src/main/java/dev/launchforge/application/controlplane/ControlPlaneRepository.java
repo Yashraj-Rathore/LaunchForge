@@ -60,7 +60,25 @@ public interface ControlPlaneRepository {
   Optional<PublishedRevision> findRevision(
       OrganizationAccess access, EnvironmentId environmentId, long revision);
 
+  RevisionDiagnostics findRevisionDiagnostics(
+      OrganizationAccess access, EnvironmentId environmentId);
+
   List<AuditEvent> findAuditEvents(OrganizationAccess access, AuditQuery query);
+
+  List<UUID> findAuditRetentionCandidates(
+      OrganizationAccess access, Instant deleteBefore, int limit);
+
+  void insertAuditRetentionPreview(
+      OrganizationAccess access, OidcIdentity actor, StoredAuditRetentionPreview preview);
+
+  Optional<StoredAuditRetentionPreview> lockAuditRetentionPreview(
+      OrganizationAccess access, UUID previewId);
+
+  int applyAuditRetentionPreview(
+      OrganizationAccess access,
+      OidcIdentity actor,
+      StoredAuditRetentionPreview preview,
+      Instant appliedAt);
 
   void storePublication(
       OrganizationAccess access,

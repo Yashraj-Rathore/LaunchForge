@@ -122,5 +122,10 @@ public final class SdkKeyController {
     static IssuedSdkKeyResponse from(IssuedServerSdkKey issued) {
       return new IssuedSdkKeyResponse(SdkKeyResponse.from(issued.metadata()), issued.credential());
     }
+
+    @Override
+    public String toString() {
+      return "IssuedSdkKeyResponse{keyId=" + key.id() + ", secret=<redacted>}";
+    }
   }
 }

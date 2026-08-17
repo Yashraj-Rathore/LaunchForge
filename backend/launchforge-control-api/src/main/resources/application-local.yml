@@ -10,3 +10,6 @@ launchforge:
   demo-seed:
     enabled: ${LAUNCHFORGE_DEMO_SEED_ENABLED:false}
     location: ${LAUNCHFORGE_DEMO_SEED_LOCATION:file:deploy/local/tenancy-seed.sql}
+  security:
+    abuse:
+      redis-enabled: false

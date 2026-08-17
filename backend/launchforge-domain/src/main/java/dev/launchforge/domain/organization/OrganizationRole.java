@@ -12,7 +12,8 @@ public enum OrganizationRole {
           OrganizationAbility.PUBLISH_NON_PRODUCTION,
           OrganizationAbility.PUBLISH_PRODUCTION,
           OrganizationAbility.MANAGE_MEMBERS,
-          OrganizationAbility.MANAGE_SDK_KEYS)),
+          OrganizationAbility.MANAGE_SDK_KEYS,
+          OrganizationAbility.MANAGE_AUDIT_RETENTION)),
   DEVELOPER(
       EnumSet.of(
           OrganizationAbility.VIEW_CONFIGURATION,

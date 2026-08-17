@@ -29,6 +29,9 @@ spring:
         isolation.level: read_committed
     listener:
       ack-mode: record
+      observation-enabled: true
+    template:
+      observation-enabled: true
   data:
     redis:
       host: ${LAUNCHFORGE_REDIS_HOST:localhost}
@@ -54,6 +57,31 @@ launchforge:
       click-house-password: ${LAUNCHFORGE_CLICKHOUSE_PASSWORD:}
 
 management:
+  otlp:
+    metrics:
+      export:
+        enabled: ${LAUNCHFORGE_OTLP_METRICS_ENABLED:false}
+  opentelemetry:
+    enabled: ${LAUNCHFORGE_OTEL_ENABLED:false}
+    resource-attributes:
+      deployment.environment.name: ${LAUNCHFORGE_DEPLOYMENT_ENVIRONMENT:local}
+    tracing:
+      export:
+        otlp:
+          endpoint: ${LAUNCHFORGE_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+          connect-timeout: 1s
+          timeout: 3s
+      limits:
+        max-attributes: 64
+        max-attribute-value-length: 256
+  tracing:
+    export:
+      otlp:
+        enabled: ${LAUNCHFORGE_OTEL_ENABLED:false}
+    propagation:
+      type: w3c
+    sampling:
+      probability: ${LAUNCHFORGE_TRACE_SAMPLING_PROBABILITY:0.1}
   endpoints:
     web:
       exposure:
@@ -62,3 +90,12 @@ management:
     health:
       probes:
         enabled: true
+
+server:
+  port: ${LAUNCHFORGE_EVENT_WORKER_PORT:8083}
+  shutdown: graceful
+
+logging:
+  structured:
+    format:
+      console: ${LAUNCHFORGE_LOG_FORMAT:ecs}

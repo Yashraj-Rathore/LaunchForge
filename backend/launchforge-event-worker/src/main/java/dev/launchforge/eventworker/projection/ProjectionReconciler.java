@@ -37,16 +37,22 @@ public class ProjectionReconciler {
       return;
     }
     for (AuthoritativeSnapshot snapshot : page) {
+      long started = System.nanoTime();
+      String outcome = "error";
       try {
         validator.validate(snapshot);
         if (materializer.materialize(snapshot)) {
+          outcome = "advanced";
           metrics.projectionAdvanced();
         } else {
+          outcome = "ignored";
           metrics.projectionIgnored();
         }
       } catch (RuntimeException exception) {
         metrics.projectionError();
         throw exception;
+      } finally {
+        metrics.recordProjectionDuration("reconcile", outcome, System.nanoTime() - started);
       }
     }
     cursor = page.getLast().environmentId();

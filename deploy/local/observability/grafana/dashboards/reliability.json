@@ -1,0 +1,58 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "launchforge-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
+      "id": 1,
+      "targets": [{"expr": "launchforge_outbox_oldest_age_seconds", "refId": "A"}],
+      "title": "Oldest pending outbox age",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "launchforge-prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0},
+      "id": 2,
+      "targets": [{"expr": "sum by (outcome) (rate(launchforge_edge_snapshot_total[5m]))", "refId": "A"}],
+      "title": "Snapshot outcomes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "launchforge-prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0},
+      "id": 3,
+      "targets": [{"expr": "sum by (outcome) (rate(launchforge_projection_total[5m]))", "refId": "A"}],
+      "title": "Projection outcomes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "launchforge-prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "id": 4,
+      "targets": [{"expr": "launchforge_edge_stream_connections_active", "refId": "A"}],
+      "title": "Active SSE connections",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "launchforge-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "id": 5,
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (le, credential) (rate(launchforge_edge_snapshot_duration_seconds_bucket[5m])))", "refId": "A"}],
+      "title": "Snapshot p95 latency",
+      "type": "timeseries"
+    }
+  ],
+  "schemaVersion": 41,
+  "tags": ["launchforge", "reliability"],
+  "templating": {"list": []},
+  "time": {"from": "now-1h", "to": "now"},
+  "title": "LaunchForge Reliability",
+  "uid": "launchforge-reliability",
+  "version": 1
+}

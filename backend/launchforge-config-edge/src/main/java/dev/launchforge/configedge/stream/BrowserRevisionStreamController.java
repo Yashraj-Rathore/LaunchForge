@@ -55,12 +55,12 @@ public final class BrowserRevisionStreamController {
     long lastSeen = lastRevision(lastEventId);
     return Flux.using(
         () -> connectionLimiter.acquire(scope.keyId()),
-        ignored -> Flux.merge(revisions(scope, lastSeen), heartbeats()),
+        lease -> Flux.merge(revisions(scope, lastSeen, lease), heartbeats()),
         StreamConnectionLimiter.Lease::close);
   }
 
   private Flux<ServerSentEvent<RevisionNotification>> revisions(
-      BrowserClientScope scope, long lastSeen) {
+      BrowserClientScope scope, long lastSeen, StreamConnectionLimiter.Lease lease) {
     AtomicLong delivered = new AtomicLong(lastSeen);
     AtomicBoolean first = new AtomicBoolean(true);
     Flux<Long> triggers =
@@ -73,6 +73,7 @@ public final class BrowserRevisionStreamController {
             ignored ->
                 Mono.fromCallable(
                         () -> {
+                          lease.renew();
                           authenticationService.revalidate(scope);
                           return repository.findCurrentRevision(scope.environmentId());
                         })

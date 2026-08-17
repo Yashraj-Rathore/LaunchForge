@@ -1,5 +1,6 @@
 package dev.launchforge.controlapi.configuration;
 
+import dev.launchforge.application.controlplane.AuditRetentionService;
 import dev.launchforge.application.controlplane.ControlPlaneRepository;
 import dev.launchforge.application.controlplane.ControlPlaneService;
 import dev.launchforge.application.controlplane.RolloutSaltGenerator;
@@ -16,6 +17,7 @@ import dev.launchforge.application.sdkkey.BrowserClientKeyService;
 import dev.launchforge.application.sdkkey.SdkKeyRepository;
 import dev.launchforge.application.sdkkey.SdkKeyService;
 import dev.launchforge.application.sdkkey.ServerSdkKeyGenerator;
+import dev.launchforge.controlapi.audit.AuditRetentionProperties;
 import dev.launchforge.domain.organization.MemberManagementPolicy;
 import dev.launchforge.infrastructure.controlplane.JacksonSnapshotCodec;
 import dev.launchforge.infrastructure.controlplane.SecureRolloutSaltGenerator;
@@ -29,7 +31,7 @@ import org.springframework.context.annotation.Configuration;
 import tools.jackson.databind.ObjectMapper;
 
 @Configuration
-@EnableConfigurationProperties(SdkKeySecurityProperties.class)
+@EnableConfigurationProperties({SdkKeySecurityProperties.class, AuditRetentionProperties.class})
 public class ApplicationServiceConfiguration {
   @Bean
   Clock systemClock() {
@@ -79,6 +81,24 @@ public class ApplicationServiceConfiguration {
       Clock clock) {
     return new ControlPlaneService(
         accessRepository, repository, unitOfWork, snapshotCodec, saltGenerator, clock);
+  }
+
+  @Bean
+  AuditRetentionService auditRetentionService(
+      OrganizationAccessRepository accessRepository,
+      ControlPlaneRepository repository,
+      UnitOfWork unitOfWork,
+      Clock clock,
+      AuditRetentionProperties properties) {
+    return new AuditRetentionService(
+        accessRepository,
+        repository,
+        unitOfWork,
+        clock,
+        properties.minimumAge(),
+        properties.previewTtl(),
+        properties.maximumBatchSize(),
+        properties.deletionEnabled());
   }
 
   @Bean

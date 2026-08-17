@@ -14,6 +14,8 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,9 +27,79 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class LaunchForgeClientTest {
   private static final EvaluationContext CONTEXT = EvaluationContext.builder("subject-1").build();
+
+  @TempDir Path temporaryDirectory;
+
+  @Test
+  void durableLastKnownGoodActivatesBeforeNetworkAndPersistsOnlyNewerValidSnapshots()
+      throws Exception {
+    Path durablePath = temporaryDirectory.resolve("launchforge.snapshot");
+    AtomicReference<Response> response =
+        new AtomicReference<>(new Response(200, snapshot(5, true), "\"revision:5:valid\""));
+    try (TestServer server =
+            new TestServer(response, new AtomicReference<>(), new AtomicReference<>());
+        LaunchForgeClient initial =
+            LaunchForgeClient.builder()
+                .sdkKey("sdk_test_secret")
+                .baseUri(server.uri())
+                .pollingInterval(Duration.ofMinutes(5), Duration.ofMinutes(5))
+                .durableLastKnownGood(durablePath)
+                .blockingBootstrap(Duration.ofSeconds(2))
+                .build()) {
+      assertEquals(5, initial.currentRevision().orElseThrow());
+      assertTrue(Files.isRegularFile(durablePath));
+      assertEquals(5, SnapshotParser.parse(Files.readAllBytes(durablePath)).revision());
+    }
+
+    response.set(new Response(200, snapshot(4, false), "\"revision:4:stale\""));
+    try (TestServer server =
+            new TestServer(response, new AtomicReference<>(), new AtomicReference<>());
+        LaunchForgeClient restored =
+            LaunchForgeClient.builder()
+                .sdkKey("sdk_test_secret")
+                .baseUri(server.uri())
+                .pollingInterval(Duration.ofMinutes(5), Duration.ofMinutes(5))
+                .durableLastKnownGood(durablePath)
+                .build()) {
+      assertEquals(5, restored.currentRevision().orElseThrow());
+      assertTrue(restored.boolVariation("release", CONTEXT, false));
+      assertFalse(restored.refreshAsync().get(2, TimeUnit.SECONDS));
+      assertEquals(5, SnapshotParser.parse(Files.readAllBytes(durablePath)).revision());
+
+      response.set(new Response(200, snapshot(6, false), "\"revision:6:new\""));
+      assertTrue(restored.refreshAsync().get(2, TimeUnit.SECONDS));
+      assertEquals(6, restored.currentRevision().orElseThrow());
+      assertEquals(6, SnapshotParser.parse(Files.readAllBytes(durablePath)).revision());
+      try (var entries = Files.list(temporaryDirectory)) {
+        assertTrue(entries.noneMatch(path -> path.getFileName().toString().endsWith(".tmp")));
+      }
+    }
+  }
+
+  @Test
+  void corruptDurableSnapshotIsIgnoredWithoutBlockingRemoteBootstrap() throws Exception {
+    Path durablePath = temporaryDirectory.resolve("corrupt.snapshot");
+    Files.writeString(durablePath, "not a snapshot", StandardCharsets.UTF_8);
+    AtomicReference<Response> response =
+        new AtomicReference<>(new Response(200, snapshot(2, false), "\"revision:2:valid\""));
+    try (TestServer server =
+            new TestServer(response, new AtomicReference<>(), new AtomicReference<>());
+        LaunchForgeClient client =
+            LaunchForgeClient.builder()
+                .sdkKey("sdk_test_secret")
+                .baseUri(server.uri())
+                .durableLastKnownGood(durablePath)
+                .blockingBootstrap(Duration.ofSeconds(2))
+                .build()) {
+      assertEquals(2, client.currentRevision().orElseThrow());
+      assertFalse(client.boolVariation("release", CONTEXT, true));
+      assertEquals(2, SnapshotParser.parse(Files.readAllBytes(durablePath)).revision());
+    }
+  }
 
   @Test
   void nonBlockingBootstrapReturnsBoundedUnavailableDetail() {

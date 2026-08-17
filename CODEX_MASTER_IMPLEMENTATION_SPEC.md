@@ -618,9 +618,9 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 
 # Project Status
 
-**Status:** Prompt 9 optional analytics implementation complete.
+**Status:** Prompt 10 security hardening implementation complete.
 
-**Current milestone:** M8 optional analytics (LF-0801–LF-0805) complete; stop point before Prompt 10 / M9 security hardening.
+**Current milestone:** M9 security hardening (LF-0901–LF-0906) complete; stop point before Prompt 11 / M10 reliability and performance.
 
 **Specification baseline:** Canonical module paths, snapshot/checksum representation, algorithm-version-1 types and reason codes, milestone dependencies, and exact Prompt 0 toolchain pins were normalized on 2026-08-10.
 
@@ -635,7 +635,7 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 | M6 Admin console | LF-0601–LF-0606 | Complete (2026-08-12) |
 | M7 Kafka/Redis scale-out | LF-0701–LF-0706 | Complete (2026-08-13) |
 | M8 Analytics | LF-0801–LF-0805 | Complete (2026-08-13) |
-| M9 Security hardening | LF-0901–LF-0906 | Not started |
+| M9 Security hardening | LF-0901–LF-0906 | Complete (2026-08-17) |
 | M10 Reliability/performance | LF-1001–LF-1006 | Not started |
 | M11 Containers/Helm | LF-1101–LF-1104 | Not started |
 | M12 CI/CD supply chain | LF-1201–LF-1205 | Not started |
@@ -821,6 +821,7 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 | `19_TECHNOLOGY_BASELINE.md` | dated versions and pinning policy |
 | `20_INTERVIEW_TALK_TRACK.md` | system-design explanations and interview questions |
 | `21_NON_GOALS_AND_FUTURE.md` | deliberate exclusions and future options |
+| `22_SECURITY_HARDENING_REVIEW.md` | M9 threat assessment, evidence, residual risks, and release checks |
 
 ADRs under `docs/decisions/` explain choices that must not be casually reversed.
 
@@ -1445,6 +1446,7 @@ flag_environment_configs
 environment_revisions
 sdk_keys
 audit_events
+audit_retention_previews
 outbox_events
 ```
 
@@ -1461,6 +1463,17 @@ Flyway migration `V2__flag_control_plane.sql` adds environments, typed flags/var
 The management domain validates two to ten typed variations, algorithm-version-1 operator/type/arity rules, ordered rule/condition limits, explicit off/default references, server-owned rollout salts, and positive integer weights totalling exactly `100000`. JSON inputs use strict duplicate detection, I-JSON numeric/Unicode limits, and RFC 8785 canonicalization.
 
 Publication locks the project/environment rows, validates the complete active draft, creates the normative keyed-flag snapshot, calculates and injects its checksum, inserts a revision, advances the environment, appends audit, and inserts a versioned pending outbox event in one PostgreSQL transaction. A database trigger rejects revision update/delete. Rollback rebases historical content with a new timestamp/checksum and strictly higher revision while preserving history and recording `source_revision`.
+
+### M9 implemented audit-retention baseline
+
+Flyway migration `V6__audit_retention_hardening.sql` makes audit rows immutable at the database
+boundary. Updates always fail. Deletes succeed only inside a transaction that names a live,
+tenant-matching retention preview whose frozen JSON candidate set includes the row and whose cutoff
+predates it. `audit_retention_previews` records exact candidate IDs/count, actor, cutoff,
+creation/expiry, and application time. The application locks a preview before applying it, requires
+exact count confirmation, rolls back if the deleted count differs, and appends a new audit event
+after governed deletion. Candidate IDs intentionally are not foreign keys so the preview remains
+evidence after its selected events are removed.
 
 ### M4 implemented SDK-key baseline
 
@@ -1718,6 +1731,35 @@ time filters are combined, newest events are returned first, and output is limit
 metadata. Cross-organization direct IDs remain not-found and response fields never contain request
 bodies, credentials, cookies, authorization headers, or simulator context.
 
+M9 validates every optional project/environment filter against the authenticated organization
+before querying. It also provides a bounded CSV representation of the same safe projection:
+
+```text
+GET /api/v1/organizations/{organizationId}/audit/export
+    ?projectId={projectId}&environmentId={environmentId}&actor={exactSubject}
+    &action={exactAction}&from={instant}&to={instant}&limit={1..200}
+```
+
+The response is `text/csv;charset=UTF-8`, is attachment-dispositioned, quotes every field, and
+prefixes spreadsheet formula-leading cells. Export never bypasses normal tenant authorization or
+filter validation.
+
+Governed retention uses two CSRF-protected management mutations:
+
+```text
+POST /api/v1/organizations/{organizationId}/audit/retention/preview
+{"deleteBefore":"2025-01-01T00:00:00Z","limit":1000}
+
+POST /api/v1/organizations/{organizationId}/audit/retention/{previewId}/apply
+{"expectedCandidateCount":37}
+```
+
+Only Owner/Admin roles may use these routes. The default minimum age is 365 days, preview lifetime
+is 15 minutes, and one preview contains at most 1,000 exact event IDs. Applying is disabled unless
+`LAUNCHFORGE_AUDIT_RETENTION_DELETION_ENABLED=true`. Missing/cross-tenant previews return `404`;
+disabled, expired, already-applied, count-mismatched, or changed candidate sets return `409` with
+`AUDIT_RETENTION_CONFLICT`.
+
 ## SDK bootstrap
 
 ```text
@@ -1741,6 +1783,12 @@ A `200` or `304` includes `ETag`, `X-LaunchForge-Revision`,
 validated canonical server projection stored in the immutable PostgreSQL revision.
 
 Browser client keys only receive client-visible projection.
+
+M9 applies independent Redis-backed fixed-window policies to snapshots, stream starts, and
+analytics ingestion after credential resolution, so the partition is the trusted server/browser
+key ID. A rejection returns `429`, `Retry-After`, and the stable endpoint-class code
+`SNAPSHOT_RATE_LIMITED`, `STREAM_RATE_LIMITED`, or `ANALYTICS_RATE_LIMITED`. Redis failure falls
+back to bounded per-process counters; it never skips all limiting.
 
 Projection happens before checksum and ETag calculation. A server projection and browser projection for the same environment revision may therefore have different checksums/ETags, and a client must validate the exact representation it received.
 
@@ -3375,6 +3423,13 @@ revocation eventually closes an existing stream. A management session cookie is 
 SDK authentication. Multiple configured pepper versions provide bounded verification overlap;
 only the configured current version is used for new credentials.
 
+M9 performs a constant-time verifier comparison even when credential parsing fails, fails closed
+for unknown pepper versions after dummy verification work, and redacts the one-time response
+object's string representation. Stored server rows still contain only lookup ID, fingerprint,
+versioned HMAC verifier, scope, and lifecycle metadata. Snapshot requests check current lifecycle
+on every request; active streams revalidate on the one-second default revision poll, so revocation
+is observed within one poll plus database/network scheduling under normal operation.
+
 M5 implements browser keys in a separate `browser_client_keys` table rather than weakening the
 server-key verifier invariant. A browser key uses `lf_client_<32 base64url characters>`, is retained
 as a public lookup identifier, maps to one environment, and carries one to 20 exact allowed origins.
@@ -3502,6 +3557,13 @@ checksum, and schema headers. Preflight permits `GET` and only `Accept`, `If-Non
 `Last-Event-ID`; responses omit `Access-Control-Allow-Credentials`. Same-origin/non-browser clients
 may omit `Origin`, while any supplied origin must exactly match the key policy.
 
+M9 adds response hardening on both HTTP planes. The same-origin console receives a restrictive
+`default-src 'self'` CSP with explicit object/base/frame/form/script/style/image/font/connect rules,
+`nosniff`, `no-referrer`, frame denial, and one-year include-subdomains/preload HSTS on secure
+requests. Config Edge uses `default-src 'none'`, frame denial, `nosniff`, `no-referrer`, and the same
+secure-request HSTS policy. Server SDK endpoints do not emit browser CORS headers; browser routes
+retain exact-origin, non-credentialed CORS only.
+
 ## 13. Rate limiting
 
 Independent policies:
@@ -3516,6 +3578,18 @@ Independent policies:
 Partition on trusted authenticated identity where available, otherwise cautiously use IP plus key lookup identifiers.
 
 Rate limiting does not replace authentication or request-size limits.
+
+M9 implements one-minute Redis fixed windows with separate limits for login, management reads,
+management mutations, key lifecycle, snapshots, stream starts, and analytics. Management
+partitions use authenticated principal or network address and hash the material before it enters a
+Redis key. Edge partitions use only the authenticated key UUID. Redis errors use bounded local
+windows and emit a fixed-cardinality fallback metric. Control API mutation bodies are capped at
+1 MiB; Config Edge codec allocation is capped at 256 KiB and analytics bodies at 256 KiB.
+
+SSE admission first enforces per-process global/per-key bounds and then atomically acquires a
+Redis sorted-set lease for cluster-wide global/per-key bounds. Leases renew during lifecycle polls,
+release idempotently, and expire after two minutes if a process dies. Redis loss preserves the local
+bounds and SDK polling/LKG fallback.
 
 ## 14. Audit
 
@@ -3542,6 +3616,13 @@ Audit contains:
 
 Never audit plaintext SDK keys, tokens, or complete OIDC claims.
 
+M9 enforces audit immutability with a database trigger and permits deletion only for exact rows
+captured by a live tenant-scoped retention preview. Production deletion is disabled by default.
+Owner/Admin confirmation, a 365-day default minimum age, a 15-minute preview expiry, a 1,000-row
+batch bound, exact-count confirmation, transactional rollback on mismatch, and a new application
+audit record govern each application. CSV export uses only the bounded safe audit projection and
+neutralizes spreadsheet formula prefixes.
+
 ## 15. Logging
 
 Structured logs must not contain:
@@ -3555,6 +3636,12 @@ Structured logs must not contain:
 - raw request bodies.
 
 Add automated log-redaction tests for key flows.
+
+M9 request-completion logs contain only bounded method, route family, and status fields. They never
+include raw paths, queries, headers, principals, bodies, keys, sessions, or evaluation context.
+Security rate/connection metrics use fixed `plane`/`outcome` labels; authenticated IDs are neither
+labels nor log fields. Tests attach capture appenders with fake secrets, emails, authorization, and
+context and fail if those values appear.
 
 ## 16. Dependency and supply-chain security
 
@@ -3587,6 +3674,9 @@ At minimum test/document:
 10. Kafka duplicate/replay;
 11. operator stale-write conflict;
 12. compromised browser cannot retrieve server SDK key.
+
+The completed M9 assessment, evidence paths, and ranked residual risks are recorded in
+`docs/22_SECURITY_HARDENING_REVIEW.md`.
 
 ## 18. Secret management
 
@@ -4296,6 +4386,12 @@ Control:
 
 Never label metrics with raw user IDs, flag keys at very high cardinality, emails, or SDK secrets.
 
+M9 adds `launchforge.security.rate.limit` counters with only `plane=control|edge` and
+`outcome=allowed|rejected|fallback`, plus `launchforge.security.stream.connection` counters with
+fixed distributed-rejection/local-fallback outcomes. Request-completion logging is deliberately
+limited to method, route family, and status; identifiers remain available through safe product
+audit where appropriate, not operational request logs.
+
 ---
 
 <!-- SOURCE: docs/12_DEVOPS_CICD.md -->
@@ -4482,6 +4578,28 @@ Require:
 - immutable artifact reference;
 - documented rollback target;
 - no outstanding critical/high unaccepted security findings.
+
+### M9 security release checklist
+
+Before promoting a release, record evidence that:
+
+- backend format, static analysis, unit tests, and PostgreSQL/Redis integration tests pass;
+- frontend lint, tests, and production build pass;
+- cross-tenant path, query-filter, and body manipulation tests pass;
+- wrong/revoked server and browser credential classes fail closed;
+- snapshot, stream-start, active SSE, analytics, management, and key-lifecycle limits return the
+  documented contract without exposing identifiers in metric labels;
+- secure responses contain HSTS/CSP/nosniff/referrer/frame policy and browser CORS remains exact,
+  non-credentialed, and absent from server endpoints;
+- captured-log privacy tests contain no fake SDK secret, cookie/session, authorization value,
+  email, query, request body, or evaluation context;
+- audit export remains tenant-scoped and retention deletion remains disabled unless explicitly
+  approved, previewed, count-confirmed, and within the policy cutoff;
+- dependency/secret/image scans have no unaccepted critical/high finding;
+- `docs/22_SECURITY_HARDENING_REVIEW.md` residual risks have an owner/decision and no new untracked
+  security fix is bundled into the release;
+- application rollback, configuration rollback, compromised-key response, Redis fallback, and SSE
+  reconnect procedures are current.
 
 ## 11. Rollback
 
@@ -6651,9 +6769,29 @@ Actions:
 6. avoid broadcasting artificial reconnect commands;
 7. reproduce with load test before tuning.
 
+The cluster-wide Redis lease rejects connections above configured global/per-key bounds. During
+Redis loss, per-process bounds remain active; aggregate cluster admission can therefore be higher
+than the Redis-backed ceiling. Treat the `local_fallback` signal as degraded protection, avoid
+scaling out solely to absorb abusive clients, and restore Redis before raising limits.
+
 ---
 
-## Runbook L - Analytics/ClickHouse outage
+## Runbook L - Governed audit retention
+
+1. confirm the organization's documented retention obligation and approval;
+2. keep `LAUNCHFORGE_AUDIT_RETENTION_DELETION_ENABLED=false` while reviewing;
+3. request a cutoff/limit preview as an Owner/Admin and export any required archive;
+4. verify the exact candidate count, organization, cutoff, and 15-minute expiry;
+5. enable deletion only for the approved maintenance window;
+6. apply with the exact count; a mismatch/expiry must return `409` and delete nothing;
+7. verify the new `AUDIT_RETENTION_APPLIED` event and tenant counts;
+8. disable deletion again and retain the maintenance evidence.
+
+Never issue direct SQL update/delete against `audit_events`; the database trigger rejects it.
+
+---
+
+## Runbook M - Analytics/ClickHouse outage
 
 Expected:
 
@@ -7440,6 +7578,66 @@ Before adding a future capability, answer:
 5. Is there a simpler solution?
 
 If the first two are both "no," do not build it.
+
+---
+
+<!-- SOURCE: docs/22_SECURITY_HARDENING_REVIEW.md -->
+
+# 22 - Security Hardening Review
+
+Review date: 2026-08-17
+
+Scope: LF-0901 through LF-0906
+
+Disposition: no unresolved critical/high finding; ranked residual risks remain below.
+
+## Review method
+
+This review traced the twelve cases in `docs/09_SECURITY_PRIVACY.md` through the domain,
+application, persistence, HTTP, SDK, and distribution boundaries. Evidence is executable unless
+explicitly identified as an operational/release check. It does not claim a penetration test or an
+external audit.
+
+## Threat assessment and evidence
+
+| # | Threat | M9 disposition | Primary evidence |
+|---|---|---|---|
+| 1 | Organization ID changed in path/body/filter | Mitigated: access comes from authenticated membership; unknown ownership body fields fail; resource filters are independently scoped and cross-tenant IDs are not-found. | `ControlPlaneService.auditHistory`; `ControlPlanePostgresIT.auditExportRetentionAndTamperControlsStayTenantScoped`; `managementBodyManipulationAndOversizedPayloadsAreRejectedWithSecurityHeaders` |
+| 2 | Stolen/revoked server SDK key | Mitigated: high-entropy one-time key, lookup plus versioned HMAC verifier, constant-time compare, immediate snapshot check, one-poll stream revalidation, rotate/revoke audit. | `ServerSdkKeyCredentialTest`; `SdkAuthenticationServiceTest`; `DistributionPipelineIT.revokedKeyCannotFetchAndActiveStreamDisconnects` |
+| 3 | Browser key used against server endpoint | Mitigated: disjoint credential formats/authentication filters and projections. | `ConfigEdgeHttpContractTest.browserCredentialClassCannotAuthenticateTheServerSnapshotEndpoint`; `BrowserConfigEdgeHttpContractTest.disallowedOriginAndUnknownClientKeyAreDenied` |
+| 4 | Replayed stale publish | Mitigated by ETag/`If-Match`, row locks, optimistic versions, and strictly increasing immutable revision numbers. | `ControlPlanePostgresIT.concurrentDraftWritesAndPublishesRejectStaleVersions`; `browserApiRequiresCsrfAndIfMatchAndRejectsTypedVariationMismatch` |
+| 5 | Malicious huge context/body | Mitigated by domain cardinality/text limits, 1 MiB management body cap, 256 KiB reactive codec/analytics cap, finite analytics batch/concurrency limits. | `RequestPrivacyContractTest`; `EdgeWebSecurityContractTest`; M6 simulator tests |
+| 6 | Invalid Unicode/serialization | Mitigated by I-JSON validation, strict duplicate handling, canonical snapshot encoding, checksum verification, and cross-SDK golden vectors. | `JacksonSnapshotCodecTest`; `GoldenVectorCorpusTest`; snapshot integrity tests |
+| 7 | Forged stream request | Mitigated by exact credential-class filters before admission, environment scope from stored key, lifecycle revalidation, and revision-only payload. | `RevisionStreamControllerTest`; `SdkAuthenticationServiceTest` |
+| 8 | SSE connection exhaustion | Mitigated by stream-start rate limits, local global/per-key bounds, Redis atomic global/per-key leases, renew/expiry/release behavior, and polling/LKG fallback. | `StreamConnectionLimiterTest`; `EdgeRateLimiterTest`; `EdgeWebSecurityContractTest.trustedKeyRateLimitReturnsStable429AndRetryAfter` |
+| 9 | Redis poisoning/stale projection | Mitigated by revision monotonicity, checksum verification, PostgreSQL authority/fallback, and reconciliation rebuild. | `RedisBackedEdgeRepositoryTest`; `DistributionPipelineIT` |
+| 10 | Kafka duplicate/replay | Mitigated by versioned keyed events, idempotent consumers, and revision ordering authority. | `DistributionPipelineIT` duplicate/stale-event cases |
+| 11 | Operator stale-write conflict | Mitigated by required preconditions, optimistic version checks, `409` contract, and preserved local UI edits. | `ControlPlanePostgresIT`; M6 console Playwright stale-write coverage |
+| 12 | Compromised browser retrieves server-only key/snapshot | Mitigated by same-origin OIDC management auth, distinct public key class, exact-origin non-credentialed CORS, and pre-checksum client-visible projection. | `BrowserConfigEdgeHttpContractTest.exactAllowedOriginReceivesOnlyClientVisibleFlagsAndProjectionChecksum`; `ConfigEdgePostgresIT.browserProjectionNeverReturnsServerOnlyFlags` |
+
+Additional M9 evidence covers immutable/tenant-scoped audit retention and export, fake-secret log
+capture, metric-label privacy, HTTP header policy, request limits, unknown pepper versions, and
+stable `429` plus `Retry-After` responses.
+
+## Ranked residual risks
+
+| Rank | Risk | Current decision | Follow-up boundary |
+|---|---|---|---|
+| Medium | During Redis outage, fixed-window and active-SSE limits fall back per process, so aggregate cluster allowance can exceed the normal global ceiling. | Accepted to preserve configuration availability; local caps never disappear and fallback is metered/runbooked. | Exercise reconnect/abuse capacity in LF-1004 and alert on fallback in LF-1002. |
+| Medium | Audit retention is an operator-driven bounded batch, not a legal-hold/archive/scheduled-retention product. | Deletion stays disabled by default; preview/export/approval are mandatory. | Any legal hold, signed archive, scheduler, or policy automation requires a separately approved issue. |
+| Low | Server-key pepper material is operator-managed; losing an old active pepper version fails those keys closed. | Versioned pepper map and unknown-version failure are intentional. | Document/automate secret-manager rotation with deployment work; do not silently substitute a pepper. |
+| Low | CSV export is deliberately capped at 200 newest matching events per request. | Accepted as a safe operational export, not bulk compliance archival. | Pagination/bulk jobs require a separate bounded contract and issue. |
+
+No code fix outside LF-0901 through LF-0906 was introduced for these residual items. The M10 links
+above identify existing explicit issue boundaries; remaining product expansions are not implied
+backlog commitments.
+
+## Release decision checklist
+
+The normative release checklist is in `docs/12_DEVOPS_CICD.md`. A release reviewer must attach the
+exact command results, scan artifacts, threat-review acknowledgement, retention-deletion state, and
+rollback target. Any new critical/high finding blocks release unless explicitly risk-accepted by the
+responsible owner with scope, expiry, and remediation issue.
 
 ---
 

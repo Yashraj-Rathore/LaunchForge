@@ -1,5 +1,6 @@
 package dev.launchforge.configedge.snapshot;
 
+import dev.launchforge.configedge.observability.SnapshotMetrics;
 import dev.launchforge.configedge.persistence.EdgeRepository;
 import dev.launchforge.configedge.security.BrowserClientScope;
 import dev.launchforge.configedge.security.BrowserClientWebFilter;
@@ -21,10 +22,13 @@ import reactor.core.scheduler.Schedulers;
 public final class BrowserSnapshotController {
   private final EdgeRepository repository;
   private final BrowserSnapshotProjector projector;
+  private final SnapshotMetrics metrics;
 
-  public BrowserSnapshotController(EdgeRepository repository, BrowserSnapshotProjector projector) {
+  public BrowserSnapshotController(
+      EdgeRepository repository, BrowserSnapshotProjector projector, SnapshotMetrics metrics) {
     this.repository = repository;
     this.projector = projector;
+    this.metrics = metrics;
   }
 
   @GetMapping(
@@ -35,14 +39,16 @@ public final class BrowserSnapshotController {
       @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false)
           List<String> ifNoneMatch) {
     BrowserClientScope scope = scope(exchange);
-    return Mono.fromCallable(
-            () ->
-                repository
-                    .findCurrentSnapshot(scope.environmentId())
-                    .map(projector::project)
-                    .orElseThrow(SnapshotUnavailableException::new))
-        .subscribeOn(Schedulers.boundedElastic())
-        .map(snapshot -> response(snapshot, ifNoneMatch));
+    Mono<ResponseEntity<String>> operation =
+        Mono.fromCallable(
+                () ->
+                    repository
+                        .findCurrentSnapshot(scope.environmentId())
+                        .map(projector::project)
+                        .orElseThrow(SnapshotUnavailableException::new))
+            .subscribeOn(Schedulers.boundedElastic())
+            .map(snapshot -> response(snapshot, ifNoneMatch));
+    return metrics.observe("browser", operation);
   }
 
   private static ResponseEntity<String> response(

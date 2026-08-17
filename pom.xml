@@ -31,6 +31,7 @@
     <module>demos/spring-demo</module>
     <module>tests/architecture-tests</module>
     <module>tests/integration-tests</module>
+    <module>tests/performance</module>
   </modules>
 
   <properties>
@@ -50,6 +51,7 @@
     <maven-failsafe-plugin.version>3.5.6</maven-failsafe-plugin.version>
     <maven-site-plugin.version>3.22.0</maven-site-plugin.version>
     <maven-surefire-plugin.version>3.5.6</maven-surefire-plugin.version>
+    <maven-shade-plugin.version>3.6.2</maven-shade-plugin.version>
     <spotless-maven-plugin.version>3.9.0</spotless-maven-plugin.version>
     <testcontainers.version>2.0.5</testcontainers.version>
   </properties>
@@ -88,6 +90,11 @@
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-site-plugin</artifactId>
           <version>${maven-site-plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-shade-plugin</artifactId>
+          <version>${maven-shade-plugin.version}</version>
         </plugin>
       </plugins>
     </pluginManagement>

@@ -32,13 +32,15 @@ public final class SdkAuthenticationService {
     String credential = credential(authorization);
     String lookupId = ServerSdkKeyCredential.lookupId(credential).orElse("");
     StoredSdkCredential stored = repository.findCredential(lookupId).orElse(null);
-    byte[] pepper =
-        stored == null
-            ? fallbackPepper
-            : peppers.getOrDefault(stored.pepperVersion(), fallbackPepper);
-    byte[] expected = stored == null ? DUMMY_VERIFIER : stored.verifier();
+    byte[] configuredPepper = stored == null ? null : peppers.get(stored.pepperVersion());
+    byte[] pepper = configuredPepper == null ? fallbackPepper : configuredPepper;
+    byte[] expected =
+        stored == null || configuredPepper == null ? DUMMY_VERIFIER : stored.verifier();
     boolean secretMatches = ServerSdkKeyCredential.verify(credential, expected, pepper);
-    if (!secretMatches || stored == null || !usable(stored.status(), stored.expiresAt())) {
+    if (!secretMatches
+        || stored == null
+        || configuredPepper == null
+        || !usable(stored.status(), stored.expiresAt())) {
       throw SdkAuthenticationException.unauthorized();
     }
     if (!stored.scopeActive()) {

@@ -3,7 +3,10 @@ package dev.launchforge.integration;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 
 import dev.launchforge.controlapi.LaunchForgeControlApiApplication;
+import dev.launchforge.controlapi.security.PrivacySafeRequestLoggingFilter;
+import dev.launchforge.controlapi.security.RequestBodySizeLimitFilter;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -31,11 +34,17 @@ abstract class AbstractControlApiIntegrationTest {
   static final String ISSUER = "https://identity.example/realms/launchforge";
 
   protected MockMvc mockMvc;
+  @Autowired private WebApplicationContext applicationContext;
+  @Autowired private PrivacySafeRequestLoggingFilter loggingFilter;
+  @Autowired private RequestBodySizeLimitFilter bodySizeFilter;
 
   @BeforeEach
-  void configureMockMvc(WebApplicationContext applicationContext) {
+  void configureMockMvc() {
     mockMvc =
-        MockMvcBuilders.webAppContextSetup(applicationContext).apply(springSecurity()).build();
+        MockMvcBuilders.webAppContextSetup(applicationContext)
+            .addFilters(loggingFilter, bodySizeFilter)
+            .apply(springSecurity())
+            .build();
   }
 
   private static final PostgreSQLContainer POSTGRES =

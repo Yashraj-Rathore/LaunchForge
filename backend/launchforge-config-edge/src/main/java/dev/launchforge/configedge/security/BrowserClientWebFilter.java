@@ -1,10 +1,10 @@
 package dev.launchforge.configedge.security;
 
+import dev.launchforge.configedge.observability.EdgeAuthenticationMetrics;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -33,9 +33,12 @@ public final class BrowserClientWebFilter implements WebFilter {
       "ETag, X-LaunchForge-Revision, X-LaunchForge-Checksum, X-LaunchForge-Schema-Version";
 
   private final BrowserClientAuthenticationService authenticationService;
+  private final EdgeAuthenticationMetrics metrics;
 
-  public BrowserClientWebFilter(BrowserClientAuthenticationService authenticationService) {
+  public BrowserClientWebFilter(
+      BrowserClientAuthenticationService authenticationService, EdgeAuthenticationMetrics metrics) {
     this.authenticationService = authenticationService;
+    this.metrics = metrics;
   }
 
   @Override
@@ -72,11 +75,13 @@ public final class BrowserClientWebFilter implements WebFilter {
             })
         .onErrorResume(
             BrowserClientAuthenticationException.class,
-            exception ->
-                problem(
-                    exchange,
-                    exception.isForbidden() ? HttpStatus.FORBIDDEN : HttpStatus.UNAUTHORIZED,
-                    exception.isForbidden() ? "CLIENT_ORIGIN_DENIED" : "CLIENT_KEY_INVALID"))
+            exception -> {
+              metrics.denied("browser", route(browserPath.resource()));
+              return problem(
+                  exchange,
+                  exception.isForbidden() ? HttpStatus.FORBIDDEN : HttpStatus.UNAUTHORIZED,
+                  exception.isForbidden() ? "CLIENT_ORIGIN_DENIED" : "CLIENT_KEY_INVALID");
+            })
         .onErrorResume(
             DataAccessException.class,
             exception ->
@@ -116,6 +121,10 @@ public final class BrowserClientWebFilter implements WebFilter {
     return ALLOWED_REQUEST_HEADERS.containsAll(headers);
   }
 
+  private static String route(String resource) {
+    return resource.startsWith("evaluations/") ? "analytics" : resource;
+  }
+
   private static void addCorsHeaders(
       ServerWebExchange exchange, String origin, HttpMethod expectedMethod) {
     HttpHeaders headers = exchange.getResponse().getHeaders();
@@ -147,7 +156,7 @@ public final class BrowserClientWebFilter implements WebFilter {
             + ",\"code\":\""
             + code
             + "\",\"correlationId\":\""
-            + UUID.randomUUID()
+            + EdgeCorrelationWebFilter.get(exchange)
             + "\"}";
     DataBuffer buffer =
         exchange.getResponse().bufferFactory().wrap(body.getBytes(StandardCharsets.UTF_8));

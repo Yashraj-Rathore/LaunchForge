@@ -45,7 +45,8 @@ public final class ServerSdkKeyCredential {
     Objects.requireNonNull(expectedVerifier, "expectedVerifier");
     Parsed parsed = parse(credential);
     byte[] actual = verifier(parsed == null ? "" : parsed.secret(), pepper);
-    return parsed != null && MessageDigest.isEqual(expectedVerifier, actual);
+    boolean verifierMatches = MessageDigest.isEqual(expectedVerifier, actual);
+    return (parsed != null) & verifierMatches;
   }
 
   private static Parsed parse(String credential) {

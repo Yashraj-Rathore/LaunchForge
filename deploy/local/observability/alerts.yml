@@ -1,0 +1,32 @@
+groups:
+  - name: launchforge-reliability
+    rules:
+      - alert: LaunchForgeOutboxBacklogOld
+        expr: launchforge_outbox_oldest_age_seconds > 60
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Published configuration has remained in the outbox for over one minute.
+      - alert: LaunchForgeProjectionErrors
+        expr: increase(launchforge_projection_total{outcome="error"}[5m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: A configuration projection failed.
+      - alert: LaunchForgeSnapshotErrorRate
+        expr: |
+          sum(rate(launchforge_edge_snapshot_total{outcome="error"}[5m]))
+          / clamp_min(sum(rate(launchforge_edge_snapshot_total[5m])), 1)
+          > 0.01
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Config Edge snapshot errors exceed one percent.
+      - alert: LaunchForgeStreamAuthenticationDenials
+        expr: sum(increase(launchforge_edge_authentication_total{route="stream",outcome="denied"}[10m])) > 25
+        labels:
+          severity: warning
+        annotations:
+          summary: Stream authentication denials are elevated.

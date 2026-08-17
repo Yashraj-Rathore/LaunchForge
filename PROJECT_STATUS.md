@@ -1,8 +1,8 @@
 # Project Status
 
-**Status:** Prompt 9 optional analytics implementation complete.
+**Status:** Prompt 10 security hardening implementation complete.
 
-**Current milestone:** M8 optional analytics (LF-0801–LF-0805) complete; stop point before Prompt 10 / M9 security hardening.
+**Current milestone:** M9 security hardening (LF-0901–LF-0906) complete; stop point before Prompt 11 / M10 reliability and performance.
 
 **Specification baseline:** Canonical module paths, snapshot/checksum representation, algorithm-version-1 types and reason codes, milestone dependencies, and exact Prompt 0 toolchain pins were normalized on 2026-08-10.
 
@@ -17,7 +17,7 @@
 | M6 Admin console | LF-0601–LF-0606 | Complete (2026-08-12) |
 | M7 Kafka/Redis scale-out | LF-0701–LF-0706 | Complete (2026-08-13) |
 | M8 Analytics | LF-0801–LF-0805 | Complete (2026-08-13) |
-| M9 Security hardening | LF-0901–LF-0906 | Not started |
+| M9 Security hardening | LF-0901–LF-0906 | Complete (2026-08-17) |
 | M10 Reliability/performance | LF-1001–LF-1006 | Not started |
 | M11 Containers/Helm | LF-1101–LF-1104 | Not started |
 | M12 CI/CD supply chain | LF-1201–LF-1205 | Not started |

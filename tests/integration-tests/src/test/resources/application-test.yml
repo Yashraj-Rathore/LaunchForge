@@ -13,10 +13,19 @@ server:
 launchforge:
   demo-seed:
     enabled: false
+  security:
+    abuse:
+      redis-enabled: false
   sdk-keys:
     current-pepper-version: v1
     peppers:
       v1: integration-test-pepper-value-with-more-than-thirty-two-bytes
+  audit:
+    retention:
+      deletion-enabled: true
+      minimum-age: 365d
+      preview-ttl: 15m
+      maximum-batch-size: 1000
 
 logging:
   level:

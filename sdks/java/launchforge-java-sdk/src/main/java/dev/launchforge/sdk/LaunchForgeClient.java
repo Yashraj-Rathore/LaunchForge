@@ -8,6 +8,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.Objects;
@@ -52,6 +53,7 @@ public final class LaunchForgeClient implements AutoCloseable {
   private final ScheduledExecutorService scheduler;
   private final ExecutorService streamExecutor;
   private final AnalyticsDispatcher analytics;
+  private final FileSnapshotStore durableSnapshotStore;
   private final CountDownLatch closedSignal = new CountDownLatch(1);
   private final AtomicReference<ActiveSnapshot> active = new AtomicReference<>();
   private final AtomicReference<CompletableFuture<Boolean>> manualRefresh = new AtomicReference<>();
@@ -95,6 +97,11 @@ public final class LaunchForgeClient implements AutoCloseable {
                 endpointUri(builder.baseUri, ANALYTICS_PATH),
                 httpClient,
                 builder.analyticsOptions);
+    durableSnapshotStore =
+        builder.durableSnapshotPath == null
+            ? null
+            : new FileSnapshotStore(builder.durableSnapshotPath);
+    loadDurableSnapshot();
   }
 
   public static Builder builder() {
@@ -416,7 +423,7 @@ public final class LaunchForgeClient implements AutoCloseable {
                 .firstValue("ETag")
                 .filter(LaunchForgeClient::validEtag)
                 .orElseGet(() -> etagFor(candidate));
-        return activate(candidate, etag);
+        return activate(candidate, etag, bytes);
       }
     } catch (IOException exception) {
       return false;
@@ -430,7 +437,7 @@ public final class LaunchForgeClient implements AutoCloseable {
     }
   }
 
-  private boolean activate(CompiledSnapshot candidate, String etag) {
+  private boolean activate(CompiledSnapshot candidate, String etag, byte[] sourceBytes) {
     if (closed.get()) {
       return false;
     }
@@ -447,8 +454,32 @@ public final class LaunchForgeClient implements AutoCloseable {
         }
       }
       if (active.compareAndSet(current, replacement)) {
+        persistDurableSnapshot(sourceBytes);
         return true;
       }
+    }
+  }
+
+  private void loadDurableSnapshot() {
+    if (durableSnapshotStore == null) {
+      return;
+    }
+    durableSnapshotStore
+        .load()
+        .ifPresent(
+            bytes -> {
+              try {
+                CompiledSnapshot snapshot = SnapshotParser.parse(bytes);
+                active.set(new ActiveSnapshot(snapshot, etagFor(snapshot)));
+              } catch (IllegalArgumentException exception) {
+                // Corrupt or incompatible local state is ignored; remote bootstrap remains safe.
+              }
+            });
+  }
+
+  private void persistDurableSnapshot(byte[] sourceBytes) {
+    if (durableSnapshotStore != null) {
+      durableSnapshotStore.save(sourceBytes);
     }
   }
 
@@ -548,6 +579,7 @@ public final class LaunchForgeClient implements AutoCloseable {
     private Duration maximumStreamReconnectDelay = Duration.ofSeconds(30);
     private Duration blockingBootstrapTimeout;
     private AnalyticsOptions analyticsOptions;
+    private Path durableSnapshotPath;
 
     private Builder() {}
 
@@ -605,6 +637,15 @@ public final class LaunchForgeClient implements AutoCloseable {
     /** Explicitly opts into best-effort analytics. Evaluation context is never transported. */
     public Builder analytics(AnalyticsOptions options) {
       analyticsOptions = Objects.requireNonNull(options, "analyticsOptions");
+      return this;
+    }
+
+    /**
+     * Enables optional durable last-known-good storage at an operator-controlled local path.
+     * Runtime snapshot content can be sensitive and the containing directory must be protected.
+     */
+    public Builder durableLastKnownGood(Path path) {
+      durableSnapshotPath = Objects.requireNonNull(path, "durableSnapshotPath");
       return this;
     }
 

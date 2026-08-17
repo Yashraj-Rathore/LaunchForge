@@ -157,6 +157,13 @@ revocation eventually closes an existing stream. A management session cookie is 
 SDK authentication. Multiple configured pepper versions provide bounded verification overlap;
 only the configured current version is used for new credentials.
 
+M9 performs a constant-time verifier comparison even when credential parsing fails, fails closed
+for unknown pepper versions after dummy verification work, and redacts the one-time response
+object's string representation. Stored server rows still contain only lookup ID, fingerprint,
+versioned HMAC verifier, scope, and lifecycle metadata. Snapshot requests check current lifecycle
+on every request; active streams revalidate on the one-second default revision poll, so revocation
+is observed within one poll plus database/network scheduling under normal operation.
+
 M5 implements browser keys in a separate `browser_client_keys` table rather than weakening the
 server-key verifier invariant. A browser key uses `lf_client_<32 base64url characters>`, is retained
 as a public lookup identifier, maps to one environment, and carries one to 20 exact allowed origins.
@@ -284,6 +291,13 @@ checksum, and schema headers. Preflight permits `GET` and only `Accept`, `If-Non
 `Last-Event-ID`; responses omit `Access-Control-Allow-Credentials`. Same-origin/non-browser clients
 may omit `Origin`, while any supplied origin must exactly match the key policy.
 
+M9 adds response hardening on both HTTP planes. The same-origin console receives a restrictive
+`default-src 'self'` CSP with explicit object/base/frame/form/script/style/image/font/connect rules,
+`nosniff`, `no-referrer`, frame denial, and one-year include-subdomains/preload HSTS on secure
+requests. Config Edge uses `default-src 'none'`, frame denial, `nosniff`, `no-referrer`, and the same
+secure-request HSTS policy. Server SDK endpoints do not emit browser CORS headers; browser routes
+retain exact-origin, non-credentialed CORS only.
+
 ## 13. Rate limiting
 
 Independent policies:
@@ -298,6 +312,18 @@ Independent policies:
 Partition on trusted authenticated identity where available, otherwise cautiously use IP plus key lookup identifiers.
 
 Rate limiting does not replace authentication or request-size limits.
+
+M9 implements one-minute Redis fixed windows with separate limits for login, management reads,
+management mutations, key lifecycle, snapshots, stream starts, and analytics. Management
+partitions use authenticated principal or network address and hash the material before it enters a
+Redis key. Edge partitions use only the authenticated key UUID. Redis errors use bounded local
+windows and emit a fixed-cardinality fallback metric. Control API mutation bodies are capped at
+1 MiB; Config Edge codec allocation is capped at 256 KiB and analytics bodies at 256 KiB.
+
+SSE admission first enforces per-process global/per-key bounds and then atomically acquires a
+Redis sorted-set lease for cluster-wide global/per-key bounds. Leases renew during lifecycle polls,
+release idempotently, and expire after two minutes if a process dies. Redis loss preserves the local
+bounds and SDK polling/LKG fallback.
 
 ## 14. Audit
 
@@ -324,6 +350,13 @@ Audit contains:
 
 Never audit plaintext SDK keys, tokens, or complete OIDC claims.
 
+M9 enforces audit immutability with a database trigger and permits deletion only for exact rows
+captured by a live tenant-scoped retention preview. Production deletion is disabled by default.
+Owner/Admin confirmation, a 365-day default minimum age, a 15-minute preview expiry, a 1,000-row
+batch bound, exact-count confirmation, transactional rollback on mismatch, and a new application
+audit record govern each application. CSV export uses only the bounded safe audit projection and
+neutralizes spreadsheet formula prefixes.
+
 ## 15. Logging
 
 Structured logs must not contain:
@@ -337,6 +370,12 @@ Structured logs must not contain:
 - raw request bodies.
 
 Add automated log-redaction tests for key flows.
+
+M9 request-completion logs contain only bounded method, route family, and status fields. They never
+include raw paths, queries, headers, principals, bodies, keys, sessions, or evaluation context.
+Security rate/connection metrics use fixed `plane`/`outcome` labels; authenticated IDs are neither
+labels nor log fields. Tests attach capture appenders with fake secrets, emails, authorization, and
+context and fail if those values appear.
 
 ## 16. Dependency and supply-chain security
 
@@ -369,6 +408,9 @@ At minimum test/document:
 10. Kafka duplicate/replay;
 11. operator stale-write conflict;
 12. compromised browser cannot retrieve server SDK key.
+
+The completed M9 assessment, evidence paths, and ranked residual risks are recorded in
+`docs/22_SECURITY_HARDENING_REVIEW.md`.
 
 ## 18. Secret management
 

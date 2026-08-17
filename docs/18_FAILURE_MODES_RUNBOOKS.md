@@ -198,9 +198,29 @@ Actions:
 6. avoid broadcasting artificial reconnect commands;
 7. reproduce with load test before tuning.
 
+The cluster-wide Redis lease rejects connections above configured global/per-key bounds. During
+Redis loss, per-process bounds remain active; aggregate cluster admission can therefore be higher
+than the Redis-backed ceiling. Treat the `local_fallback` signal as degraded protection, avoid
+scaling out solely to absorb abusive clients, and restore Redis before raising limits.
+
 ---
 
-## Runbook L - Analytics/ClickHouse outage
+## Runbook L - Governed audit retention
+
+1. confirm the organization's documented retention obligation and approval;
+2. keep `LAUNCHFORGE_AUDIT_RETENTION_DELETION_ENABLED=false` while reviewing;
+3. request a cutoff/limit preview as an Owner/Admin and export any required archive;
+4. verify the exact candidate count, organization, cutoff, and 15-minute expiry;
+5. enable deletion only for the approved maintenance window;
+6. apply with the exact count; a mismatch/expiry must return `409` and delete nothing;
+7. verify the new `AUDIT_RETENTION_APPLIED` event and tenant counts;
+8. disable deletion again and retain the maintenance evidence.
+
+Never issue direct SQL update/delete against `audit_events`; the database trigger rejects it.
+
+---
+
+## Runbook M - Analytics/ClickHouse outage
 
 Expected:
 

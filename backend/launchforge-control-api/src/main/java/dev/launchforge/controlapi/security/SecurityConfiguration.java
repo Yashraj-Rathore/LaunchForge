@@ -10,13 +10,17 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 
 @Configuration
-@EnableConfigurationProperties(SessionSecurityProperties.class)
+@EnableConfigurationProperties({SessionSecurityProperties.class, ControlPlaneAbuseProperties.class})
 public class SecurityConfiguration {
   @Bean
   SecurityFilterChain securityFilterChain(
-      HttpSecurity http, SessionSecurityProperties sessionProperties, Clock clock)
+      HttpSecurity http,
+      SessionSecurityProperties sessionProperties,
+      ManagementRateLimiter rateLimiter,
+      Clock clock)
       throws Exception {
     HttpSessionCsrfTokenRepository csrfRepository = new HttpSessionCsrfTokenRepository();
     csrfRepository.setHeaderName("X-CSRF-TOKEN");
@@ -45,6 +49,23 @@ public class SecurityConfiguration {
                     request -> request.getRequestURI().startsWith("/api/")))
         .oauth2Login(oauth2 -> {})
         .csrf(csrf -> csrf.csrfTokenRepository(csrfRepository))
+        .headers(
+            headers ->
+                headers
+                    .contentSecurityPolicy(
+                        policy ->
+                            policy.policyDirectives(
+                                "default-src 'self'; object-src 'none'; base-uri 'self'; "
+                                    + "frame-ancestors 'none'; form-action 'self'; "
+                                    + "script-src 'self'; style-src 'self'; img-src 'self' data:; "
+                                    + "font-src 'self'; connect-src 'self'"))
+                    .httpStrictTransportSecurity(
+                        hsts ->
+                            hsts.includeSubDomains(true).preload(true).maxAgeInSeconds(31_536_000))
+                    .referrerPolicy(
+                        policy ->
+                            policy.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
+                    .frameOptions(frame -> frame.deny()))
         .sessionManagement(
             sessions -> sessions.sessionFixation(fixation -> fixation.changeSessionId()))
         .logout(
@@ -58,7 +79,8 @@ public class SecurityConfiguration {
                         (request, response, authentication) ->
                             response.setStatus(HttpStatus.NO_CONTENT.value())))
         .addFilterAfter(
-            new AbsoluteSessionLifetimeFilter(sessionProperties, clock), AuthorizationFilter.class);
+            new AbsoluteSessionLifetimeFilter(sessionProperties, clock), AuthorizationFilter.class)
+        .addFilterBefore(new ManagementRateLimitFilter(rateLimiter), AuthorizationFilter.class);
     return http.build();
   }
 }

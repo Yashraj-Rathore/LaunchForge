@@ -1,8 +1,8 @@
 package dev.launchforge.configedge.security;
 
+import dev.launchforge.configedge.observability.EdgeAuthenticationMetrics;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.UUID;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.io.buffer.DataBuffer;
@@ -23,9 +23,12 @@ public final class SdkAuthenticationWebFilter implements WebFilter {
   public static final String SCOPE_ATTRIBUTE = SdkCredentialScope.class.getName();
 
   private final SdkAuthenticationService authenticationService;
+  private final EdgeAuthenticationMetrics metrics;
 
-  public SdkAuthenticationWebFilter(SdkAuthenticationService authenticationService) {
+  public SdkAuthenticationWebFilter(
+      SdkAuthenticationService authenticationService, EdgeAuthenticationMetrics metrics) {
     this.authenticationService = authenticationService;
+    this.metrics = metrics;
   }
 
   @Override
@@ -46,11 +49,13 @@ public final class SdkAuthenticationWebFilter implements WebFilter {
             })
         .onErrorResume(
             SdkAuthenticationException.class,
-            exception ->
-                problem(
-                    exchange,
-                    exception.isForbidden() ? HttpStatus.FORBIDDEN : HttpStatus.UNAUTHORIZED,
-                    exception.isForbidden() ? "SDK_SCOPE_INACTIVE" : "SDK_KEY_INVALID"))
+            exception -> {
+              metrics.denied("server", route(path));
+              return problem(
+                  exchange,
+                  exception.isForbidden() ? HttpStatus.FORBIDDEN : HttpStatus.UNAUTHORIZED,
+                  exception.isForbidden() ? "SDK_SCOPE_INACTIVE" : "SDK_KEY_INVALID");
+            })
         .onErrorResume(
             DataAccessException.class,
             exception ->
@@ -60,6 +65,13 @@ public final class SdkAuthenticationWebFilter implements WebFilter {
   private static String oneAuthorizationValue(HttpHeaders headers) {
     List<String> values = headers.get(HttpHeaders.AUTHORIZATION);
     return values == null || values.size() != 1 ? null : values.getFirst();
+  }
+
+  private static String route(String path) {
+    if (path.endsWith("/stream")) {
+      return "stream";
+    }
+    return path.contains("/evaluations/") ? "analytics" : "snapshot";
   }
 
   private static Mono<Void> problem(ServerWebExchange exchange, HttpStatus status, String code) {
@@ -75,7 +87,7 @@ public final class SdkAuthenticationWebFilter implements WebFilter {
             + ",\"code\":\""
             + code
             + "\",\"correlationId\":\""
-            + UUID.randomUUID()
+            + EdgeCorrelationWebFilter.get(exchange)
             + "\"}";
     DataBuffer buffer =
         exchange.getResponse().bufferFactory().wrap(body.getBytes(StandardCharsets.UTF_8));

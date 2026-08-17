@@ -64,6 +64,15 @@ class SdkAuthenticationServiceTest {
     assertThrows(SdkAuthenticationException.class, () -> active.service().revalidate(scope));
   }
 
+  @Test
+  void storedCredentialWithUnknownPepperVersionFailsClosed() {
+    Fixture fixture = fixture("ACTIVE", null, true);
+    fixture.repository().pepperVersion = "retired";
+
+    assertThrows(SdkAuthenticationException.class, fixture::authenticate);
+    assertEquals(0, fixture.repository().recordedUses);
+  }
+
   private static Fixture fixture(String status, Instant expiresAt, boolean scopeActive) {
     byte[] pepper = PEPPER.getBytes(StandardCharsets.UTF_8);
     ServerSdkKeyCredential.Generated generated =
@@ -93,6 +102,7 @@ class SdkAuthenticationServiceTest {
     private final Instant expiresAt;
     private final boolean scopeActive;
     private String status;
+    private String pepperVersion = "v1";
     private int recordedUses;
 
     FakeRepository(
@@ -111,7 +121,13 @@ class SdkAuthenticationServiceTest {
       return generated.lookupId().equals(lookupId)
           ? Optional.of(
               new StoredSdkCredential(
-                  keyId, environmentId, generated.verifier(), "v1", status, expiresAt, scopeActive))
+                  keyId,
+                  environmentId,
+                  generated.verifier(),
+                  pepperVersion,
+                  status,
+                  expiresAt,
+                  scopeActive))
           : Optional.empty();
     }
 

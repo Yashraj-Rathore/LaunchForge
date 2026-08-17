@@ -2,11 +2,15 @@ package dev.launchforge.infrastructure.controlplane;
 
 import dev.launchforge.application.controlplane.AuditEvent;
 import dev.launchforge.application.controlplane.AuditQuery;
+import dev.launchforge.application.controlplane.AuditRetentionConflictException;
+import dev.launchforge.application.controlplane.AuditRetentionPreview;
 import dev.launchforge.application.controlplane.ControlPlaneConflictException;
 import dev.launchforge.application.controlplane.ControlPlaneNotFoundException;
 import dev.launchforge.application.controlplane.ControlPlaneRepository;
 import dev.launchforge.application.controlplane.PublishedRevision;
+import dev.launchforge.application.controlplane.RevisionDiagnostics;
 import dev.launchforge.application.controlplane.StaleWriteException;
+import dev.launchforge.application.controlplane.StoredAuditRetentionPreview;
 import dev.launchforge.application.organization.OrganizationAccess;
 import dev.launchforge.domain.controlplane.Environment;
 import dev.launchforge.domain.controlplane.EnvironmentDraft;
@@ -168,6 +172,48 @@ public class JdbcControlPlanePersistence implements ControlPlaneRepository {
   public Optional<ScopedEnvironment> lockEnvironmentFor(
       OidcIdentity actor, EnvironmentId environmentId) {
     return scopedEnvironment(actor, environmentId, true);
+  }
+
+  @Override
+  public RevisionDiagnostics findRevisionDiagnostics(
+      OrganizationAccess access, EnvironmentId environmentId) {
+    List<RevisionDiagnostics> rows =
+        jdbcTemplate.query(
+            """
+            SELECT e.current_revision,
+                   COUNT(o.id) FILTER (WHERE o.status IN ('PENDING', 'PROCESSING')) AS pending_count,
+                   COUNT(o.id) FILTER (WHERE o.status = 'FAILED') AS failed_count,
+                   COALESCE(
+                     EXTRACT(EPOCH FROM (
+                       clock_timestamp() - MIN(o.created_at)
+                         FILTER (WHERE o.status IN ('PENDING', 'PROCESSING'))
+                     )) * 1000,
+                     0
+                   )::BIGINT AS oldest_pending_age_millis
+              FROM environments e
+              LEFT JOIN outbox_events o
+                ON o.organization_id = e.organization_id
+               AND o.aggregate_id = e.id
+             WHERE e.id = ? AND e.organization_id = ?
+               AND EXISTS (
+                 SELECT 1 FROM organization_memberships actor
+                  WHERE actor.id = ? AND actor.organization_id = e.organization_id)
+             GROUP BY e.id, e.current_revision
+            """,
+            (resultSet, rowNumber) ->
+                new RevisionDiagnostics(
+                    environmentId,
+                    resultSet.getLong("current_revision"),
+                    resultSet.getLong("pending_count"),
+                    resultSet.getLong("failed_count"),
+                    resultSet.getLong("oldest_pending_age_millis")),
+            environmentId.value(),
+            access.organization().id().value(),
+            access.actorMembershipId().value());
+    if (rows.size() != 1) {
+      throw new ControlPlaneNotFoundException();
+    }
+    return rows.getFirst();
   }
 
   @Override
@@ -553,6 +599,147 @@ public class JdbcControlPlanePersistence implements ControlPlaneRepository {
         timestamp(query.to()),
         timestamp(query.to()),
         query.limit());
+  }
+
+  @Override
+  public List<UUID> findAuditRetentionCandidates(
+      OrganizationAccess access, Instant deleteBefore, int limit) {
+    return jdbcTemplate.query(
+        """
+        SELECT a.id
+          FROM audit_events a
+         WHERE a.organization_id = ?
+           AND a.created_at < ?
+           AND EXISTS (
+             SELECT 1 FROM organization_memberships actor
+              WHERE actor.id = ? AND actor.organization_id = a.organization_id)
+         ORDER BY a.created_at, a.id
+         LIMIT ?
+        """,
+        (resultSet, rowNumber) -> resultSet.getObject("id", UUID.class),
+        access.organization().id().value(),
+        Timestamp.from(deleteBefore),
+        access.actorMembershipId().value(),
+        limit);
+  }
+
+  @Override
+  public void insertAuditRetentionPreview(
+      OrganizationAccess access, OidcIdentity actor, StoredAuditRetentionPreview stored) {
+    AuditRetentionPreview preview = stored.preview();
+    int inserted =
+        jdbcTemplate.update(
+            """
+            INSERT INTO audit_retention_previews
+              (id, organization_id, delete_before, candidate_ids, candidate_count,
+               created_by_issuer, created_by_subject, created_at, expires_at)
+            SELECT ?, ?, ?, CAST(? AS jsonb), ?, ?, ?, ?, ?
+             WHERE EXISTS (
+               SELECT 1 FROM organization_memberships member
+                WHERE member.id = ? AND member.organization_id = ?)
+            """,
+            preview.id(),
+            preview.organizationId().value(),
+            Timestamp.from(preview.deleteBefore()),
+            writeJson(stored.candidateIds()),
+            preview.candidateCount(),
+            actor.issuer(),
+            actor.subject(),
+            Timestamp.from(preview.createdAt()),
+            Timestamp.from(preview.expiresAt()),
+            access.actorMembershipId().value(),
+            access.organization().id().value());
+    requireScopedMutation(inserted);
+    appendAudit(
+        access,
+        actor,
+        "AUDIT_RETENTION_PREVIEWED",
+        "AUDIT_RETENTION",
+        preview.id(),
+        "Audit retention preview created for " + preview.candidateCount() + " events",
+        null,
+        null,
+        null);
+  }
+
+  @Override
+  public Optional<StoredAuditRetentionPreview> lockAuditRetentionPreview(
+      OrganizationAccess access, UUID previewId) {
+    List<StoredAuditRetentionPreview> matches =
+        jdbcTemplate.query(
+            """
+            SELECT preview.*
+              FROM audit_retention_previews preview
+             WHERE preview.id = ? AND preview.organization_id = ?
+               AND EXISTS (
+                 SELECT 1 FROM organization_memberships member
+                  WHERE member.id = ? AND member.organization_id = preview.organization_id)
+             FOR UPDATE OF preview
+            """,
+            (resultSet, rowNumber) -> auditRetentionPreview(resultSet),
+            previewId,
+            access.organization().id().value(),
+            access.actorMembershipId().value());
+    return matches.stream().findFirst();
+  }
+
+  @Override
+  public int applyAuditRetentionPreview(
+      OrganizationAccess access,
+      OidcIdentity actor,
+      StoredAuditRetentionPreview stored,
+      Instant appliedAt) {
+    AuditRetentionPreview preview = stored.preview();
+    jdbcTemplate.queryForObject(
+        "SELECT set_config('launchforge.audit_retention_preview_id', ?, TRUE)",
+        String.class,
+        preview.id().toString());
+    int deleted =
+        jdbcTemplate.update(
+            """
+            DELETE FROM audit_events event
+             WHERE event.organization_id = ?
+               AND event.id IN (
+                 SELECT value::UUID
+                   FROM jsonb_array_elements_text(CAST(? AS jsonb)) candidate(value))
+               AND event.created_at < ?
+               AND EXISTS (
+                 SELECT 1 FROM organization_memberships member
+                  WHERE member.id = ? AND member.organization_id = event.organization_id)
+            """,
+            access.organization().id().value(),
+            writeJson(stored.candidateIds()),
+            Timestamp.from(preview.deleteBefore()),
+            access.actorMembershipId().value());
+    if (deleted != preview.candidateCount()) {
+      throw new AuditRetentionConflictException("Audit retention candidate set changed");
+    }
+    int marked =
+        jdbcTemplate.update(
+            """
+            UPDATE audit_retention_previews preview
+               SET applied_at = ?
+             WHERE preview.id = ? AND preview.organization_id = ? AND preview.applied_at IS NULL
+               AND EXISTS (
+                 SELECT 1 FROM organization_memberships member
+                  WHERE member.id = ? AND member.organization_id = preview.organization_id)
+            """,
+            Timestamp.from(appliedAt),
+            preview.id(),
+            access.organization().id().value(),
+            access.actorMembershipId().value());
+    requireScopedMutation(marked);
+    appendAudit(
+        access,
+        actor,
+        "AUDIT_RETENTION_APPLIED",
+        "AUDIT_RETENTION",
+        preview.id(),
+        "Deleted " + deleted + " expired audit events",
+        null,
+        null,
+        null);
+    return deleted;
   }
 
   @Override
@@ -972,12 +1159,39 @@ public class JdbcControlPlanePersistence implements ControlPlaneRepository {
         instant(resultSet, "created_at"));
   }
 
+  private StoredAuditRetentionPreview auditRetentionPreview(ResultSet resultSet)
+      throws SQLException {
+    AuditRetentionPreview preview =
+        new AuditRetentionPreview(
+            resultSet.getObject("id", UUID.class),
+            new OrganizationId(resultSet.getObject("organization_id", UUID.class)),
+            instant(resultSet, "delete_before"),
+            resultSet.getInt("candidate_count"),
+            instant(resultSet, "created_at"),
+            instant(resultSet, "expires_at"),
+            nullableInstant(resultSet, "applied_at"));
+    try {
+      List<UUID> candidateIds =
+          objectMapper.readValue(
+              resultSet.getString("candidate_ids"), new TypeReference<List<UUID>>() {});
+      return new StoredAuditRetentionPreview(preview, candidateIds);
+    } catch (JacksonException exception) {
+      throw new IllegalStateException(
+          "Stored audit retention preview cannot be decoded", exception);
+    }
+  }
+
   private static Timestamp timestamp(Instant value) {
     return value == null ? null : Timestamp.from(value);
   }
 
   private static Instant instant(ResultSet resultSet, String column) throws SQLException {
     return resultSet.getTimestamp(column).toInstant();
+  }
+
+  private static Instant nullableInstant(ResultSet resultSet, String column) throws SQLException {
+    Timestamp value = resultSet.getTimestamp(column);
+    return value == null ? null : value.toInstant();
   }
 
   private static Long nullableLong(ResultSet resultSet, String column) throws SQLException {

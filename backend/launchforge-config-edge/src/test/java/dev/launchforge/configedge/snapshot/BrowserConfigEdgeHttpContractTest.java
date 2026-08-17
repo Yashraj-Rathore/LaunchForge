@@ -1,12 +1,15 @@
 package dev.launchforge.configedge.snapshot;
 
 import dev.launchforge.configedge.configuration.ConfigEdgeProperties;
+import dev.launchforge.configedge.observability.EdgeAuthenticationMetrics;
+import dev.launchforge.configedge.observability.SnapshotMetrics;
 import dev.launchforge.configedge.persistence.EdgeRepository;
 import dev.launchforge.configedge.persistence.EdgeRepository.StoredBrowserCredential;
 import dev.launchforge.configedge.persistence.EdgeRepository.StoredSnapshot;
 import dev.launchforge.configedge.security.BrowserClientAuthenticationService;
 import dev.launchforge.configedge.security.BrowserClientWebFilter;
 import dev.launchforge.configedge.web.EdgeExceptionHandler;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
@@ -39,15 +42,19 @@ class BrowserConfigEdgeHttpContractTest {
     authoritative = snapshot(objectMapper);
     FakeRepository repository = new FakeRepository(authoritative);
     SnapshotIntegrityVerifier verifier = new SnapshotIntegrityVerifier(objectMapper, properties);
+    SimpleMeterRegistry registry = new SimpleMeterRegistry();
     BrowserSnapshotController controller =
         new BrowserSnapshotController(
-            repository, new BrowserSnapshotProjector(objectMapper, verifier, properties));
+            repository,
+            new BrowserSnapshotProjector(objectMapper, verifier, properties),
+            new SnapshotMetrics(registry));
     BrowserClientAuthenticationService authentication =
         new BrowserClientAuthenticationService(repository, Clock.systemUTC());
     client =
         WebTestClient.bindToController(controller)
             .controllerAdvice(new EdgeExceptionHandler())
-            .webFilter(new BrowserClientWebFilter(authentication))
+            .webFilter(
+                new BrowserClientWebFilter(authentication, new EdgeAuthenticationMetrics(registry)))
             .build();
   }
 
@@ -90,6 +97,14 @@ class BrowserConfigEdgeHttpContractTest {
     client
         .get()
         .uri("/sdk/v1/client/lf_client_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB/snapshot")
+        .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+        .exchange()
+        .expectStatus()
+        .isUnauthorized();
+
+    client
+        .get()
+        .uri("/sdk/v1/client/lf_srv_server_lookup_server_secret/snapshot")
         .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
         .exchange()
         .expectStatus()

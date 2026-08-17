@@ -54,6 +54,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 class ControlPlanePostgresIT extends AbstractControlApiIntegrationTest {
   private static final UUID ORGANIZATION_A =
@@ -76,6 +78,7 @@ class ControlPlanePostgresIT extends AbstractControlApiIntegrationTest {
   @Autowired private ControlPlaneRepository repository;
   @Autowired private UnitOfWork unitOfWork;
   @Autowired private SdkKeyService sdkKeyService;
+  @Autowired private ObjectMapper objectMapper;
 
   @BeforeEach
   void seedTenants() {
@@ -143,6 +146,31 @@ class ControlPlanePostgresIT extends AbstractControlApiIntegrationTest {
             .revision(OWNER_A, fixture.environment().id(), 1)
             .canonicalSnapshot()
             .contains("\"enabled\":true"));
+  }
+
+  @Test
+  void revisionDiagnosticsAreTenantScopedAndExposeBoundedPipelineState() throws Exception {
+    Fixture fixture = fixture("diagnostics", OWNER_A, ORGANIZATION_A);
+    enabledDraft(fixture, 0, "Prepare diagnostic revision");
+    service.publish(OWNER_A, fixture.environment().id(), 0, null);
+    String path =
+        "/api/v1/environments/" + fixture.environment().id().value() + "/diagnostics/revision";
+
+    JsonNode diagnostics =
+        objectMapper.readTree(
+            mockMvc
+                .perform(get(path).with(operator(OWNER_A.subject())))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+    assertEquals(1, diagnostics.get("databaseRevision").longValue());
+    assertEquals(1, diagnostics.get("edgeResolvableRevision").longValue());
+    assertEquals(1, diagnostics.get("pendingOutboxCount").longValue());
+    assertEquals(0, diagnostics.get("failedOutboxCount").longValue());
+    assertEquals("PENDING", diagnostics.get("status").asString());
+
+    mockMvc.perform(get(path).with(operator(OWNER_B.subject()))).andExpect(status().isNotFound());
   }
 
   @Test
@@ -664,6 +692,162 @@ class ControlPlanePostgresIT extends AbstractControlApiIntegrationTest {
             "SELECT status FROM browser_client_keys WHERE id = ?", String.class, browserKeyId));
   }
 
+  @Test
+  void auditExportRetentionAndTamperControlsStayTenantScoped() throws Exception {
+    Fixture beta = fixture("audit-beta", OWNER_B, ORGANIZATION_B);
+    UUID oldAlpha = insertAuditEvent(ORGANIZATION_A, "OLD_ALPHA", "=1+1", "2024-01-01T00:00:00Z");
+    UUID oldBeta =
+        insertAuditEvent(ORGANIZATION_B, "OLD_BETA", "Keep beta", "2024-01-01T00:00:00Z");
+
+    String export =
+        mockMvc
+            .perform(
+                get("/api/v1/organizations/{organizationId}/audit/export", ORGANIZATION_A)
+                    .with(operator(OWNER_A.subject()))
+                    .queryParam("action", "OLD_ALPHA"))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertTrue(export.startsWith("id,projectId"));
+    assertTrue(export.contains("\"'=1+1\""));
+    assertFalse(export.contains("Keep beta"));
+
+    mockMvc
+        .perform(
+            get("/api/v1/organizations/{organizationId}/audit", ORGANIZATION_A)
+                .with(operator(OWNER_A.subject()))
+                .queryParam("projectId", beta.project().id().value().toString()))
+        .andExpect(status().isNotFound());
+    mockMvc
+        .perform(
+            get("/api/v1/organizations/{organizationId}/audit", ORGANIZATION_A)
+                .with(operator(OWNER_A.subject()))
+                .queryParam("environmentId", beta.environment().id().value().toString()))
+        .andExpect(status().isNotFound());
+
+    mockMvc
+        .perform(
+            post("/api/v1/organizations/{organizationId}/audit/retention/preview", ORGANIZATION_A)
+                .with(operator(DEVELOPER_A.subject()))
+                .with(csrf().asHeader())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"deleteBefore\":\"2025-01-01T00:00:00Z\",\"limit\":10}"))
+        .andExpect(status().isForbidden());
+
+    String previewBody =
+        mockMvc
+            .perform(
+                post(
+                        "/api/v1/organizations/{organizationId}/audit/retention/preview",
+                        ORGANIZATION_A)
+                    .with(operator(OWNER_A.subject()))
+                    .with(csrf().asHeader())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"deleteBefore\":\"2025-01-01T00:00:00Z\",\"limit\":10}"))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    JsonNode preview = objectMapper.readTree(previewBody);
+    UUID previewId = UUID.fromString(preview.get("id").stringValue());
+    int candidateCount = preview.get("candidateCount").asInt();
+    assertEquals(1, candidateCount);
+
+    mockMvc
+        .perform(
+            post(
+                    "/api/v1/organizations/{organizationId}/audit/retention/{previewId}/apply",
+                    ORGANIZATION_B,
+                    previewId)
+                .with(operator(OWNER_B.subject()))
+                .with(csrf().asHeader())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"expectedCandidateCount\":1}"))
+        .andExpect(status().isNotFound());
+
+    mockMvc
+        .perform(
+            post(
+                    "/api/v1/organizations/{organizationId}/audit/retention/{previewId}/apply",
+                    ORGANIZATION_A,
+                    previewId)
+                .with(operator(OWNER_A.subject()))
+                .with(csrf().asHeader())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"expectedCandidateCount\":0}"))
+        .andExpect(status().isConflict());
+    mockMvc
+        .perform(
+            post(
+                    "/api/v1/organizations/{organizationId}/audit/retention/{previewId}/apply",
+                    ORGANIZATION_A,
+                    previewId)
+                .with(operator(OWNER_A.subject()))
+                .with(csrf().asHeader())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"expectedCandidateCount\":" + candidateCount + "}"))
+        .andExpect(status().isOk());
+
+    assertEquals(
+        0,
+        jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM audit_events WHERE id = ?", Integer.class, oldAlpha));
+    assertEquals(
+        1,
+        jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM audit_events WHERE id = ?", Integer.class, oldBeta));
+    assertEquals(
+        1,
+        jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM audit_events WHERE organization_id = ? AND action = 'AUDIT_RETENTION_APPLIED'",
+            Integer.class,
+            ORGANIZATION_A));
+
+    assertThrows(
+        DataAccessException.class,
+        () ->
+            jdbcTemplate.update(
+                "UPDATE audit_events SET safe_summary = 'tampered' WHERE id = ?", oldBeta));
+    assertThrows(
+        DataAccessException.class,
+        () -> jdbcTemplate.update("DELETE FROM audit_events WHERE id = ?", oldBeta));
+  }
+
+  @Test
+  void managementBodyManipulationAndOversizedPayloadsAreRejectedWithSecurityHeaders()
+      throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/organizations/{organizationId}/projects", ORGANIZATION_A)
+                .with(operator(OWNER_A.subject()))
+                .with(csrf().asHeader())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"key\":\"body.scope\",\"name\":\"Body scope\",\"organizationId\":\""
+                        + ORGANIZATION_B
+                        + "\"}"))
+        .andExpect(status().isBadRequest());
+
+    mockMvc
+        .perform(
+            post("/api/v1/organizations/{organizationId}/projects", ORGANIZATION_A)
+                .with(operator(OWNER_A.subject()))
+                .with(csrf().asHeader())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("x".repeat(1024 * 1024 + 1)))
+        .andExpect(status().isContentTooLarge());
+
+    org.springframework.test.web.servlet.MvcResult secure =
+        mockMvc.perform(get("/").secure(true)).andExpect(status().isNotFound()).andReturn();
+    assertTrue(
+        secure.getResponse().getHeader("Content-Security-Policy").contains("default-src 'self'"));
+    assertEquals("nosniff", secure.getResponse().getHeader("X-Content-Type-Options"));
+    assertEquals("no-referrer", secure.getResponse().getHeader("Referrer-Policy"));
+    assertTrue(
+        secure.getResponse().getHeader("Strict-Transport-Security").contains("max-age=31536000"));
+  }
+
   private Fixture fixture(String suffix, OidcIdentity actor, UUID organizationId) {
     Project project =
         service.createProject(
@@ -768,6 +952,28 @@ class ControlPlanePostgresIT extends AbstractControlApiIntegrationTest {
         role,
         Timestamp.from(NOW),
         Timestamp.from(NOW));
+  }
+
+  private UUID insertAuditEvent(
+      UUID organizationId, String action, String summary, String createdAt) {
+    UUID id = UUID.randomUUID();
+    jdbcTemplate.update(
+        """
+        INSERT INTO audit_events
+          (id, organization_id, actor_issuer, actor_subject, action, target_type, target_id,
+           reason_code, correlation_id, created_at, safe_summary)
+        VALUES (?, ?, ?, ?, ?, 'ORGANIZATION', ?, 'SUCCESS', ?, ?, ?)
+        """,
+        id,
+        organizationId,
+        ISSUER,
+        "retention-fixture",
+        action,
+        organizationId,
+        UUID.randomUUID(),
+        Timestamp.from(Instant.parse(createdAt)),
+        summary);
+    return id;
   }
 
   private static RequestPostProcessor operator(String subject) {

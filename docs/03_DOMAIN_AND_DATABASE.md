@@ -159,6 +159,7 @@ flag_environment_configs
 environment_revisions
 sdk_keys
 audit_events
+audit_retention_previews
 outbox_events
 ```
 
@@ -175,6 +176,17 @@ Flyway migration `V2__flag_control_plane.sql` adds environments, typed flags/var
 The management domain validates two to ten typed variations, algorithm-version-1 operator/type/arity rules, ordered rule/condition limits, explicit off/default references, server-owned rollout salts, and positive integer weights totalling exactly `100000`. JSON inputs use strict duplicate detection, I-JSON numeric/Unicode limits, and RFC 8785 canonicalization.
 
 Publication locks the project/environment rows, validates the complete active draft, creates the normative keyed-flag snapshot, calculates and injects its checksum, inserts a revision, advances the environment, appends audit, and inserts a versioned pending outbox event in one PostgreSQL transaction. A database trigger rejects revision update/delete. Rollback rebases historical content with a new timestamp/checksum and strictly higher revision while preserving history and recording `source_revision`.
+
+### M9 implemented audit-retention baseline
+
+Flyway migration `V6__audit_retention_hardening.sql` makes audit rows immutable at the database
+boundary. Updates always fail. Deletes succeed only inside a transaction that names a live,
+tenant-matching retention preview whose frozen JSON candidate set includes the row and whose cutoff
+predates it. `audit_retention_previews` records exact candidate IDs/count, actor, cutoff,
+creation/expiry, and application time. The application locks a preview before applying it, requires
+exact count confirmation, rolls back if the deleted count differs, and appends a new audit event
+after governed deletion. Candidate IDs intentionally are not foreign keys so the preview remains
+evidence after its selected events are removed.
 
 ### M4 implemented SDK-key baseline
 

@@ -2,10 +2,14 @@ package dev.launchforge.integration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.launchforge.configedge.LaunchForgeConfigEdgeApplication;
 import dev.launchforge.configedge.persistence.EdgeRepository;
+import dev.launchforge.configedge.security.EdgeRateLimiter;
+import dev.launchforge.configedge.stream.ConnectionLimitExceededException;
+import dev.launchforge.configedge.stream.StreamConnectionLimiter;
 import dev.launchforge.contracts.events.ConfigRevisionPublishedEvent;
 import dev.launchforge.contracts.sdk.ServerSdkKeyCredential;
 import dev.launchforge.eventworker.LaunchForgeEventWorkerApplication;
@@ -61,6 +65,7 @@ class DistributionPipelineIT {
   private static final UUID PROJECT_ID = UUID.fromString("72000000-0000-0000-0000-000000000001");
   private static final UUID ENVIRONMENT_ID =
       UUID.fromString("73000000-0000-0000-0000-000000000001");
+  private static final UUID SDK_KEY_ID = UUID.fromString("74000000-0000-0000-0000-000000000001");
   private static final Instant NOW = Instant.parse("2026-08-13T12:00:00Z");
   private static final String PEPPER = "distribution-test-pepper-with-more-than-thirty-two-bytes";
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -133,6 +138,7 @@ class DistributionPipelineIT {
     edgeTwo = startEdge();
     assertEquals(1, currentRevision(edgeOne));
     assertEquals(1, currentRevision(edgeTwo));
+    proveDistributedAbuseControls(edgeOne, edgeTwo);
     proveSdkLastKnownGood(edgeOne);
     edgeOne = null;
 
@@ -365,7 +371,7 @@ class DistributionPipelineIT {
         VALUES (?, ?, ?, ?, 'SERVER', 'Distribution test', ?, ?, 'v1', ?, 'ACTIVE', ?,
                 'test', 'distribution-test')
         """,
-        UUID.randomUUID(),
+        SDK_KEY_ID,
         ORGANIZATION_ID,
         PROJECT_ID,
         ENVIRONMENT_ID,
@@ -437,6 +443,29 @@ class DistributionPipelineIT {
       edge.close();
       assertTrue(
           client.boolVariation("release", EvaluationContext.builder("subject-1").build(), false));
+    }
+  }
+
+  private static void proveDistributedAbuseControls(
+      ConfigurableApplicationContext first, ConfigurableApplicationContext second) {
+    EdgeRateLimiter firstRateLimiter = first.getBean(EdgeRateLimiter.class);
+    EdgeRateLimiter secondRateLimiter = second.getBean(EdgeRateLimiter.class);
+    for (int request = 0; request < 30; request++) {
+      assertTrue(firstRateLimiter.check(EdgeRateLimiter.Policy.STREAM, SDK_KEY_ID).permitted());
+    }
+    assertFalse(secondRateLimiter.check(EdgeRateLimiter.Policy.STREAM, SDK_KEY_ID).permitted());
+
+    StreamConnectionLimiter firstConnections = first.getBean(StreamConnectionLimiter.class);
+    StreamConnectionLimiter secondConnections = second.getBean(StreamConnectionLimiter.class);
+    List<StreamConnectionLimiter.Lease> leases = new java.util.ArrayList<>();
+    try {
+      for (int connection = 0; connection < 5; connection++) {
+        leases.add(firstConnections.acquire(SDK_KEY_ID));
+      }
+      assertThrows(
+          ConnectionLimitExceededException.class, () -> secondConnections.acquire(SDK_KEY_ID));
+    } finally {
+      leases.forEach(StreamConnectionLimiter.Lease::close);
     }
   }
 

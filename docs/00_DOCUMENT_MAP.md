@@ -23,5 +23,6 @@
 | `19_TECHNOLOGY_BASELINE.md` | dated versions and pinning policy |
 | `20_INTERVIEW_TALK_TRACK.md` | system-design explanations and interview questions |
 | `21_NON_GOALS_AND_FUTURE.md` | deliberate exclusions and future options |
+| `22_SECURITY_HARDENING_REVIEW.md` | M9 threat assessment, evidence, residual risks, and release checks |
 
 ADRs under `docs/decisions/` explain choices that must not be casually reversed.

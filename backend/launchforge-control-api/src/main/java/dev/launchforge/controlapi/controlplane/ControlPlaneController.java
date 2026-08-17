@@ -6,6 +6,7 @@ import dev.launchforge.application.controlplane.ControlPlaneService.VariationInp
 import dev.launchforge.application.controlplane.ControlPlaneService.VariationUpdateInput;
 import dev.launchforge.application.controlplane.PublishedRevision;
 import dev.launchforge.application.controlplane.SnapshotCodec.RevisionDiff;
+import dev.launchforge.controlapi.observability.PublicationObservability;
 import dev.launchforge.controlapi.security.OperatorIdentityResolver;
 import dev.launchforge.controlapi.web.PreconditionRequiredException;
 import dev.launchforge.domain.controlplane.ControlPlaneRuleViolationException;
@@ -51,14 +52,17 @@ public final class ControlPlaneController {
   private final OperatorIdentityResolver identityResolver;
   private final ControlPlaneService service;
   private final ObjectMapper objectMapper;
+  private final PublicationObservability publicationObservability;
 
   public ControlPlaneController(
       OperatorIdentityResolver identityResolver,
       ControlPlaneService service,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      PublicationObservability publicationObservability) {
     this.identityResolver = identityResolver;
     this.service = service;
     this.objectMapper = objectMapper;
+    this.publicationObservability = publicationObservability;
   }
 
   @PostMapping("/organizations/{organizationId}/projects")
@@ -286,11 +290,14 @@ public final class ControlPlaneController {
       @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String ifMatch,
       @RequestBody(required = false) ReasonRequest request) {
     PublishedRevision revision =
-        service.publish(
-            actor(authentication),
-            new EnvironmentId(environmentId),
-            expectedVersion(ifMatch),
-            request == null ? null : request.reason());
+        publicationObservability.observe(
+            "publish",
+            () ->
+                service.publish(
+                    actor(authentication),
+                    new EnvironmentId(environmentId),
+                    expectedVersion(ifMatch),
+                    request == null ? null : request.reason()));
     return ResponseEntity.status(HttpStatus.CREATED)
         .eTag(Long.toString(revision.revision()))
         .body(RevisionResponse.full(revision));
@@ -330,12 +337,15 @@ public final class ControlPlaneController {
       @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String ifMatch,
       @RequestBody RollbackRequest request) {
     PublishedRevision revision =
-        service.rollback(
-            actor(authentication),
-            new EnvironmentId(environmentId),
-            request.sourceRevision(),
-            expectedVersion(ifMatch),
-            request.reason());
+        publicationObservability.observe(
+            "rollback",
+            () ->
+                service.rollback(
+                    actor(authentication),
+                    new EnvironmentId(environmentId),
+                    request.sourceRevision(),
+                    expectedVersion(ifMatch),
+                    request.reason()));
     return ResponseEntity.status(HttpStatus.CREATED)
         .eTag(Long.toString(revision.revision()))
         .body(RevisionResponse.full(revision));

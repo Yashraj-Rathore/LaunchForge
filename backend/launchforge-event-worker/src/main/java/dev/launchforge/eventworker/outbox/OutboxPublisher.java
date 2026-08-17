@@ -42,6 +42,7 @@ public class OutboxPublisher {
   }
 
   private void publish(OutboxEvent row) {
+    long started = System.nanoTime();
     ConfigRevisionPublishedEvent event;
     try {
       event = codec.decode(row.payload());
@@ -53,6 +54,7 @@ public class OutboxPublisher {
       if (repository.markFailed(row.id(), owner, "OUTBOX_EVENT_INVALID")) {
         metrics.outboxFailed();
       }
+      metrics.recordOutboxDuration("failed", System.nanoTime() - started);
       return;
     }
     try {
@@ -62,11 +64,14 @@ public class OutboxPublisher {
       if (repository.markPublished(row.id(), owner)) {
         metrics.outboxPublished();
       }
+      metrics.recordOutboxDuration("published", System.nanoTime() - started);
     } catch (InterruptedException exception) {
       Thread.currentThread().interrupt();
       retry(row, "KAFKA_PUBLISH_INTERRUPTED");
+      metrics.recordOutboxDuration("retry", System.nanoTime() - started);
     } catch (Exception exception) {
       retry(row, "KAFKA_PUBLISH_FAILED");
+      metrics.recordOutboxDuration("retry", System.nanoTime() - started);
     }
   }
 

@@ -1,5 +1,6 @@
 package dev.launchforge.controlapi.web;
 
+import dev.launchforge.application.controlplane.AuditRetentionConflictException;
 import dev.launchforge.application.controlplane.ControlPlaneConflictException;
 import dev.launchforge.application.controlplane.ControlPlaneNotFoundException;
 import dev.launchforge.application.controlplane.StaleWriteException;
@@ -9,10 +10,10 @@ import dev.launchforge.application.organization.OrganizationNotFoundException;
 import dev.launchforge.application.sdkkey.SdkKeyConflictException;
 import dev.launchforge.controlapi.analytics.AnalyticsQueryCapacityException;
 import dev.launchforge.controlapi.analytics.AnalyticsUnavailableException;
+import dev.launchforge.controlapi.security.CorrelationIdFilter;
 import dev.launchforge.domain.controlplane.ControlPlaneRuleViolationException;
 import dev.launchforge.domain.organization.DomainRuleViolationException;
 import java.net.URI;
-import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -50,6 +51,11 @@ public final class ApiExceptionHandler {
   @ExceptionHandler(ControlPlaneConflictException.class)
   ProblemDetail controlPlaneConflict(ControlPlaneConflictException exception) {
     return problem(HttpStatus.CONFLICT, "CONTROL_PLANE_CONFLICT", exception.getMessage());
+  }
+
+  @ExceptionHandler(AuditRetentionConflictException.class)
+  ProblemDetail auditRetentionConflict(AuditRetentionConflictException exception) {
+    return problem(HttpStatus.CONFLICT, "AUDIT_RETENTION_CONFLICT", exception.getMessage());
   }
 
   @ExceptionHandler(SdkKeyConflictException.class)
@@ -97,7 +103,7 @@ public final class ApiExceptionHandler {
     problem.setType(URI.create("https://launchforge.dev/problems/" + code.toLowerCase()));
     problem.setTitle(status.getReasonPhrase());
     problem.setProperty("code", code);
-    problem.setProperty("correlationId", UUID.randomUUID().toString());
+    problem.setProperty("correlationId", CorrelationIdFilter.current());
     return problem;
   }
 }

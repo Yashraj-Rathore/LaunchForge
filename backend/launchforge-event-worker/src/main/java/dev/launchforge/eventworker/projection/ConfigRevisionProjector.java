@@ -33,30 +33,42 @@ public class ConfigRevisionProjector {
       topics = "${launchforge.distribution.topic:launchforge.config.revision-published.v1}",
       groupId = "${launchforge.distribution.consumer-group:launchforge-config-projector-v1}")
   public void project(ConsumerRecord<String, String> record) {
-    ConfigRevisionPublishedEvent event = codec.decode(record.value());
-    if (!event.environmentId().toString().equals(record.key())) {
-      throw new IllegalArgumentException("Kafka key does not match the event environment");
-    }
-    Optional<AuthoritativeSnapshot> stored =
-        repository.findRevision(event.environmentId(), event.revision());
-    if (stored.isEmpty()) {
-      throw new IllegalStateException("Published revision is not present in PostgreSQL");
-    }
-    AuthoritativeSnapshot snapshot = stored.orElseThrow();
-    if (!snapshot.organizationId().equals(event.organizationId())
-        || !snapshot.projectId().equals(event.projectId())
-        || !snapshot.checksum().equals(event.snapshotChecksum())) {
-      throw new IllegalArgumentException("Event metadata does not match PostgreSQL");
-    }
-    if (snapshot.currentRevision() != snapshot.revision()) {
-      metrics.projectionIgnored();
-      return;
-    }
-    validator.validate(snapshot);
-    if (materializer.materialize(snapshot)) {
-      metrics.projectionAdvanced();
-    } else {
-      metrics.projectionIgnored();
+    long started = System.nanoTime();
+    String outcome = "error";
+    try {
+      ConfigRevisionPublishedEvent event = codec.decode(record.value());
+      if (!event.environmentId().toString().equals(record.key())) {
+        throw new IllegalArgumentException("Kafka key does not match the event environment");
+      }
+      Optional<AuthoritativeSnapshot> stored =
+          repository.findRevision(event.environmentId(), event.revision());
+      if (stored.isEmpty()) {
+        throw new IllegalStateException("Published revision is not present in PostgreSQL");
+      }
+      AuthoritativeSnapshot snapshot = stored.orElseThrow();
+      if (!snapshot.organizationId().equals(event.organizationId())
+          || !snapshot.projectId().equals(event.projectId())
+          || !snapshot.checksum().equals(event.snapshotChecksum())) {
+        throw new IllegalArgumentException("Event metadata does not match PostgreSQL");
+      }
+      if (snapshot.currentRevision() != snapshot.revision()) {
+        outcome = "ignored";
+        metrics.projectionIgnored();
+        return;
+      }
+      validator.validate(snapshot);
+      if (materializer.materialize(snapshot)) {
+        outcome = "advanced";
+        metrics.projectionAdvanced();
+      } else {
+        outcome = "ignored";
+        metrics.projectionIgnored();
+      }
+    } catch (RuntimeException exception) {
+      metrics.projectionError();
+      throw exception;
+    } finally {
+      metrics.recordProjectionDuration("kafka", outcome, System.nanoTime() - started);
     }
   }
 }

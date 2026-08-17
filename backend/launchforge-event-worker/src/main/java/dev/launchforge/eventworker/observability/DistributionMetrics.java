@@ -4,12 +4,15 @@ import dev.launchforge.eventworker.outbox.OutboxStats;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.stereotype.Component;
 
 @Component
 public class DistributionMetrics {
+  private final MeterRegistry registry;
   private final AtomicLong pendingCount = new AtomicLong();
   private final AtomicReference<Double> oldestPendingAge = new AtomicReference<>(0.0);
   private final Counter outboxPublished;
@@ -20,6 +23,7 @@ public class DistributionMetrics {
   private final Counter projectionErrors;
 
   public DistributionMetrics(MeterRegistry registry) {
+    this.registry = registry;
     Gauge.builder("launchforge.outbox.pending", pendingCount, AtomicLong::doubleValue)
         .description("Outbox rows awaiting a broker acknowledgement")
         .register(registry);
@@ -61,5 +65,20 @@ public class DistributionMetrics {
 
   public void projectionError() {
     projectionErrors.increment();
+  }
+
+  public void recordOutboxDuration(String outcome, long elapsedNanos) {
+    Timer.builder("launchforge.outbox.dispatch.duration")
+        .tag("outcome", outcome)
+        .register(registry)
+        .record(Duration.ofNanos(Math.max(0, elapsedNanos)));
+  }
+
+  public void recordProjectionDuration(String operation, String outcome, long elapsedNanos) {
+    Timer.builder("launchforge.projection.duration")
+        .tag("operation", operation)
+        .tag("outcome", outcome)
+        .register(registry)
+        .record(Duration.ofNanos(Math.max(0, elapsedNanos)));
   }
 }

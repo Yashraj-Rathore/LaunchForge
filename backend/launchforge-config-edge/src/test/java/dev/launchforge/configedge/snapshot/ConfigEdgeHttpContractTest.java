@@ -2,12 +2,16 @@ package dev.launchforge.configedge.snapshot;
 
 import dev.launchforge.configedge.configuration.ConfigEdgeProperties;
 import dev.launchforge.configedge.configuration.SdkKeyPepperProperties;
+import dev.launchforge.configedge.observability.EdgeAuthenticationMetrics;
+import dev.launchforge.configedge.observability.SnapshotMetrics;
 import dev.launchforge.configedge.persistence.EdgeRepository;
 import dev.launchforge.configedge.persistence.EdgeRepository.StoredSnapshot;
+import dev.launchforge.configedge.security.EdgeCorrelationWebFilter;
 import dev.launchforge.configedge.security.SdkAuthenticationService;
 import dev.launchforge.configedge.security.SdkAuthenticationWebFilter;
 import dev.launchforge.configedge.web.EdgeExceptionHandler;
 import dev.launchforge.contracts.sdk.ServerSdkKeyCredential;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
@@ -44,12 +48,19 @@ class ConfigEdgeHttpContractTest {
     SdkAuthenticationService authentication =
         new SdkAuthenticationService(
             repository, new SdkKeyPepperProperties(Map.of("v1", PEPPER)), Clock.systemUTC());
+    SimpleMeterRegistry registry = new SimpleMeterRegistry();
     SnapshotController controller =
-        new SnapshotController(repository, new SnapshotIntegrityVerifier(objectMapper, properties));
+        new SnapshotController(
+            repository,
+            new SnapshotIntegrityVerifier(objectMapper, properties),
+            new SnapshotMetrics(registry));
     client =
         WebTestClient.bindToController(controller)
             .controllerAdvice(new EdgeExceptionHandler())
-            .webFilter(new SdkAuthenticationWebFilter(authentication))
+            .webFilter(new EdgeCorrelationWebFilter())
+            .webFilter(
+                new SdkAuthenticationWebFilter(
+                    authentication, new EdgeAuthenticationMetrics(registry)))
             .build();
   }
 
@@ -95,12 +106,17 @@ class ConfigEdgeHttpContractTest {
         .get()
         .uri("/sdk/v1/snapshot")
         .cookie("launchforge_session", "not-an-sdk-key")
+        .header(EdgeCorrelationWebFilter.HEADER_NAME, "edge-caller-123")
         .exchange()
         .expectStatus()
         .isUnauthorized()
+        .expectHeader()
+        .valueEquals(EdgeCorrelationWebFilter.HEADER_NAME, "edge-caller-123")
         .expectBody()
         .jsonPath("$.code")
-        .isEqualTo("SDK_KEY_INVALID");
+        .isEqualTo("SDK_KEY_INVALID")
+        .jsonPath("$.correlationId")
+        .isEqualTo("edge-caller-123");
   }
 
   @Test
@@ -111,6 +127,20 @@ class ConfigEdgeHttpContractTest {
         .cookie("launchforge_session", "not-an-sdk-key")
         .header(HttpHeaders.CONTENT_TYPE, "application/json")
         .bodyValue("{}")
+        .exchange()
+        .expectStatus()
+        .isUnauthorized()
+        .expectBody()
+        .jsonPath("$.code")
+        .isEqualTo("SDK_KEY_INVALID");
+  }
+
+  @Test
+  void browserCredentialClassCannotAuthenticateTheServerSnapshotEndpoint() {
+    client
+        .get()
+        .uri("/sdk/v1/snapshot")
+        .header(HttpHeaders.AUTHORIZATION, "LF-SDK lf_client_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
         .exchange()
         .expectStatus()
         .isUnauthorized()

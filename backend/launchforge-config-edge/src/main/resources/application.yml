@@ -28,7 +28,7 @@ spring:
         delivery.timeout.ms: 5000
         request.timeout.ms: 2000
   codec:
-    max-in-memory-size: 1MB
+    max-in-memory-size: 256KB
 
 server:
   port: ${LAUNCHFORGE_CONFIG_EDGE_PORT:8082}
@@ -59,12 +59,50 @@ launchforge:
       maximum-concurrent-requests: ${LAUNCHFORGE_ANALYTICS_MAX_CONCURRENT_INGESTS:16}
       requests-per-key-per-minute: ${LAUNCHFORGE_ANALYTICS_REQUESTS_PER_KEY_PER_MINUTE:600}
       publish-timeout: 2s
+  security:
+    abuse:
+      redis-enabled: ${LAUNCHFORGE_SECURITY_RATE_LIMIT_REDIS_ENABLED:true}
+      window: 1m
+      snapshot-requests-per-window: ${LAUNCHFORGE_SNAPSHOT_REQUESTS_PER_MINUTE:600}
+      stream-starts-per-window: ${LAUNCHFORGE_STREAM_STARTS_PER_MINUTE:30}
+      analytics-requests-per-window: ${LAUNCHFORGE_ANALYTICS_REQUESTS_PER_KEY_PER_MINUTE:600}
+      stream-lease-duration: 2m
 
 management:
+  otlp:
+    metrics:
+      export:
+        enabled: ${LAUNCHFORGE_OTLP_METRICS_ENABLED:false}
+  opentelemetry:
+    enabled: ${LAUNCHFORGE_OTEL_ENABLED:false}
+    resource-attributes:
+      deployment.environment.name: ${LAUNCHFORGE_DEPLOYMENT_ENVIRONMENT:local}
+    tracing:
+      export:
+        otlp:
+          endpoint: ${LAUNCHFORGE_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+          connect-timeout: 1s
+          timeout: 3s
+      limits:
+        max-attributes: 64
+        max-attribute-value-length: 256
+  tracing:
+    export:
+      otlp:
+        enabled: ${LAUNCHFORGE_OTEL_ENABLED:false}
+    propagation:
+      type: w3c
+    sampling:
+      probability: ${LAUNCHFORGE_TRACE_SAMPLING_PROBABILITY:0.1}
   endpoint:
     health:
       show-details: never
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
+
+logging:
+  structured:
+    format:
+      console: ${LAUNCHFORGE_LOG_FORMAT:ecs}
