@@ -64,3 +64,5 @@
 - Added the isolated JMH evaluator harness and raw allocation-profiled result artifact, reproducible
   k6 snapshot/SSE/convergence workloads, optional atomic Java SDK file LKG, digest-pinned local
   observability services, and successful PostgreSQL/Kafka/Redis/two-edge failure-drill evidence.
+- Fixed Compose validation in the repository-contract and identity smoke CI jobs by supplying the
+  required local-only Grafana placeholder alongside the existing service placeholders.

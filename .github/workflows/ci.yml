@@ -105,6 +105,7 @@ jobs:
       LAUNCHFORGE_KEYCLOAK_ADMIN_PASSWORD: ci-keycloak-admin-only
       LAUNCHFORGE_DEMO_USER_PASSWORD: ci-demo-user-only
       LAUNCHFORGE_CLICKHOUSE_PASSWORD: ci-clickhouse-only
+      LAUNCHFORGE_GRAFANA_ADMIN_PASSWORD: ci-grafana-only
       LAUNCHFORGE_SDK_KEY_PEPPER: ci-sdk-key-pepper-at-least-32-bytes
       LAUNCHFORGE_DB_URL: jdbc:postgresql://localhost:55432/launchforge
       LAUNCHFORGE_DB_USER: launchforge
@@ -171,6 +172,7 @@ jobs:
       LAUNCHFORGE_KEYCLOAK_ADMIN_PASSWORD: ci-validation-only
       LAUNCHFORGE_DEMO_USER_PASSWORD: ci-validation-only
       LAUNCHFORGE_CLICKHOUSE_PASSWORD: ci-validation-only
+      LAUNCHFORGE_GRAFANA_ADMIN_PASSWORD: ci-validation-only
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
