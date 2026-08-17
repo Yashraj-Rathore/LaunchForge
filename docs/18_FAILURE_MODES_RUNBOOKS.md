@@ -254,7 +254,7 @@ absence of subject/context columns.
 
 ---
 
-## Runbook M - Failed deployment
+## Runbook N - Failed deployment
 
 1. compare Git SHA/image digest;
 2. check migration compatibility;
@@ -266,7 +266,7 @@ absence of subject/context columns.
 
 ---
 
-## Runbook N - Lost/stale operator session
+## Runbook O - Lost/stale operator session
 
 1. reauthenticate through OIDC;
 2. do not retry an ambiguous publish blindly;
@@ -327,7 +327,37 @@ projector interruption only the newer revision was delayed; already loaded SDK b
 available. No follow-up correctness gap was found within LF-0701 through LF-0706. Capacity, SLO,
 chaos-duration, and production alert-threshold evidence remains owned by M10.
 
-## 4. Destructive action warning
+## 4. M10 reliability drill - 2026-08-17
+
+**Environment:** Windows kernel 10.0.22631 x64 on Docker Desktop; PostgreSQL 18.4, Apache Kafka
+4.3.1, and Redis 8.2.8 Testcontainers. The exercised implementation commit was
+`993980f2ee70b134c47d1590e07bd3cf9a86cd94`.
+
+**Command:**
+
+    .\mvnw.cmd -pl tests/integration-tests -am verify -Pintegration "-Dit.test=ControlPlanePostgresIT,DistributionPipelineIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
+
+**Expected and observed:**
+
+| Scenario | Expected | Observed |
+|---|---|---|
+| Publish transaction and tenant diagnostic | PostgreSQL revision/outbox commit atomically; only the owning tenant can inspect bounded pipeline state | Owner saw database revision 1 with one pending row and `PENDING`; the other organization received `404` |
+| Duplicate/stale delivery | Repeated or older Kafka work cannot regress Redis | Duplicate revision was ignored and the materialized revision remained monotonic |
+| Kafka interruption | Publish remains durable in PostgreSQL/outbox and catches up after broker recovery | Pending work survived the pause, was acknowledged after unpause, and edge advanced |
+| Projector interruption | Prior materialized revision remains readable; retained Kafka work catches up | Redis stayed on the prior revision and advanced when the listener restarted |
+| Redis flush/outage | Authoritative state rebuilds; bounded PostgreSQL fallback preserves current reads | Reconciliation rebuilt Redis after flush; both edge instances served the current revision during pause |
+| Edge restart / SDK source loss | Restarted edge converges; SDK keeps validated local state | Restarted edge converged and Java evaluation continued from LKG when the source context closed |
+| Invalid outbox event | Permanent envelope defect is not retried blindly | Row became `FAILED` with bounded `OUTBOX_EVENT_INVALID` |
+| Historical rollback | Recovery creates a higher immutable revision and retains history | Control-plane coverage restored the selected behavior as a newer revision |
+
+The focused reactor completed with `BUILD SUCCESS`: 12 `ControlPlanePostgresIT` tests and one
+`DistributionPipelineIT` drill, zero failures/errors. Test durations (12.26 seconds and 21.13
+seconds) are harness durations, not detection, recovery, convergence, or availability
+measurements. No configuration/revision loss was observed. No LF-1006 correctness gap remains;
+production chaos duration, paging thresholds, and multi-host capacity remain future
+environment-specific work.
+
+## 5. Destructive action warning
 
 Never:
 

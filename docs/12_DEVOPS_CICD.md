@@ -265,6 +265,18 @@ helm template ...
 
 Document Windows PowerShell equivalents where commands differ.
 
+M10 adds an optional `observability` Compose profile:
+
+    docker compose --profile observability up -d --wait
+
+It starts the pinned OpenTelemetry Collector, Prometheus, and Grafana definitions under
+`deploy/local/observability/`. Applications continue to run outside Compose at ports 8080, 8082,
+and 8083 and are scraped through `host.docker.internal`. Set the required local-only Grafana
+password in `.env`; never commit it. Set `LAUNCHFORGE_OTEL_ENABLED=true` in each application
+process to export traces to the collector. Prometheus metrics remain pull-based, and
+`LAUNCHFORGE_OTLP_METRICS_ENABLED` stays false unless a separately reviewed metrics pipeline is
+configured.
+
 ## 15. Repository secrets
 
 GitHub Environments/Actions secrets only.

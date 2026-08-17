@@ -153,6 +153,7 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${LAUNCHFORGE_GRAFANA_ADMIN_PASSWORD:?Set a local-only Grafana admin password in .env}
       GF_USERS_ALLOW_SIGN_UP: 'false'
       GF_AUTH_ANONYMOUS_ENABLED: 'false'
+      GF_PLUGINS_PREINSTALL_DISABLED: 'true'
     ports:
       - '127.0.0.1:${LAUNCHFORGE_GRAFANA_PORT:-53000}:3000'
     volumes:

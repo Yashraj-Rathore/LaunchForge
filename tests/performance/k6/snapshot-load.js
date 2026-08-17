@@ -6,6 +6,7 @@ const snapshotLatency = new Trend('launchforge_snapshot_latency', true);
 const baseUrl = __ENV.BASE_URL || 'http://host.docker.internal:8082';
 const sdkKey = __ENV.SDK_KEY || '';
 const conditional = (__ENV.CONDITIONAL || 'true').toLowerCase() === 'true';
+const sourceProfile = __ENV.SOURCE_PROFILE || 'redis_warm';
 let etag = '';
 
 export const options = {
@@ -25,6 +26,9 @@ export function setup() {
   if (!sdkKey) {
     throw new Error('SDK_KEY is required');
   }
+  if (!['redis_warm', 'postgres_fallback'].includes(sourceProfile)) {
+    throw new Error('SOURCE_PROFILE must be redis_warm or postgres_fallback');
+  }
 }
 
 export default function () {
@@ -37,7 +41,7 @@ export default function () {
   }
   const response = http.get(baseUrl + '/sdk/v1/snapshot', {
     headers,
-    tags: { route: 'snapshot' },
+    tags: { route: 'snapshot', source_profile: sourceProfile },
     timeout: __ENV.REQUEST_TIMEOUT || '5s',
   });
   snapshotLatency.add(response.timings.duration);

@@ -618,9 +618,9 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 
 # Project Status
 
-**Status:** Prompt 10 security hardening implementation complete.
+**Status:** Prompt 11 reliability, observability, and performance implementation complete.
 
-**Current milestone:** M9 security hardening (LF-0901–LF-0906) complete; stop point before Prompt 11 / M10 reliability and performance.
+**Current milestone:** M10 reliability/performance (LF-1001–LF-1006) complete; stop point before Prompt 12 / M11 containers and Helm.
 
 **Specification baseline:** Canonical module paths, snapshot/checksum representation, algorithm-version-1 types and reason codes, milestone dependencies, and exact Prompt 0 toolchain pins were normalized on 2026-08-10.
 
@@ -636,7 +636,7 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 | M7 Kafka/Redis scale-out | LF-0701–LF-0706 | Complete (2026-08-13) |
 | M8 Analytics | LF-0801–LF-0805 | Complete (2026-08-13) |
 | M9 Security hardening | LF-0901–LF-0906 | Complete (2026-08-17) |
-| M10 Reliability/performance | LF-1001–LF-1006 | Not started |
+| M10 Reliability/performance | LF-1001–LF-1006 | Complete (2026-08-17) |
 | M11 Containers/Helm | LF-1101–LF-1104 | Not started |
 | M12 CI/CD supply chain | LF-1201–LF-1205 | Not started |
 | M13 Demo/pilot | LF-1301–LF-1305 | Not started |
@@ -822,6 +822,7 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 | `20_INTERVIEW_TALK_TRACK.md` | system-design explanations and interview questions |
 | `21_NON_GOALS_AND_FUTURE.md` | deliberate exclusions and future options |
 | `22_SECURITY_HARDENING_REVIEW.md` | M9 threat assessment, evidence, residual risks, and release checks |
+| `23_RELIABILITY_PERFORMANCE_REPORT.md` | M10 telemetry, diagnostics, benchmark, load-harness, and failure-drill evidence |
 
 ADRs under `docs/decisions/` explain choices that must not be casually reversed.
 
@@ -1691,6 +1692,15 @@ Production change reason is required.
 
 These project/environment/flag/draft/publication routes are implemented by M2. Mutable updates, draft replacement, publication, reseeding, and rollback require `If-Match`; missing preconditions return `428` and stale versions return `409`. Request bodies never accept tenant ownership or rollout salt. Cohort reseeding is a separate reason-required audited operation. History summaries omit snapshot content, a single-revision read returns the immutable canonical snapshot, and structured diff reports added, removed, and changed flag keys without exposing actor or audit internals.
 
+M10 adds `GET /api/v1/environments/{environmentId}/diagnostics/revision`. It is an authenticated
+management read protected by the normal organization membership boundary. The bounded response
+contains the environment UUID, PostgreSQL current revision, nullable Redis materialized revision,
+edge-resolvable revision, pending/failed outbox counts, oldest pending age in milliseconds, and one
+of `CURRENT`, `PENDING`, `FAILED`, or `UNMATERIALIZED`. It never returns snapshot content,
+keys, actor data, or arbitrary identifiers. When Redis is unavailable, edge-resolvable revision is
+the PostgreSQL revision because the edge has an explicitly bounded PostgreSQL fallback; the nullable
+Redis field and status make that degraded state visible.
+
 Flag creation accepts `BOOLEAN`, `STRING`, `NUMBER`, or `JSON`, a `clientVisible` decision, and two to ten variations. JSON token types must exactly match the declared flag type; there is no implicit coercion.
 
 M6 extends flag update with an optional `variations` array containing each existing stable variation
@@ -2374,7 +2384,14 @@ Recommended behavior:
 
 In-memory last-known-good behavior is required in Milestone 3: a transient refresh failure or invalid newer snapshot never replaces the active valid snapshot.
 
-Durable local-file persistence is deferred to LF-1005 in Milestone 10. When implemented, it optionally persists the most recently validated snapshot using an atomic write/rename pattern.
+M10 implements optional durable Java LKG through
+`LaunchForgeClient.Builder.durableLastKnownGood(Path)`. At construction the client reads at most
+the normal five-MiB snapshot limit, rejects symbolic links/non-regular files, performs the complete
+schema/checksum compilation before activation, and ignores corrupt or unreadable state. A validated
+newer remote snapshot is persisted best-effort through a same-directory temporary file, file flush,
+owner-only POSIX permissions where supported, and atomic replace. Persistence failure cannot replace
+the active in-memory snapshot or change evaluation results. A stale remote revision cannot overwrite
+a newer durable revision. The evaluation hot path never reads or writes disk.
 
 Startup order:
 
@@ -4392,6 +4409,31 @@ fixed distributed-rejection/local-fallback outcomes. Request-completion logging 
 limited to method, route family, and status; identifiers remain available through safe product
 audit where appropriate, not operational request logs.
 
+## 16. M10 implementation baseline
+
+Control API, Config Edge, and Event Worker expose Prometheus meters and use ECS structured console
+logging. Each HTTP ingress accepts only a 1-to-64 character correlation ID matching
+`[A-Za-z0-9._-]`; otherwise it generates a UUID. The chosen ID is echoed in
+`X-Correlation-ID`, placed in safe completion logs, and reused in problem responses. W3C
+`traceparent` propagation is configured; arbitrary baggage is not copied to metrics or logs.
+
+M10 adds fixed-cardinality publication counters/timers, snapshot outcome/duration meters by
+server/browser credential class, active/opened/closed/rejected SSE signals, bounded stream
+authentication denials, outbox dispatch duration, and Kafka/reconciliation projection duration.
+Spring Kafka producer/listener observation carries W3C context when telemetry is enabled. Trace
+export is disabled by default behind `LAUNCHFORGE_OTEL_ENABLED`; OTLP metrics push remains
+separately disabled because Prometheus is the selected metrics path.
+
+The authenticated revision diagnostic compares PostgreSQL current revision and outbox state with
+the nullable Redis materialized revision. It uses normal tenant authorization and never exposes
+snapshot content, credentials, actor data, or arbitrary labels.
+
+The optional local `observability` Compose profile provides a digest-pinned OpenTelemetry
+Collector, Prometheus, and authenticated Grafana. Prometheus rule examples cover outbox age,
+projection errors, snapshot error rate, and stream authentication denials. Their thresholds are
+examples to tune from deployment measurements, not achieved SLOs. The provisioned reliability
+dashboard focuses on outbox age, projection/snapshot outcomes, active streams, and snapshot p95.
+
 ---
 
 <!-- SOURCE: docs/12_DEVOPS_CICD.md -->
@@ -4663,6 +4705,18 @@ helm template ...
 
 Document Windows PowerShell equivalents where commands differ.
 
+M10 adds an optional `observability` Compose profile:
+
+    docker compose --profile observability up -d --wait
+
+It starts the pinned OpenTelemetry Collector, Prometheus, and Grafana definitions under
+`deploy/local/observability/`. Applications continue to run outside Compose at ports 8080, 8082,
+and 8083 and are scraped through `host.docker.internal`. Set the required local-only Grafana
+password in `.env`; never commit it. Set `LAUNCHFORGE_OTEL_ENABLED=true` in each application
+process to export traces to the collector. Prometheus metrics remain pull-based, and
+`LAUNCHFORGE_OTLP_METRICS_ENABLED` stays false unless a separately reviewed metrics pipeline is
+configured.
+
 ## 15. Repository secrets
 
 GitHub Environments/Actions secrets only.
@@ -4926,6 +4980,18 @@ analytics. Exact defaults live in each process's `application.yml` and `.env.exa
 - limitations.
 
 Resume bullet must link to or be reproducible from this evidence.
+
+M10 implements the executable JMH module and k6 suites under `tests/performance/`. The JMH jar
+benchmarks boolean/default, matching-rule, permitted 100-rule worst-position, percentage rollout,
+and JSON variation evaluation with the GC allocation profiler. The raw artifact and honest host
+report are in `tests/performance/results/2026-08-17/` and
+`docs/23_RELIABILITY_PERFORMANCE_REPORT.md`.
+
+The k6 scripts cover conditional/cold snapshot reads, reconnecting SSE connection pressure, and
+authenticated revision convergence polling. The committed M10 run validates script configuration
+only; it does not claim HTTP capacity, SSE scale, or convergence latency. A controlled deployment
+and completed `tests/performance/load-report-template.md` are mandatory before publishing such a
+claim.
 
 ## 13. Example acceptable claim format
 
@@ -6825,7 +6891,7 @@ absence of subject/context columns.
 
 ---
 
-## Runbook M - Failed deployment
+## Runbook N - Failed deployment
 
 1. compare Git SHA/image digest;
 2. check migration compatibility;
@@ -6837,7 +6903,7 @@ absence of subject/context columns.
 
 ---
 
-## Runbook N - Lost/stale operator session
+## Runbook O - Lost/stale operator session
 
 1. reauthenticate through OIDC;
 2. do not retry an ambiguous publish blindly;
@@ -6898,7 +6964,37 @@ projector interruption only the newer revision was delayed; already loaded SDK b
 available. No follow-up correctness gap was found within LF-0701 through LF-0706. Capacity, SLO,
 chaos-duration, and production alert-threshold evidence remains owned by M10.
 
-## 4. Destructive action warning
+## 4. M10 reliability drill - 2026-08-17
+
+**Environment:** Windows kernel 10.0.22631 x64 on Docker Desktop; PostgreSQL 18.4, Apache Kafka
+4.3.1, and Redis 8.2.8 Testcontainers. The exercised implementation commit was
+`993980f2ee70b134c47d1590e07bd3cf9a86cd94`.
+
+**Command:**
+
+    .\mvnw.cmd -pl tests/integration-tests -am verify -Pintegration "-Dit.test=ControlPlanePostgresIT,DistributionPipelineIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
+
+**Expected and observed:**
+
+| Scenario | Expected | Observed |
+|---|---|---|
+| Publish transaction and tenant diagnostic | PostgreSQL revision/outbox commit atomically; only the owning tenant can inspect bounded pipeline state | Owner saw database revision 1 with one pending row and `PENDING`; the other organization received `404` |
+| Duplicate/stale delivery | Repeated or older Kafka work cannot regress Redis | Duplicate revision was ignored and the materialized revision remained monotonic |
+| Kafka interruption | Publish remains durable in PostgreSQL/outbox and catches up after broker recovery | Pending work survived the pause, was acknowledged after unpause, and edge advanced |
+| Projector interruption | Prior materialized revision remains readable; retained Kafka work catches up | Redis stayed on the prior revision and advanced when the listener restarted |
+| Redis flush/outage | Authoritative state rebuilds; bounded PostgreSQL fallback preserves current reads | Reconciliation rebuilt Redis after flush; both edge instances served the current revision during pause |
+| Edge restart / SDK source loss | Restarted edge converges; SDK keeps validated local state | Restarted edge converged and Java evaluation continued from LKG when the source context closed |
+| Invalid outbox event | Permanent envelope defect is not retried blindly | Row became `FAILED` with bounded `OUTBOX_EVENT_INVALID` |
+| Historical rollback | Recovery creates a higher immutable revision and retains history | Control-plane coverage restored the selected behavior as a newer revision |
+
+The focused reactor completed with `BUILD SUCCESS`: 12 `ControlPlanePostgresIT` tests and one
+`DistributionPipelineIT` drill, zero failures/errors. Test durations (12.26 seconds and 21.13
+seconds) are harness durations, not detection, recovery, convergence, or availability
+measurements. No configuration/revision loss was observed. No LF-1006 correctness gap remains;
+production chaos duration, paging thresholds, and multi-host capacity remain future
+environment-specific work.
+
+## 5. Destructive action warning
 
 Never:
 
@@ -6964,6 +7060,10 @@ Verified against official release sources on **2026-08-10**; M1-owned tools were
 | Apache Kafka | `4.3.1`; image `apache/kafka:4.3.1`; manifest `sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837` | M7 |
 | Redis | `8.2.8`; image `redis:8.2.8-bookworm`; manifest `sha256:2f7462b9e93e0a7ae2edf3a0a0babc8a4d29f8bfc50849b906b7caaef925edc1` | M7 |
 | ClickHouse | `26.7.1.1315`; image `clickhouse:26.7.1.1315`; manifest `sha256:16537a9270ad63acbbee437ebbb826ea62b49690e863ae33e2fc5c16b7d9466c` | M8 |
+| OpenTelemetry Collector Contrib | `0.158.0`; image `otel/opentelemetry-collector-contrib:0.158.0`; manifest `sha256:c5918f78992ee73b0d6f0e599423ac5ec52dd5d9726733114d6eca53d5a32ed5` | M10 |
+| Prometheus | `3.13.1` LTS; image `prom/prometheus:v3.13.1`; manifest `sha256:3c42b892cf723fa54d2f262c37a0e1f80aa8c8ddb1da7b9b0df9455a35a7f893` | M10 |
+| Grafana OSS | `13.0.2`; image `grafana/grafana:13.0.2`; manifest `sha256:5dad0df181cb644a14e13617b913b261a54f7d4fd4510721dba420929f35bea2` | M10 |
+| k6 | `1.7.1`; image `grafana/k6:1.7.1`; manifest `sha256:4fd3a694926b064d3491d9b02b01cde886583c4931f1223816e3d9a7bdfa7e0f` | M10 |
 | Docker Engine | tested-tooling target `29.6.2` | M0 developer environment |
 | Docker Compose | tested-tooling target `5.4.0` | M0 developer environment |
 | Kubernetes | tested deployment target `1.36.2` | Re-verify in M11 |
@@ -6982,6 +7082,10 @@ Official verification references:
 - PostgreSQL: <https://www.postgresql.org/support/versioning/> and <https://hub.docker.com/_/postgres>
 - Kafka/Redis/Keycloak: <https://kafka.apache.org/community/downloads/>, <https://hub.docker.com/r/apache/kafka/tags>, <https://download.redis.io/releases/>, <https://hub.docker.com/_/redis>, <https://www.keycloak.org/2026/07/keycloak-2670-released>, and <https://github.com/keycloak/keycloak/releases/tag/26.7.0>
 - ClickHouse: <https://hub.docker.com/_/clickhouse/tags> and <https://hub.docker.com/_/clickhouse>
+- OpenTelemetry Collector: <https://github.com/open-telemetry/opentelemetry-collector-releases/releases>
+- Prometheus: <https://prometheus.io/download/>
+- Grafana: <https://grafana.com/grafana/download/>
+- k6: <https://grafana.com/docs/k6/latest/release-notes/>
 - Docker/Kubernetes/Helm: <https://docs.docker.com/engine/release-notes/29/>, <https://github.com/docker/compose/releases>, <https://kubernetes.io/releases/>, and <https://github.com/helm/helm/releases>
 
 LF-0003 resolved and recorded the PostgreSQL image manifest digest after a successful pull. Compose uses the readable tag and digest together, so a tag move cannot silently change the local database image. PostgreSQL 18 Compose volumes mount the image's version-appropriate data root at `/var/lib/postgresql`, not the older `/var/lib/postgresql/data` path.
@@ -6992,6 +7096,12 @@ LF-0803 re-verified the official ClickHouse image when M8 began on **2026-08-13*
 real integration test use the readable `26.7.1.1315` tag together with the multi-platform manifest
 digest above. The application uses Java's standard HTTP client for bounded inserts and aggregate
 queries, so M8 adds no ClickHouse client-library dependency to the domain or SDK hot path.
+
+LF-1001/LF-1002/LF-1004 re-verified the official collector, Prometheus LTS, Grafana OSS, and k6
+releases on **2026-08-17**, then pulled and recorded the multi-platform manifest digests above.
+LF-1003 uses JMH 1.37 in its own Maven module, following the OpenJDK recommendation to isolate the
+benchmark harness from production artifacts. The Spring Boot OpenTelemetry starter remains managed
+by the existing Spring Boot 4.1.0 dependency baseline.
 
 ### M0 build and quality pins
 
@@ -7007,6 +7117,7 @@ The M0 reactor and workspace additionally pin:
 | Maven Compiler / Enforcer / Surefire / Failsafe | `3.15.0` / `3.6.3` / `3.5.6` / `3.5.6` |
 | ESLint / Prettier | `10.8.1` / `3.9.6` |
 | Java JSON Canonicalization | `io.github.erdtman:java-json-canonicalization:1.1` |
+| JMH / Maven Shade Plugin | `1.37` / `3.6.2` |
 
 The root `pom.xml`, JavaScript package manifests, `pnpm-lock.yaml`, and SHA-pinned GitHub Actions are the executable source of truth for transitive and CI-tool versions.
 
@@ -7638,6 +7749,160 @@ The normative release checklist is in `docs/12_DEVOPS_CICD.md`. A release review
 exact command results, scan artifacts, threat-review acknowledgement, retention-deletion state, and
 rollback target. Any new critical/high finding blocks release unless explicitly risk-accepted by the
 responsible owner with scope, expiry, and remediation issue.
+
+---
+
+<!-- SOURCE: docs/23_RELIABILITY_PERFORMANCE_REPORT.md -->
+
+# 23 - M10 Reliability and Performance Report
+
+## 1. Scope and conclusion
+
+This report records LF-1001 through LF-1006 evidence from 2026-08-17. M10 supplies opt-in
+OpenTelemetry, bounded correlation/metrics/diagnostics, local observability assets, a reproducible
+JMH evaluator harness, k6 workload definitions, durable Java SDK last-known-good storage, and
+executed failure drills.
+
+The JMH numbers below are measurements from one developer machine. They are not production
+capacity, an SLO, or a Java-versus-JavaScript comparison. No HTTP, SSE concurrency, or
+publish-convergence capacity claim is made because the k6 suites were configuration-validated but
+not run against a controlled representative deployment.
+
+## 2. Issue evidence
+
+| Issue | Delivered evidence |
+|---|---|
+| LF-1001 | Spring Boot OpenTelemetry starter in all processes; opt-in OTLP tracing; W3C HTTP/Kafka propagation; bounded ingress correlation echoed in responses/problems; ECS structured logs |
+| LF-1002 | Prometheus registry, fixed-cardinality management/edge/outbox/projection meters, authenticated revision diagnostic, four alert examples, and a provisioned Grafana reliability dashboard |
+| LF-1003 | Isolated JMH 1.37 module with GC allocation profiling and five evaluator scenarios |
+| LF-1004 | k6 1.7.1 snapshot, SSE reconnect, and publish-convergence scripts plus a load-report template |
+| LF-1005 | Optional atomic local-file Java SDK LKG with complete validation, stale-revision protection, and corrupt-file fallback |
+| LF-1006 | Executed PostgreSQL/Kafka/Redis/edge/SDK drills and completed runbook set |
+
+## 3. JMH evaluator benchmark
+
+### Reproducibility metadata
+
+- Implementation Git SHA: `993980f2ee70b134c47d1590e07bd3cf9a86cd94`
+- JMH: 1.37
+- Java: Eclipse Temurin OpenJDK 25.0.4+7 LTS, 64-bit Server VM
+- OS/runtime: Microsoft Windows kernel 10.0.22631, x64
+- CPU: 11th Gen Intel Core i7-11700 at 2.50 GHz; 16 logical processors
+- Physical memory: 17,009,291,264 bytes
+- Threads: 1
+- Forks: 1
+- Warmup: 3 iterations of 1 second
+- Measurement: 5 iterations of 1 second
+- Profiler: JMH `gc`
+- Raw artifact: `tests/performance/results/2026-08-17/jmh.json`
+
+Build:
+
+    .\mvnw.cmd -pl tests/performance -am spotless:apply package -DskipTests
+
+Execution:
+
+    java -jar tests/performance/target/launchforge-benchmarks.jar -f 1 -wi 3 -i 5 -w 1s -r 1s -prof gc -rf json -rff tests/performance/results/2026-08-17/jmh.json
+
+### Recorded results
+
+Scores are mean throughput with JMH's reported 99.9% confidence interval. Allocation is normalized
+bytes per operation.
+
+| Scenario | Mean ops/s | Error ops/s | Bytes/op |
+|---|---:|---:|---:|
+| Boolean default variation | 34,634,586.748 | 968,309.129 | 80.000 |
+| First matching rule | 26,235,311.991 | 3,379,756.692 | 96.000 |
+| Matching rule at position 100 | 884,441.528 | 96,038.906 | 96.008 |
+| Percentage rollout | 3,733,354.443 | 247,518.082 | 568.002 |
+| JSON variation | 35,365,872.595 | 3,973,497.226 | 80.000 |
+
+Limitations:
+
+- one fork and short one-second iterations favor fast local feedback over publication-grade
+  statistical confidence;
+- the benchmark isolates pure evaluation and intentionally excludes parsing, I/O, refresh,
+  telemetry, application logic, and network effects;
+- CPU power state, background activity, thermal state, and Docker workloads were not controlled;
+- the 100-rule case exercises the maximum permitted rule count on one flag, not a full 2,000-flag
+  snapshot or concurrent snapshot swaps;
+- JDK 25 reports that JMH 1.37 uses a terminally deprecated Unsafe lookup and experimental compiler
+  blackholes, which is another reason not to generalize the figures;
+- compare future results only with the same source, JDK, blackhole mode, JVM options, forks,
+  iteration lengths, and host controls.
+
+## 4. k6 workload status
+
+Pinned image: `grafana/k6:1.7.1@sha256:4fd3a694926b064d3491d9b02b01cde886583c4931f1223816e3d9a7bdfa7e0f`.
+
+The three scripts passed `k6 inspect` in the pinned container:
+
+- `snapshot-load.js`: conditional/full reads labeled for a separately prepared Redis-warm or
+  PostgreSQL-fallback source profile, with revision/checksum integrity checks;
+- `sse-reconnect.js`: configurable connection hold/reconnect pressure and explicit 429 handling;
+- `publish-convergence.js`: authenticated PostgreSQL, Redis-materialization, and actual edge
+  snapshot revision timing from a caller-supplied commit timestamp.
+
+Validation command shape:
+
+    docker run --rm -v "${PWD}:/work" -w /work grafana/k6:1.7.1@sha256:4fd3a694926b064d3491d9b02b01cde886583c4931f1223816e3d9a7bdfa7e0f inspect tests/performance/k6/<script>.js
+
+All three inspections exited 0. No requests were sent. The native k6 HTTP client buffers SSE, so
+the reconnect workload treats a configured hold timeout as an accepted long-lived connection; it
+does not validate individual SSE frames. Event semantics remain covered by SDK/integration tests.
+Use an SSE-capable extension only after reviewing and pinning its supply-chain artifact.
+
+## 5. Failure-drill evidence
+
+The exact focused command and outcome table are recorded in
+`docs/18_FAILURE_MODES_RUNBOOKS.md`. At implementation SHA `993980f`, the final run completed
+with 12 passing `ControlPlanePostgresIT` cases and one passing `DistributionPipelineIT` drill.
+It exercised tenant-scoped revision diagnosis, rollback, durable outbox behavior, invalid envelope
+failure, duplicate safety, Kafka pause/recovery, projector pause/recovery, Redis flush/rebuild and
+outage fallback, two edges, edge restart, and Java SDK LKG. No config/revision loss occurred.
+
+The test-class durations are not recovery-time measurements. Production detection and recovery
+time remain deployment-specific.
+
+## 6. Observability asset validation
+
+The following validations completed successfully:
+
+- Compose interpolation/configuration for the `observability` profile with ephemeral validation
+  placeholders;
+- Prometheus `promtool check config`: one rule file and four valid rules;
+- OpenTelemetry Collector `validate` against the committed configuration;
+- an isolated Compose start reached ready/healthy state for the collector, Prometheus, and Grafana,
+  then removed its containers, network, and volumes cleanly;
+- unit/HTTP tests for bounded metric tags and correlation echo/reuse;
+- the real tenant test proving cross-organization diagnostic access returns `404`.
+
+Grafana background plugin preinstallation is disabled so the provisioned local dashboard does not
+depend on mutable downloads. The local collector intentionally uses the debug trace exporter.
+Selecting and securing a durable trace backend belongs to the deployment environment; it is not
+silently introduced here.
+
+## 7. Final validation
+
+The final Prompt 11 tree passed these applicable repository gates on 2026-08-17:
+
+- `.\mvnw.cmd --batch-mode --no-transfer-progress verify`: all 13 reactor modules succeeded;
+- `.\mvnw.cmd --batch-mode --no-transfer-progress -pl tests/integration-tests -am verify
+  -Pintegration`: 26 integration cases passed with no failures, errors, or skips;
+- locked Node 24.19.0/pnpm 11.21.0 container run: formatting, lint, type-check, 21 unit
+  tests, and all production builds passed;
+- `python eng/validate_docs.py`: 78 backlog issues and 16 Codex prompts passed;
+- all committed JSON templates, contracts, the Grafana dashboard, and the raw JMH artifact parsed
+  successfully;
+- all Compose profiles resolved, and the three pinned k6 inspections passed without sending
+  requests.
+
+## 8. Follow-up boundary
+
+No LF-1001 through LF-1006 correctness gap remains. Before making any public capacity statement,
+run the committed k6 workloads on a controlled multi-instance deployment and complete
+`tests/performance/load-report-template.md`. M11 owns container images and Helm deployment;
+M12 owns release-performance gates and supply-chain automation.
 
 ---
 

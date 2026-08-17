@@ -221,7 +221,14 @@ Recommended behavior:
 
 In-memory last-known-good behavior is required in Milestone 3: a transient refresh failure or invalid newer snapshot never replaces the active valid snapshot.
 
-Durable local-file persistence is deferred to LF-1005 in Milestone 10. When implemented, it optionally persists the most recently validated snapshot using an atomic write/rename pattern.
+M10 implements optional durable Java LKG through
+`LaunchForgeClient.Builder.durableLastKnownGood(Path)`. At construction the client reads at most
+the normal five-MiB snapshot limit, rejects symbolic links/non-regular files, performs the complete
+schema/checksum compilation before activation, and ignores corrupt or unreadable state. A validated
+newer remote snapshot is persisted best-effort through a same-directory temporary file, file flush,
+owner-only POSIX permissions where supported, and atomic replace. Persistence failure cannot replace
+the active in-memory snapshot or change evaluation results. A stale remote revision cannot overwrite
+a newer durable revision. The evaluation hot path never reads or writes disk.
 
 Startup order:
 

@@ -18,6 +18,9 @@
 - Finalized the M7 leased outbox, environment-keyed revision event, monotonic Redis materialization, global bounded invalidation, Redis-first edge fallback, and failure-recovery operating contracts.
 - Finalized the M8 privacy-minimized evaluation event, separate server/browser ingestion paths, ClickHouse retention and aggregation contract, bounded operational query semantics, and analytics failure-isolation runbook.
 - Finalized the M9 threat review, SDK credential hardening, distributed abuse controls, browser security headers, privacy-safe logging, and governed audit export/retention contracts.
+- Finalized the M10 telemetry/correlation contract, bounded metric and revision-diagnostic model,
+  reproducible benchmark/load methodology, durable Java SDK LKG behavior, and executed failure
+  drill evidence without converting local measurements into production claims.
 
 ### Implementation
 
@@ -55,3 +58,9 @@
 - Added digest-pinned ClickHouse 26.7.1.1315, a 90-day privacy-bounded MergeTree schema, duplicate-tolerant aggregate queries, a tenant-authorized operational analytics UI, Micrometer ingestion/worker/query signals, and real ClickHouse integration coverage for storage, retention, privacy, and duplicate handling.
 - Implemented LF-0901–LF-0906 with constant-time server SDK-key verification and unknown-pepper rejection, Redis-backed per-credential/IP rate limits, cluster-wide SSE leases, bounded request bodies, hardened browser headers, and privacy-safe request logging.
 - Added tenant-governed CSV audit export and preview-confirm retention deletion with PostgreSQL enforcement, plus unit, HTTP-contract, PostgreSQL, and two-edge Redis integration evidence for security boundaries and failure-safe behavior.
+- Implemented LF-1001–LF-1006 with opt-in OpenTelemetry/W3C propagation, bounded correlation IDs,
+  Prometheus metrics, alert examples, a provisioned Grafana dashboard, and a tenant-authorized
+  PostgreSQL/outbox/Redis revision diagnostic.
+- Added the isolated JMH evaluator harness and raw allocation-profiled result artifact, reproducible
+  k6 snapshot/SSE/convergence workloads, optional atomic Java SDK file LKG, digest-pinned local
+  observability services, and successful PostgreSQL/Kafka/Redis/two-edge failure-drill evidence.

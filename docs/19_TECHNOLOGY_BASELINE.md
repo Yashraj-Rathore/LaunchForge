@@ -49,6 +49,10 @@ Verified against official release sources on **2026-08-10**; M1-owned tools were
 | Apache Kafka | `4.3.1`; image `apache/kafka:4.3.1`; manifest `sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837` | M7 |
 | Redis | `8.2.8`; image `redis:8.2.8-bookworm`; manifest `sha256:2f7462b9e93e0a7ae2edf3a0a0babc8a4d29f8bfc50849b906b7caaef925edc1` | M7 |
 | ClickHouse | `26.7.1.1315`; image `clickhouse:26.7.1.1315`; manifest `sha256:16537a9270ad63acbbee437ebbb826ea62b49690e863ae33e2fc5c16b7d9466c` | M8 |
+| OpenTelemetry Collector Contrib | `0.158.0`; image `otel/opentelemetry-collector-contrib:0.158.0`; manifest `sha256:c5918f78992ee73b0d6f0e599423ac5ec52dd5d9726733114d6eca53d5a32ed5` | M10 |
+| Prometheus | `3.13.1` LTS; image `prom/prometheus:v3.13.1`; manifest `sha256:3c42b892cf723fa54d2f262c37a0e1f80aa8c8ddb1da7b9b0df9455a35a7f893` | M10 |
+| Grafana OSS | `13.0.2`; image `grafana/grafana:13.0.2`; manifest `sha256:5dad0df181cb644a14e13617b913b261a54f7d4fd4510721dba420929f35bea2` | M10 |
+| k6 | `1.7.1`; image `grafana/k6:1.7.1`; manifest `sha256:4fd3a694926b064d3491d9b02b01cde886583c4931f1223816e3d9a7bdfa7e0f` | M10 |
 | Docker Engine | tested-tooling target `29.6.2` | M0 developer environment |
 | Docker Compose | tested-tooling target `5.4.0` | M0 developer environment |
 | Kubernetes | tested deployment target `1.36.2` | Re-verify in M11 |
@@ -67,6 +71,10 @@ Official verification references:
 - PostgreSQL: <https://www.postgresql.org/support/versioning/> and <https://hub.docker.com/_/postgres>
 - Kafka/Redis/Keycloak: <https://kafka.apache.org/community/downloads/>, <https://hub.docker.com/r/apache/kafka/tags>, <https://download.redis.io/releases/>, <https://hub.docker.com/_/redis>, <https://www.keycloak.org/2026/07/keycloak-2670-released>, and <https://github.com/keycloak/keycloak/releases/tag/26.7.0>
 - ClickHouse: <https://hub.docker.com/_/clickhouse/tags> and <https://hub.docker.com/_/clickhouse>
+- OpenTelemetry Collector: <https://github.com/open-telemetry/opentelemetry-collector-releases/releases>
+- Prometheus: <https://prometheus.io/download/>
+- Grafana: <https://grafana.com/grafana/download/>
+- k6: <https://grafana.com/docs/k6/latest/release-notes/>
 - Docker/Kubernetes/Helm: <https://docs.docker.com/engine/release-notes/29/>, <https://github.com/docker/compose/releases>, <https://kubernetes.io/releases/>, and <https://github.com/helm/helm/releases>
 
 LF-0003 resolved and recorded the PostgreSQL image manifest digest after a successful pull. Compose uses the readable tag and digest together, so a tag move cannot silently change the local database image. PostgreSQL 18 Compose volumes mount the image's version-appropriate data root at `/var/lib/postgresql`, not the older `/var/lib/postgresql/data` path.
@@ -77,6 +85,12 @@ LF-0803 re-verified the official ClickHouse image when M8 began on **2026-08-13*
 real integration test use the readable `26.7.1.1315` tag together with the multi-platform manifest
 digest above. The application uses Java's standard HTTP client for bounded inserts and aggregate
 queries, so M8 adds no ClickHouse client-library dependency to the domain or SDK hot path.
+
+LF-1001/LF-1002/LF-1004 re-verified the official collector, Prometheus LTS, Grafana OSS, and k6
+releases on **2026-08-17**, then pulled and recorded the multi-platform manifest digests above.
+LF-1003 uses JMH 1.37 in its own Maven module, following the OpenJDK recommendation to isolate the
+benchmark harness from production artifacts. The Spring Boot OpenTelemetry starter remains managed
+by the existing Spring Boot 4.1.0 dependency baseline.
 
 ### M0 build and quality pins
 
@@ -92,6 +106,7 @@ The M0 reactor and workspace additionally pin:
 | Maven Compiler / Enforcer / Surefire / Failsafe | `3.15.0` / `3.6.3` / `3.5.6` / `3.5.6` |
 | ESLint / Prettier | `10.8.1` / `3.9.6` |
 | Java JSON Canonicalization | `io.github.erdtman:java-json-canonicalization:1.1` |
+| JMH / Maven Shade Plugin | `1.37` / `3.6.2` |
 
 The root `pom.xml`, JavaScript package manifests, `pnpm-lock.yaml`, and SHA-pinned GitHub Actions are the executable source of truth for transitive and CI-tool versions.
 

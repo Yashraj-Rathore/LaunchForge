@@ -303,3 +303,28 @@ M9 adds `launchforge.security.rate.limit` counters with only `plane=control|edge
 fixed distributed-rejection/local-fallback outcomes. Request-completion logging is deliberately
 limited to method, route family, and status; identifiers remain available through safe product
 audit where appropriate, not operational request logs.
+
+## 16. M10 implementation baseline
+
+Control API, Config Edge, and Event Worker expose Prometheus meters and use ECS structured console
+logging. Each HTTP ingress accepts only a 1-to-64 character correlation ID matching
+`[A-Za-z0-9._-]`; otherwise it generates a UUID. The chosen ID is echoed in
+`X-Correlation-ID`, placed in safe completion logs, and reused in problem responses. W3C
+`traceparent` propagation is configured; arbitrary baggage is not copied to metrics or logs.
+
+M10 adds fixed-cardinality publication counters/timers, snapshot outcome/duration meters by
+server/browser credential class, active/opened/closed/rejected SSE signals, bounded stream
+authentication denials, outbox dispatch duration, and Kafka/reconciliation projection duration.
+Spring Kafka producer/listener observation carries W3C context when telemetry is enabled. Trace
+export is disabled by default behind `LAUNCHFORGE_OTEL_ENABLED`; OTLP metrics push remains
+separately disabled because Prometheus is the selected metrics path.
+
+The authenticated revision diagnostic compares PostgreSQL current revision and outbox state with
+the nullable Redis materialized revision. It uses normal tenant authorization and never exposes
+snapshot content, credentials, actor data, or arbitrary labels.
+
+The optional local `observability` Compose profile provides a digest-pinned OpenTelemetry
+Collector, Prometheus, and authenticated Grafana. Prometheus rule examples cover outbox age,
+projection errors, snapshot error rate, and stream authentication denials. Their thresholds are
+examples to tune from deployment measurements, not achieved SLOs. The provisioned reliability
+dashboard focuses on outbox age, projection/snapshot outcomes, active streams, and snapshot p95.

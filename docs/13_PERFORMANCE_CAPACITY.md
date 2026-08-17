@@ -226,6 +226,18 @@ analytics. Exact defaults live in each process's `application.yml` and `.env.exa
 
 Resume bullet must link to or be reproducible from this evidence.
 
+M10 implements the executable JMH module and k6 suites under `tests/performance/`. The JMH jar
+benchmarks boolean/default, matching-rule, permitted 100-rule worst-position, percentage rollout,
+and JSON variation evaluation with the GC allocation profiler. The raw artifact and honest host
+report are in `tests/performance/results/2026-08-17/` and
+`docs/23_RELIABILITY_PERFORMANCE_REPORT.md`.
+
+The k6 scripts cover conditional/cold snapshot reads, reconnecting SSE connection pressure, and
+authenticated revision convergence polling. The committed M10 run validates script configuration
+only; it does not claim HTTP capacity, SSE scale, or convergence latency. A controlled deployment
+and completed `tests/performance/load-report-template.md` are mandatory before publishing such a
+claim.
+
 ## 13. Example acceptable claim format
 
 Only after measuring:

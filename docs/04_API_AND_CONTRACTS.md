@@ -108,6 +108,15 @@ Production change reason is required.
 
 These project/environment/flag/draft/publication routes are implemented by M2. Mutable updates, draft replacement, publication, reseeding, and rollback require `If-Match`; missing preconditions return `428` and stale versions return `409`. Request bodies never accept tenant ownership or rollout salt. Cohort reseeding is a separate reason-required audited operation. History summaries omit snapshot content, a single-revision read returns the immutable canonical snapshot, and structured diff reports added, removed, and changed flag keys without exposing actor or audit internals.
 
+M10 adds `GET /api/v1/environments/{environmentId}/diagnostics/revision`. It is an authenticated
+management read protected by the normal organization membership boundary. The bounded response
+contains the environment UUID, PostgreSQL current revision, nullable Redis materialized revision,
+edge-resolvable revision, pending/failed outbox counts, oldest pending age in milliseconds, and one
+of `CURRENT`, `PENDING`, `FAILED`, or `UNMATERIALIZED`. It never returns snapshot content,
+keys, actor data, or arbitrary identifiers. When Redis is unavailable, edge-resolvable revision is
+the PostgreSQL revision because the edge has an explicitly bounded PostgreSQL fallback; the nullable
+Redis field and status make that degraded state visible.
+
 Flag creation accepts `BOOLEAN`, `STRING`, `NUMBER`, or `JSON`, a `clientVisible` decision, and two to ten variations. JSON token types must exactly match the declared flag type; there is no implicit coercion.
 
 M6 extends flag update with an optional `variations` array containing each existing stable variation
