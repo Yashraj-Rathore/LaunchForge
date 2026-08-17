@@ -13,3 +13,8 @@ launchforge:
   security:
     abuse:
       redis-enabled: false
+
+management:
+  health:
+    redis:
+      enabled: false

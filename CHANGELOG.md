@@ -65,4 +65,5 @@
   k6 snapshot/SSE/convergence workloads, optional atomic Java SDK file LKG, digest-pinned local
   observability services, and successful PostgreSQL/Kafka/Redis/two-edge failure-drill evidence.
 - Fixed Compose validation in the repository-contract and identity smoke CI jobs by supplying the
-  required local-only Grafana placeholder alongside the existing service placeholders.
+  required local-only Grafana placeholder alongside the existing service placeholders, and kept
+  the Redis-free local identity profile healthy by disabling only its Redis health contributor.
