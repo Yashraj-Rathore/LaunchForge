@@ -35,7 +35,7 @@ jobs:
           java-version: 25.0.4+7.0.LTS
           cache: maven
       - name: Populate the locked Maven dependency cache for Trivy
-        run: bash ./mvnw --batch-mode --no-transfer-progress dependency:resolve -DskipTests
+        run: bash ./mvnw --batch-mode --no-transfer-progress package -DskipTests
       - name: Scan proposed Git history for secrets
         uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
