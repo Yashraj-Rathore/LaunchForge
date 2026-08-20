@@ -11,6 +11,20 @@ $captureDemoScript = Join-Path $PSScriptRoot 'demo.ps1'
 $captureEnvPath = Join-Path $captureRepoRoot '.env'
 $captureMediaPath = Join-Path $captureRepoRoot 'demos/demo-media'
 $captureImage = 'launchforge-demo-capture:local'
+$captureContainer = "launchforge-demo-capture-$PID"
+$captureContainerCreated = $false
+$captureArtifacts = @(
+    '01-flag-workspace.png',
+    '02-targeting-and-rollout.png',
+    '03-deterministic-simulator.png',
+    '04-storefront-ten-percent.png',
+    '05-live-rollout-update.png',
+    '06-kill-switch.png',
+    '07-immutable-revisions.png',
+    '08-audit-trail.png',
+    'launchforge-admin-tour.webm',
+    'northstar-live-update.webm'
+)
 
 function Get-CaptureEnvironmentValue {
     param([string]$Name)
@@ -37,8 +51,7 @@ try {
         throw "Playwright capture image build failed with exit code $LASTEXITCODE"
     }
 
-    $mediaMount = "type=bind,source=$captureMediaPath,target=/workspace/demos/demo-media"
-    & docker run --rm --network host --mount $mediaMount `
+    & docker create --name $captureContainer --network host `
         --env LAUNCHFORGE_DEMO_CAPTURE `
         --env LAUNCHFORGE_DEMO_STEP_DELAY_MS `
         --env LAUNCHFORGE_E2E_BASE_URL `
@@ -46,11 +59,29 @@ try {
         --env LAUNCHFORGE_E2E_PASSWORD `
         $captureImage
     if ($LASTEXITCODE -ne 0) {
+        throw "Unable to create the Playwright capture container. Exit code: $LASTEXITCODE"
+    }
+    $captureContainerCreated = $true
+
+    & docker start --attach $captureContainer
+    if ($LASTEXITCODE -ne 0) {
         throw "Playwright demo capture failed with exit code $LASTEXITCODE"
+    }
+
+    foreach ($artifact in $captureArtifacts) {
+        $containerSource = "${captureContainer}:/workspace/demos/demo-media/$artifact"
+        $localDestination = Join-Path $captureMediaPath $artifact
+        & docker cp $containerSource $localDestination
+        if ($LASTEXITCODE -ne 0) {
+            throw "Unable to copy captured artifact $artifact. Exit code: $LASTEXITCODE"
+        }
     }
     Write-Host 'Captured real-system screenshots and videos under demos/demo-media/.' -ForegroundColor Green
 }
 finally {
+    if ($captureContainerCreated) {
+        & docker rm --force $captureContainer | Out-Null
+    }
     Remove-Item Env:LAUNCHFORGE_DEMO_CAPTURE -ErrorAction SilentlyContinue
     Remove-Item Env:LAUNCHFORGE_DEMO_STEP_DELAY_MS -ErrorAction SilentlyContinue
     Remove-Item Env:LAUNCHFORGE_E2E_BASE_URL -ErrorAction SilentlyContinue

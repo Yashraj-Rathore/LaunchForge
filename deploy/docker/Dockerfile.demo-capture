@@ -4,6 +4,7 @@ ARG NODE_IMAGE=node:24.19.0-bookworm-slim@sha256:3638d9a6fe4030bd716be9894382480
 FROM ${NODE_IMAGE}
 
 WORKDIR /workspace
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 RUN corepack enable && corepack prepare pnpm@11.21.0 --activate
 
@@ -16,8 +17,12 @@ COPY sdks/javascript/packages/react/package.json sdks/javascript/packages/react/
 COPY tests/e2e/package.json tests/e2e/package.json
 
 RUN pnpm install --frozen-lockfile \
-    && pnpm --filter @launchforge/e2e exec playwright install --with-deps chromium
+    && pnpm --filter @launchforge/e2e exec playwright install --with-deps chromium \
+    && chown -R node:node /ms-playwright
 
 COPY tests/e2e/ tests/e2e/
+RUN mkdir -p /workspace/demos/demo-media && chown -R node:node /workspace/demos
 
-CMD ["pnpm", "--filter", "@launchforge/e2e", "exec", "playwright", "test", "-g", "deliberate real-system recruiter walkthrough"]
+WORKDIR /workspace/tests/e2e
+USER node
+CMD ["./node_modules/.bin/playwright", "test", "-g", "deliberate real-system recruiter walkthrough"]
