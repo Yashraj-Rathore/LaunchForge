@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider, useMutation, useQuery } from '@tansta
 import { useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from './api';
+import { Icon } from './Icon';
 import { AuditPage } from './pages/AuditPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { FlagEditorPage, FlagsPage } from './pages/FlagsPage';
@@ -256,12 +257,60 @@ function Login() {
   return (
     <main className="auth-shell">
       <section aria-labelledby="login-heading" className="auth-card">
-        <p className="eyebrow">LaunchForge / Control plane</p>
-        <h1 id="login-heading">Ship changes with a paper trail.</h1>
-        <p>Sign in through the configured OpenID Connect provider. Tokens remain server-side.</p>
-        <a className="button primary" href="/oauth2/authorization/keycloak">
-          Sign in with OpenID Connect
-        </a>
+        <div className="auth-brand">
+          <span className="brand-mark large" aria-hidden="true">
+            <i />
+            <i />
+          </span>
+          <span>
+            <strong>LaunchForge</strong>
+            <small>Control plane</small>
+          </span>
+        </div>
+        <div className="auth-layout">
+          <div className="auth-copy">
+            <p className="eyebrow">Safe changes, delivered fast</p>
+            <h1 id="login-heading">Ship confidently. Recover instantly.</h1>
+            <p>
+              Control feature delivery, review every change, and keep runtime evaluation local to
+              your applications.
+            </p>
+            <a className="button primary auth-action" href="/oauth2/authorization/keycloak">
+              <span>Sign in with OpenID Connect</span>
+              <Icon name="chevron" size={18} />
+            </a>
+            <p className="auth-security">
+              <Icon name="shield" size={16} />
+              Tokens stay server-side in the same-origin session boundary.
+            </p>
+          </div>
+          <div className="auth-proof" aria-label="Platform capabilities">
+            <span className="auth-proof-label">Built for release control</span>
+            <ul>
+              <li>
+                <Icon name="check" />
+                <span>
+                  <strong>Immutable revisions</strong>
+                  Every publish has a durable history.
+                </span>
+              </li>
+              <li>
+                <Icon name="activity" />
+                <span>
+                  <strong>Local evaluation</strong>
+                  Customer request paths stay independent.
+                </span>
+              </li>
+              <li>
+                <Icon name="revision" />
+                <span>
+                  <strong>Safe rollback</strong>
+                  Restore known-good behavior without rewinding history.
+                </span>
+              </li>
+            </ul>
+          </div>
+        </div>
       </section>
     </main>
   );
@@ -281,6 +330,9 @@ export function StatusPanel({
   return (
     <main className="status-shell">
       <section className={`status-panel ${kind}`} role={kind === 'error' ? 'alert' : 'status'}>
+        <span className="status-icon">
+          <Icon name={kind === 'error' ? 'alert' : 'activity'} />
+        </span>
         <span className="status-kicker">LaunchForge</span>
         <h1>{title}</h1>
         <p>{detail}</p>

@@ -652,6 +652,8 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 
 **Current milestone:** M12 CI/CD supply chain (LF-1201–LF-1205) complete; stop point before Prompt 14 / M13 demo and pilot readiness.
 
+**Admin console refresh:** The M6 console received a responsive visual-system and usability refresh on 2026-08-20, including adaptive navigation, mobile-safe content, flag discovery, and responsive analytics/audit presentation. This does not advance the M13 milestone.
+
 **Specification baseline:** Canonical module paths, snapshot/checksum representation, algorithm-version-1 types and reason codes, milestone dependencies, and exact Prompt 0 toolchain pins were normalized on 2026-08-10.
 
 | Milestone | Issues | Status |
@@ -3312,6 +3314,30 @@ state mounted and directs the operator to reconcile. A failed publish or rollbac
 environment query before a retry so the UI does not imply an uncertain write failed. The dedicated
 Playwright journey covers typed creation, stale conflict, targeting, simulation, production publish,
 key create/rotate/revoke, secret disappearance, audit output, and Viewer denial.
+
+## 16. Responsive visual system baseline
+
+The 2026-08-20 console refresh preserves the M6 operational workflows while establishing one
+responsive, code-native visual system across the authenticated shell and management pages:
+
+- wide screens use a persistent labeled navigation rail and compact workspace controls;
+- intermediate screens collapse the rail without removing navigation destinations;
+- tablet and phone widths use an accessible off-canvas navigation drawer, stacked workspace
+  selectors, and full-width primary actions;
+- dense metric, flag, analytics, audit, revision, and key content becomes cards or labeled stacked
+  rows instead of requiring horizontal scrolling; and
+- the smallest supported browser proof is a 390 x 844 viewport with no document-level horizontal
+  overflow.
+
+Flag discovery includes name/key search, type filtering, and a concise operational summary. The
+flag editor exposes in-page navigation for definition, behavior, targeting, rollout, and simulation,
+while retaining the existing optimistic-concurrency, draft, publish, and authorization boundaries.
+Production environment identity and revision state remain visible before any management action.
+
+The visual system uses semantic navigation and landmarks, visible keyboard focus, screen-reader
+labels for icon-only controls, practical 44px targets, non-color status text, and reduced-motion
+support. Motion is limited to short navigation and surface transitions and is removed when the
+browser requests reduced motion.
 
 ---
 

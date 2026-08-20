@@ -4,6 +4,8 @@
 
 **Current milestone:** M12 CI/CD supply chain (LF-1201–LF-1205) complete; stop point before Prompt 14 / M13 demo and pilot readiness.
 
+**Admin console refresh:** The M6 console received a responsive visual-system and usability refresh on 2026-08-20, including adaptive navigation, mobile-safe content, flag discovery, and responsive analytics/audit presentation. This does not advance the M13 milestone.
+
 **Specification baseline:** Canonical module paths, snapshot/checksum representation, algorithm-version-1 types and reason codes, milestone dependencies, and exact Prompt 0 toolchain pins were normalized on 2026-08-10.
 
 | Milestone | Issues | Status |

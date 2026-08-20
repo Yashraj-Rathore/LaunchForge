@@ -28,6 +28,8 @@
   release manifest, GitHub Environment setup, SBOM/attestation verification, same-digest staging and
   production promotion, fail-closed schema ledger, and separate application/configuration rollback
   procedures.
+- Recorded the responsive M6 console contract for adaptive navigation, mobile-safe content,
+  operational flag discovery, accessibility, and the 390 x 844 browser acceptance viewport.
 
 ### Implementation
 
@@ -57,6 +59,12 @@
 - Added the thin React provider and typed hooks plus a fictional Northstar Commerce storefront and Playwright proof for deterministic targeting, deterministic rollout, live revision activation, and kill-switch rendering without redeploy.
 - Implemented LF-0601–LF-0606 with an authenticated responsive React console for project/environment navigation, typed flag and variation editing, ordered rules, exact rollout allocation, Java-backed draft simulation, publish review, immutable revision history/diff/rollback, SDK key lifecycle, and filtered audit history.
 - Added React Router, TanStack Query, and Zod with exact pins; accessible loading/empty/denied/error states; unmistakable production context; optimistic-conflict messaging that preserves local edits; and Chromium coverage for the production flag journey, key create/rotate/revoke, one-time secrets, and Viewer denial.
+- Overhauled the admin console visual system with a polished responsive shell, icon-led navigation,
+  adaptive project/environment context, mobile drawers, operational metric cards, flag search and
+  type filtering, editor section navigation, rollout visualization, and responsive analytics/audit
+  content without changing control-plane behavior.
+- Extended the Chromium journey with flag-search and 390px mobile navigation/overflow acceptance
+  coverage.
 - Added a tenant-authorized audit read API, stable-ID variation updates in the existing optimistic transaction, and a narrowly isolated Control API simulator that reuses the pure Java SDK evaluator without persisting or logging evaluation context.
 - Implemented LF-0701–LF-0706 with multi-worker expiring outbox leases, broker-acknowledged publication, bounded retry/permanent-failure handling, a versioned additive Kafka contract keyed by environment, and an idempotent PostgreSQL-validating projector.
 - Added atomic monotonic Redis snapshot hashes, a PostgreSQL reconciliation rebuild, one global bounded Pub/Sub hint channel, Redis-first Config Edge reads, monotonic cache backfill, and semaphore-bounded PostgreSQL fallback with cache/projection/outbox metrics.

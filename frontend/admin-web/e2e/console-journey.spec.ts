@@ -24,6 +24,13 @@ test('creates, targets, simulates, publishes, and audits a production flag safel
   await expect(page.getByRole('heading', { name: 'Checkout badge' })).toBeVisible();
   expect(state.createdFlagBody).toMatchObject({ key: 'checkout-badge', type: 'BOOLEAN' });
 
+  const flagSearch = page.getByPlaceholder('Search by flag name or key…');
+  await flagSearch.fill('checkout-badge');
+  await expect(page.getByRole('heading', { name: 'Checkout badge' })).toBeVisible();
+  await flagSearch.fill('missing-flag');
+  await expect(page.getByText('No flags match these filters')).toBeVisible();
+  await flagSearch.clear();
+
   await page.getByRole('heading', { name: 'Checkout badge' }).click();
   await expect(page.getByText('Unpublished draft v1')).toBeVisible();
   await page.getByLabel('Display name').fill('Checkout badge local edit');
@@ -77,6 +84,26 @@ test('keeps a viewer in an explicit read-only state', async ({ page }) => {
   await page.getByRole('link', { name: 'SDK keys' }).click();
   await expect(page.getByText('Key management denied')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Create key' })).toHaveCount(0);
+});
+
+test('keeps workspace navigation usable without horizontal overflow on mobile', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installControlApi(page);
+
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Feature flags' })).toBeVisible();
+  await page.getByRole('button', { name: 'Open navigation' }).click();
+  await expect(page.locator('#workspace-navigation')).toHaveClass(/open/u);
+  await expect(page.getByRole('link', { name: 'SDK keys' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Analytics' })).toBeVisible();
+  await page.locator('.sidebar-close').click();
+  await expect(page.locator('#workspace-navigation')).not.toHaveClass(/open/u);
+
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
 });
 
 interface ControlState {

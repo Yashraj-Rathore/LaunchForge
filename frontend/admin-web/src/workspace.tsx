@@ -1,7 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from './api';
 import { StatusPanel } from './App';
+import { Icon } from './Icon';
+import type { IconName } from './Icon';
 import type { Environment, Organization, Project, Session } from './types';
 
 export interface WorkspaceContext {
@@ -12,9 +15,22 @@ export interface WorkspaceContext {
   readonly environments: readonly Environment[];
 }
 
+const NAVIGATION: readonly {
+  readonly path: string;
+  readonly label: string;
+  readonly icon: IconName;
+}[] = [
+  { path: 'flags', label: 'Flags', icon: 'flag' },
+  { path: 'revisions', label: 'Revisions', icon: 'revision' },
+  { path: 'keys', label: 'SDK keys', icon: 'key' },
+  { path: 'audit', label: 'Audit', icon: 'audit' },
+  { path: 'analytics', label: 'Analytics', icon: 'analytics' },
+];
+
 export function ConsoleShell({ session }: { readonly session: Session }) {
   const { organizationId = '', projectId = '', environmentId = '' } = useParams();
   const navigate = useNavigate();
+  const [navigationOpen, setNavigationOpen] = useState(false);
   const organization = session.organizations.find((candidate) => candidate.id === organizationId);
   const projects = useQuery({
     queryKey: ['projects', organizationId],
@@ -85,84 +101,160 @@ export function ConsoleShell({ session }: { readonly session: Session }) {
     projects: projectValues,
     environments: environmentValues,
   };
+  const initial = session.displayName.trim().charAt(0).toUpperCase() || 'U';
   return (
     <div className={`console ${production ? 'production-console' : ''}`}>
       <a className="skip-link" href="#console-content">
         Skip to content
       </a>
-      <aside className="sidebar">
-        <div className="wordmark">
-          <span>LF</span>
-          <strong>LaunchForge</strong>
-        </div>
-        <nav aria-label="Workspace">
-          <NavLink to={`${base}/flags`}>Flags</NavLink>
-          <NavLink to={`${base}/revisions`}>Revisions</NavLink>
-          <NavLink to={`${base}/keys`}>SDK keys</NavLink>
-          <NavLink to={`${base}/audit`}>Audit</NavLink>
-          <NavLink to={`${base}/analytics`}>Analytics</NavLink>
-        </nav>
-        <div className="sidebar-footer">
-          <span>{session.displayName}</span>
-          <span className="role-chip">{organization.role}</span>
+      {navigationOpen && (
+        <button
+          aria-label="Close navigation"
+          className="navigation-scrim"
+          onClick={() => setNavigationOpen(false)}
+          type="button"
+        />
+      )}
+      <aside
+        aria-label="Primary navigation"
+        className={`sidebar ${navigationOpen ? 'open' : ''}`}
+        id="workspace-navigation"
+      >
+        <div className="sidebar-header">
+          <div className="wordmark">
+            <span className="brand-mark" aria-hidden="true">
+              <i />
+              <i />
+            </span>
+            <span className="brand-copy">
+              <strong>LaunchForge</strong>
+              <small>Control plane</small>
+            </span>
+          </div>
           <button
-            className="text-button"
-            onClick={() => void api.logout().then(() => window.location.assign('/'))}
+            aria-label="Close navigation"
+            className="sidebar-close"
+            onClick={() => setNavigationOpen(false)}
+            type="button"
           >
-            Sign out
+            <Icon name="close" />
+          </button>
+        </div>
+        <span className="nav-section-label">Workspace</span>
+        <nav aria-label="Workspace pages">
+          {NAVIGATION.map((item) => (
+            <NavLink
+              data-label={item.label}
+              key={item.path}
+              onClick={() => setNavigationOpen(false)}
+              to={`${base}/${item.path}`}
+            >
+              <Icon name={item.icon} />
+              <span>{item.label}</span>
+              <Icon className="nav-chevron" name="chevron" size={16} />
+            </NavLink>
+          ))}
+        </nav>
+        <div className="sidebar-scope" aria-label={`Current organization: ${organization.name}`}>
+          <span className="scope-orb" aria-hidden="true">
+            {organization.name.charAt(0).toUpperCase()}
+          </span>
+          <div>
+            <small>Tenant scope</small>
+            <strong>{organization.slug}</strong>
+          </div>
+        </div>
+        <div className="sidebar-footer">
+          <span className="user-avatar" aria-hidden="true">
+            {initial}
+          </span>
+          <div className="user-copy">
+            <strong>{session.displayName}</strong>
+            <span>{organization.role}</span>
+          </div>
+          <button
+            aria-label="Sign out"
+            className="logout-button"
+            onClick={() => void api.logout().then(() => window.location.assign('/'))}
+            title="Sign out"
+            type="button"
+          >
+            <Icon name="logout" />
           </button>
         </div>
       </aside>
       <div className="console-main">
         <header className="context-bar">
-          <div>
-            <span className="context-label">Organization</span>
-            <strong>{organization.name}</strong>
+          <button
+            aria-controls="workspace-navigation"
+            aria-expanded={navigationOpen}
+            aria-label="Open navigation"
+            className="navigation-toggle"
+            onClick={() => setNavigationOpen(true)}
+            type="button"
+          >
+            <Icon name="menu" />
+          </button>
+          <div className="context-overview">
+            <span className="context-label">Current workspace</span>
+            <div>
+              <strong>{project.name}</strong>
+              <span aria-hidden="true">/</span>
+              <span>{organization.name}</span>
+            </div>
           </div>
-          <label>
-            <span>Project</span>
-            <select
-              aria-label="Project context"
-              value={project.id}
-              onChange={(event) =>
-                void navigate(`/organizations/${organization.id}/projects/${event.target.value}`)
-              }
-            >
-              {projectValues.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {candidate.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>Environment</span>
-            <select
-              aria-label="Environment context"
-              value={environment.id}
-              onChange={(event) =>
-                void navigate(
-                  `/organizations/${organization.id}/projects/${project.id}/environments/${event.target.value}/flags`,
-                )
-              }
-            >
-              {environmentValues.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {candidate.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="context-selectors">
+            <label>
+              <span>Project</span>
+              <select
+                aria-label="Project context"
+                value={project.id}
+                onChange={(event) =>
+                  void navigate(`/organizations/${organization.id}/projects/${event.target.value}`)
+                }
+              >
+                {projectValues.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {candidate.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Environment</span>
+              <select
+                aria-label="Environment context"
+                value={environment.id}
+                onChange={(event) =>
+                  void navigate(
+                    `/organizations/${organization.id}/projects/${project.id}/environments/${event.target.value}/flags`,
+                  )
+                }
+              >
+                {environmentValues.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {candidate.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
           <div className={`environment-badge ${production ? 'production' : ''}`}>
-            <span>{environment.kind}</span>
-            <strong>{environment.name}</strong>
+            <span className="environment-dot" aria-hidden="true" />
+            <div>
+              <span>{environment.kind}</span>
+              <strong>{environment.name}</strong>
+            </div>
             <small>Published revision {environment.currentRevision}</small>
           </div>
         </header>
         {production && (
           <div className="production-banner" role="status">
-            <strong>Production environment</strong>
-            <span>Changes require an authorized role, explicit review, and a human reason.</span>
+            <Icon name="alert" size={18} />
+            <div>
+              <strong>Production environment</strong>
+              <span>Review impact and provide a reason before publishing.</span>
+            </div>
           </div>
         )}
         <main id="console-content" className="content">

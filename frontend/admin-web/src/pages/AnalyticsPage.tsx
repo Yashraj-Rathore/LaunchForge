@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { api, ApiError } from '../api';
+import { Icon } from '../Icon';
 import type { WorkspaceContext } from '../workspace';
 import { PageError, PageHeading, PageState } from './FlagsPage';
 
@@ -45,6 +46,15 @@ export function AnalyticsPage() {
         </span>
       </div>
       <section className="panel analytics-filters" aria-label="Analytics filters">
+        <div className="filter-intro">
+          <span className="metric-icon violet">
+            <Icon name="analytics" />
+          </span>
+          <div>
+            <strong>Explore evaluation volume</strong>
+            <span>Filters update the bounded operational query automatically.</span>
+          </div>
+        </div>
         <label>
           From
           <input
@@ -104,6 +114,24 @@ export function AnalyticsPage() {
         />
       ) : (
         <section className="panel analytics-results" aria-label="Operational evaluation counts">
+          <div className="analytics-summary">
+            <div>
+              <span>Total evaluations</span>
+              <strong>
+                {analytics.data.rows
+                  .reduce((total, row) => total + row.evaluations, 0)
+                  .toLocaleString()}
+              </strong>
+            </div>
+            <div>
+              <span>Matching series</span>
+              <strong>{analytics.data.rows.length.toLocaleString()}</strong>
+            </div>
+            <div>
+              <span>Time granularity</span>
+              <strong>{bucket === 'HOUR' ? 'Hourly' : 'Daily'}</strong>
+            </div>
+          </div>
           <p className="help">{analytics.data.interpretation}</p>
           <div className="analytics-table-wrap">
             <table className="analytics-table">
@@ -118,14 +146,14 @@ export function AnalyticsPage() {
               <tbody>
                 {analytics.data.rows.map((row) => (
                   <tr key={`${row.bucketStart}:${row.flagKey}:${row.variationId ?? ''}`}>
-                    <td>{new Date(row.bucketStart).toLocaleString()}</td>
-                    <td>
+                    <td data-label="Bucket">{new Date(row.bucketStart).toLocaleString()}</td>
+                    <td data-label="Flag">
                       <code>{row.flagKey}</code>
                     </td>
-                    <td>
+                    <td data-label="Variation">
                       <code>{row.variationId ?? 'none'}</code>
                     </td>
-                    <td>{row.evaluations.toLocaleString()}</td>
+                    <td data-label="Evaluations">{row.evaluations.toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>

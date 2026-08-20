@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { api } from '../api';
+import { Icon } from '../Icon';
 import type { AuditEvent } from '../types';
 import type { WorkspaceContext } from '../workspace';
 import { PageError, PageHeading, PageState } from './FlagsPage';
@@ -35,6 +36,15 @@ export function AuditPage() {
         detail="Browse safe mutation metadata. Credentials, cookies, authorization headers, and evaluation context are never rendered here."
       />
       <section className="panel audit-filters" aria-label="Audit filters">
+        <div className="filter-intro">
+          <span className="metric-icon blue">
+            <Icon name="audit" />
+          </span>
+          <div>
+            <strong>Filter activity</strong>
+            <span>Results stay scoped to this server-authorized organization.</span>
+          </div>
+        </div>
         <label>
           Actor subject
           <input
@@ -71,6 +81,19 @@ export function AuditPage() {
           />
           Only {workspace.environment.name}
         </label>
+        <button
+          className="button ghost clear-filters"
+          onClick={() => {
+            setActor('');
+            setAction('');
+            setFrom('');
+            setTo('');
+            setEnvironmentOnly(false);
+          }}
+          type="button"
+        >
+          Clear filters
+        </button>
       </section>
       {events.isPending ? (
         <PageState title="Loading audit events" detail="Reading tenant-scoped activity…" />

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link, useOutletContext, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { canEdit, canPublish, MutationError, queryClient } from '../App';
+import { Icon } from '../Icon';
 import {
   createFlagPayload,
   editableDraft,
@@ -35,6 +36,8 @@ export function FlagsPage() {
     queryFn: () => api.flags(workspace.project.id),
   });
   const [creating, setCreating] = useState(false);
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState<FlagType | 'ALL'>('ALL');
   if (flags.isPending)
     return (
       <PageState title="Loading flags" detail="Reading the server-scoped project configuration…" />
@@ -42,6 +45,16 @@ export function FlagsPage() {
   if (flags.isError)
     return <PageError title="Flags unavailable" error={flags.error} retry={flags.refetch} />;
   const active = flags.data.filter((flag) => flag.status === 'ACTIVE');
+  const normalizedSearch = search.trim().toLocaleLowerCase();
+  const visible = active.filter(
+    (flag) =>
+      (typeFilter === 'ALL' || flag.type === typeFilter) &&
+      (normalizedSearch === '' ||
+        flag.name.toLocaleLowerCase().includes(normalizedSearch) ||
+        flag.key.toLocaleLowerCase().includes(normalizedSearch)),
+  );
+  const browserVisible = active.filter((flag) => flag.clientVisible).length;
+  const typeCount = new Set(active.map((flag) => flag.type)).size;
   return (
     <>
       <PageHeading
@@ -51,12 +64,82 @@ export function FlagsPage() {
         action={
           canEdit(workspace.organization.role) ? (
             <button className="button primary" onClick={() => setCreating((value) => !value)}>
+              <Icon name={creating ? 'close' : 'plus'} size={18} />
               {creating ? 'Close editor' : 'Create flag'}
             </button>
           ) : undefined
         }
       />
       {creating && <CreateFlagPanel workspace={workspace} onCreated={() => setCreating(false)} />}
+      <section className="metric-strip" aria-label="Flag summary">
+        <article>
+          <span className="metric-icon violet">
+            <Icon name="flag" />
+          </span>
+          <div>
+            <strong>{active.length}</strong>
+            <span>Active flags</span>
+          </div>
+        </article>
+        <article>
+          <span className="metric-icon green">
+            <Icon name="activity" />
+          </span>
+          <div>
+            <strong>{workspace.environment.currentRevision}</strong>
+            <span>Published revision</span>
+          </div>
+        </article>
+        <article>
+          <span className="metric-icon blue">
+            <Icon name="shield" />
+          </span>
+          <div>
+            <strong>{browserVisible}</strong>
+            <span>Browser visible</span>
+          </div>
+        </article>
+        <article>
+          <span className="metric-icon amber">
+            <Icon name="analytics" />
+          </span>
+          <div>
+            <strong>{typeCount}</strong>
+            <span>Flag types in use</span>
+          </div>
+        </article>
+      </section>
+      {active.length > 0 && (
+        <section className="list-toolbar" aria-label="Filter flags">
+          <label className="search-field">
+            <span className="visually-hidden">Search flags</span>
+            <Icon name="search" size={18} />
+            <input
+              placeholder="Search by flag name or key…"
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+          <label className="compact-filter">
+            <span>Type</span>
+            <select
+              aria-label="Filter by flag type"
+              value={typeFilter}
+              onChange={(event) => setTypeFilter(event.target.value as FlagType | 'ALL')}
+            >
+              <option value="ALL">All types</option>
+              <option value="BOOLEAN">Boolean</option>
+              <option value="STRING">String</option>
+              <option value="NUMBER">Number</option>
+              <option value="JSON">JSON</option>
+            </select>
+          </label>
+          <span className="result-count" role="status">
+            {visible.length} of {active.length}
+          </span>
+        </section>
+      )}
       {active.length === 0 ? (
         <PageState
           title="No active flags"
@@ -66,20 +149,37 @@ export function FlagsPage() {
               : 'This project has no active flags. Your role is read-only.'
           }
         />
+      ) : visible.length === 0 ? (
+        <PageState
+          title="No flags match these filters"
+          detail="Try a different name, key, or flag type."
+        />
       ) : (
         <div className="flag-grid">
-          {active.map((flag) => (
+          {visible.map((flag) => (
             <Link className="flag-card" key={flag.id} to={flag.id}>
-              <div>
-                <code>{flag.key}</code>
+              <div className="flag-card-topline">
+                <span className="flag-status">
+                  <i /> Active
+                </span>
                 <span className="type-chip">{flag.type}</span>
               </div>
-              <h2>{flag.name}</h2>
-              <p>
-                {flag.variations.length} typed variations ·{' '}
-                {flag.clientVisible ? 'Browser visible' : 'Server only'}
-              </p>
-              <span className="card-link">Open {workspace.environment.name} draft →</span>
+              <div className="flag-card-title">
+                <span className="flag-glyph">
+                  <Icon name="flag" size={19} />
+                </span>
+                <div>
+                  <h2>{flag.name}</h2>
+                  <code>{flag.key}</code>
+                </div>
+              </div>
+              <div className="flag-card-meta">
+                <span>{flag.variations.length} variations</span>
+                <span>{flag.clientVisible ? 'Browser + server' : 'Server only'}</span>
+              </div>
+              <span className="card-link">
+                Open {workspace.environment.name} draft <Icon name="chevron" size={15} />
+              </span>
             </Link>
           ))}
         </div>
@@ -310,6 +410,13 @@ function FlagEditor({
           <strong>Published revision {workspace.environment.currentRevision}</strong>
         </div>
       </div>
+      <nav className="editor-jump-nav" aria-label="Flag editor sections">
+        <a href="#flag-definition">Definition</a>
+        <a href="#environment-behavior">Behavior</a>
+        <a href="#targeting-rules">Targeting</a>
+        <a href="#percentage-rollout">Rollout</a>
+        <a href="#draft-simulator">Simulator</a>
+      </nav>
       {!editable && (
         <div className="notice denied" role="status">
           <strong>Read-only role</strong>
@@ -318,7 +425,7 @@ function FlagEditor({
           </span>
         </div>
       )}
-      <section className="panel editor-panel">
+      <section className="panel editor-panel" id="flag-definition">
         <div className="panel-heading">
           <div>
             <span className="section-kicker">Flag definition</span>
@@ -352,7 +459,7 @@ function FlagEditor({
         )}
         <MutationError error={metadataMutation.error} />
       </section>
-      <section className="panel editor-panel">
+      <section className="panel editor-panel" id="environment-behavior">
         <div className="panel-heading">
           <div>
             <span className="section-kicker">Environment behavior</span>
@@ -440,6 +547,13 @@ function FlagEditor({
       <MutationError error={draftMutation.error} />
       {editable && (
         <div className="sticky-actions">
+          <div className="sticky-action-context">
+            <span className="status-dot" aria-hidden="true" />
+            <span>
+              <strong>Draft changes</strong>
+              Not live until published
+            </span>
+          </div>
           <button
             className="button secondary"
             disabled={draftMutation.isPending}
@@ -552,7 +666,7 @@ function RuleBuilder({
     ]);
   }
   return (
-    <section className="panel editor-panel">
+    <section className="panel editor-panel" id="targeting-rules">
       <div className="panel-heading">
         <div>
           <span className="section-kicker">First match wins</span>
@@ -824,7 +938,7 @@ function RolloutEditor({
     }
   }, [state, variations, onChange]);
   return (
-    <section className="panel editor-panel">
+    <section className="panel editor-panel" id="percentage-rollout">
       <div className="panel-heading">
         <div>
           <span className="section-kicker">Stable 100,000 buckets</span>
@@ -879,6 +993,16 @@ function RolloutEditor({
                   <span>{(allocation.weight / 1000).toFixed(3)}%</span>
                 </div>
               </label>
+            ))}
+          </div>
+          <div className="rollout-visual" aria-label="Percentage allocation preview">
+            {state.allocations.map((allocation, index) => (
+              <span
+                aria-label={`${variations.find((variation) => variation.id === allocation.variationId)?.name ?? allocation.variationId}: ${(allocation.weight / 1000).toFixed(3)} percent`}
+                className={`rollout-segment segment-${(index % 4) + 1}`}
+                key={allocation.variationId}
+                style={{ width: `${allocation.weight / 1000}%` }}
+              />
             ))}
           </div>
           <div
@@ -954,7 +1078,7 @@ function Simulator({
     }
   }
   return (
-    <section className="panel simulator">
+    <section className="panel simulator" id="draft-simulator">
       <div>
         <span className="section-kicker">Server-backed deterministic preview</span>
         <h2>Evaluate this draft</h2>
