@@ -80,3 +80,5 @@
   migration ordering, Edge restart, SDK last-known-good/reconnect, rolling replacement, and
   PostgreSQL/Redis revision correctness; local Trivy scans reported no fixable HIGH/CRITICAL
   findings in the final M11 image set at validation time.
+- Restored the localhost Keycloak issuer default for host-run identity workflows while keeping
+  container and kind origins explicit, preventing OIDC metadata issuer mismatches in CI.

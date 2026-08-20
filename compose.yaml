@@ -30,7 +30,7 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${LAUNCHFORGE_KEYCLOAK_ADMIN_PASSWORD:?Set a local-only Keycloak admin password in .env}
       LAUNCHFORGE_DEMO_USER_PASSWORD: ${LAUNCHFORGE_DEMO_USER_PASSWORD:?Set a local-only demo user password in .env}
       KC_HEALTH_ENABLED: 'true'
-      KC_HOSTNAME: ${LAUNCHFORGE_CONTAINER_OIDC_ORIGIN:-http://host.docker.internal:8081}
+      KC_HOSTNAME: ${LAUNCHFORGE_CONTAINER_OIDC_ORIGIN:-http://localhost:8081}
     ports:
       - '${LAUNCHFORGE_BIND_ADDRESS:-127.0.0.1}:8081:8080'
     volumes:
