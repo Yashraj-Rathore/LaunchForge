@@ -122,6 +122,7 @@ LaunchForge/
     launchforge-control-api/
     launchforge-config-edge/
     launchforge-event-worker/
+    launchforge-migrator/
   frontend/
     admin-web/
   sdks/
@@ -407,6 +408,32 @@ The opt-in local SQL seed includes a fictional Development environment so a succ
 lands directly in the console. The Analytics page handles disabled or unavailable telemetry
 without implying that configuration delivery is degraded.
 
+### Production-shaped deployment
+
+M11 adds five non-root, digest-based production images, an explicit one-shot Flyway migrator, the
+complete profile-driven local Compose topology, and `deploy/helm/launchforge`. Workloads cannot
+start before migrations complete. The chart assumes external PostgreSQL, Kafka, Redis, OIDC, and
+optional ClickHouse; production secret values are supplied only through an existing Kubernetes
+Secret. It includes probes, resource bounds, token-free service accounts, rolling updates,
+management/Edge disruption budgets, a Config Edge HPA, ingress, and NetworkPolicy examples.
+
+Start the complete fictional local stack after creating the ignored `.env` file:
+
+```powershell
+docker compose --profile identity --profile distribution --profile platform --profile demo up -d --build --wait
+```
+
+Validate Helm and execute the repeatable local Kubernetes migration/restart/reconnect proof with:
+
+```powershell
+helm lint deploy/helm/launchforge --strict
+powershell -NoProfile -ExecutionPolicy Bypass -File eng/prove_kind_resilience.ps1
+```
+
+The exact image, Helm, kind, shutdown/reset, secret, and resiliency instructions are in
+`deploy/README.md`. M12 remains responsible for publishing, SBOM/provenance, and environment
+promotion.
+
 On Unix-like systems, use `./mvnw` in place of `.\mvnw.cmd`. After initializing Git on Windows, record the executable bit with `git update-index --chmod=+x mvnw`.
 
 ## Commercial approach
@@ -618,9 +645,9 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 
 # Project Status
 
-**Status:** Prompt 11 reliability, observability, and performance implementation complete.
+**Status:** Prompt 12 production containers, Helm, and local Kubernetes resilience implementation complete.
 
-**Current milestone:** M10 reliability/performance (LF-1001–LF-1006) complete; stop point before Prompt 12 / M11 containers and Helm.
+**Current milestone:** M11 containers/Helm (LF-1101–LF-1104) complete; stop point before Prompt 13 / M12 CI/CD supply chain.
 
 **Specification baseline:** Canonical module paths, snapshot/checksum representation, algorithm-version-1 types and reason codes, milestone dependencies, and exact Prompt 0 toolchain pins were normalized on 2026-08-10.
 
@@ -637,7 +664,7 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 | M8 Analytics | LF-0801–LF-0805 | Complete (2026-08-13) |
 | M9 Security hardening | LF-0901–LF-0906 | Complete (2026-08-17) |
 | M10 Reliability/performance | LF-1001–LF-1006 | Complete (2026-08-17) |
-| M11 Containers/Helm | LF-1101–LF-1104 | Not started |
+| M11 Containers/Helm | LF-1101–LF-1104 | Complete (2026-08-18) |
 | M12 CI/CD supply chain | LF-1201–LF-1205 | Not started |
 | M13 Demo/pilot | LF-1301–LF-1305 | Not started |
 
@@ -743,30 +770,30 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 
 ## M9 Security
 
-- [ ] LF-0901
-- [ ] LF-0902
-- [ ] LF-0903
-- [ ] LF-0904
-- [ ] LF-0905
-- [ ] LF-0906
+- [x] LF-0901
+- [x] LF-0902
+- [x] LF-0903
+- [x] LF-0904
+- [x] LF-0905
+- [x] LF-0906
 
 ## M10 Reliability/performance
 
-- [ ] LF-1001
-- [ ] LF-1002
-- [ ] LF-1003
-- [ ] LF-1004
-- [ ] LF-1005
-- [ ] LF-1006
+- [x] LF-1001
+- [x] LF-1002
+- [x] LF-1003
+- [x] LF-1004
+- [x] LF-1005
+- [x] LF-1006
 
 **Flagship portfolio checkpoint C**
 
 ## M11 Containers/Helm
 
-- [ ] LF-1101
-- [ ] LF-1102
-- [ ] LF-1103
-- [ ] LF-1104
+- [x] LF-1101
+- [x] LF-1102
+- [x] LF-1103
+- [x] LF-1104
 
 ## M12 CI/CD
 
@@ -4589,7 +4616,13 @@ Do not rebuild production from the same Git tag.
 
 Pin third-party Actions by full commit SHA.
 
-The current M0/M1 workflow in `.github/workflows/ci.yml` implements the applicable subset: the Maven reactor and architecture gates, the real PostgreSQL Testcontainers tenancy/session tests, the complete frontend format/lint/typecheck/test/build suite, Compose rendering, documentation and JSON-template validation, and a real Keycloak/seeded-Control-API Playwright identity smoke. Later-milestone gates above are added only when their corresponding artifacts exist. Every third-party Action is SHA-pinned, and service images use readable tags plus immutable manifests.
+The current workflow in `.github/workflows/ci.yml` implements the applicable through-M11 subset: the
+Maven reactor and architecture gates, real PostgreSQL integration tests, the complete frontend
+format/lint/typecheck/test/build suite, selected Playwright flows, all-profile Compose rendering,
+Helm lint/default/local rendering, documentation and JSON-template validation, and a real
+Keycloak/seeded-Control-API identity smoke. Later release/promotion gates above remain M12 work.
+Every third-party Action is SHA-pinned, and validation/service images use readable tags plus
+immutable manifests.
 
 ## 9. Staging
 
@@ -4748,6 +4781,60 @@ Document separately:
 - ClickHouse retention/backup if analytics matters commercially.
 
 LaunchForge code does not claim production DR until restore has been tested.
+
+## 18. M11 container and Kubernetes implementation
+
+LF-1101 through LF-1104 establish the production packaging boundary without implementing the M12
+release pipeline. `deploy/docker/` contains one shared Java workload Dockerfile, a one-shot Flyway
+migrator, and an Nginx-hosted same-origin web image. Builder/runtime images are digest-pinned,
+runtime users are fixed and non-root, and release metadata is supplied through OCI build arguments.
+The long-running images expose health checks; Compose and Kubernetes enforce read-only filesystems,
+bounded writable mounts, dropped capabilities, and no privilege escalation. Local Trivy 0.74.0
+scans of the final images found zero fixable HIGH/CRITICAL OS or JavaScript/JAR findings on
+2026-08-18. Scan results are time-sensitive and must be regenerated for every release.
+
+The root Compose file is now the production-shaped local topology. The `platform` profile adds an
+explicit migration job plus management, Config Edge, Event Worker/projector, and web; `demo` adds
+the fictional seed. Identity and distribution remain explicit profiles, while analytics and
+observability stay optional. `service_completed_successfully` makes migration completion a hard
+workload gate. Long-running services use dependency health gates and retain loopback-only host
+publishing by default. Exact startup, shutdown, and destructive local-volume reset commands are in
+`deploy/README.md`.
+
+`deploy/helm/launchforge/` assumes external PostgreSQL, Kafka, Redis, OIDC, and optional ClickHouse.
+Values hold only endpoints and Secret references. The pre-install/pre-upgrade migration Job blocks
+workloads; application pods never run Flyway. Management, Edge, worker, web, and migration each use
+dedicated service accounts with token automount disabled. The chart supplies startup/readiness/
+liveness probes, resources, rolling strategies, ingress, optional NetworkPolicies, management/Edge
+PDBs, and a Config Edge HPA. `enableServiceLinks: false` prevents Kubernetes-generated service
+variables from colliding with LaunchForge's typed environment variables.
+
+Validate the chart with the exact Helm baseline and render both production defaults and the local
+kind override:
+
+```powershell
+helm lint deploy/helm/launchforge --strict
+helm template launchforge deploy/helm/launchforge --namespace launchforge
+helm template prompt12 deploy/helm/launchforge --namespace launchforge --values deploy/local/kind/values.yaml
+```
+
+The repository CI performs the same lint and two renders using a digest-pinned Helm image. M12 is
+still responsible for image publishing, SBOM/provenance, immutable environment promotion, and
+release gates.
+
+The reproducible local proof is:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File eng/prove_kind_resilience.ps1
+```
+
+It uses kind 0.32.0 and the digest-pinned Kubernetes 1.34.8 node image because the validated local
+Docker Desktop host exposes cgroup v1, which current kind node images no longer accept. Kubernetes
+1.36.3 remains the production rendering target. The proof observes the Flyway hook completion
+before workloads, evaluates revision 1 through the Java SDK, removes Config Edge while the SDK
+continues from last-known-good, reconnects to revision 2, rolls all four application deployments,
+and verifies that PostgreSQL and Redis still report revision 2. This is local resilience evidence,
+not a production availability or capacity claim.
 
 ---
 
@@ -7066,8 +7153,14 @@ Verified against official release sources on **2026-08-10**; M1-owned tools were
 | k6 | `1.7.1`; image `grafana/k6:1.7.1`; manifest `sha256:4fd3a694926b064d3491d9b02b01cde886583c4931f1223816e3d9a7bdfa7e0f` | M10 |
 | Docker Engine | tested-tooling target `29.6.2` | M0 developer environment |
 | Docker Compose | tested-tooling target `5.4.0` | M0 developer environment |
-| Kubernetes | tested deployment target `1.36.2` | Re-verify in M11 |
-| Helm | tested deployment target `4.2.3` | Re-verify in M11 |
+| Kubernetes | tested deployment/rendering target `1.36.3` | M11 |
+| Helm | `4.2.4`; CI image `alpine/helm:4.2.4`; manifest `sha256:76c375eed56144c68d6197c55bc5a4552fb42002190b796729901cbab3ae6e51` | M11 |
+| kind | `0.32.0`; local node `kindest/node:v1.34.8`; manifest `sha256:02722c2dedddcfc00febf5d27fbeb9b7b2c14294c82109ff4a85d89ac9ba3256` | M11 local proof |
+| Maven container builder | `maven:3.9.16-eclipse-temurin-25`; manifest `sha256:1b1fc6d0168ea616afd1c861d6f32ec37c9ec2ffe88a0351b3771dd4ad86b0d8` | M11 |
+| Temurin JRE container | `eclipse-temurin:25-jre-noble`; manifest `sha256:fbcf915c585659b30eb766ada4d6d7cfc9ec1040bf521e95bf61b10a25af73db` | M11 |
+| Node.js container builder | `node:24.19.0-bookworm-slim`; manifest `sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03` | M11 |
+| Nginx runtime | `nginx:1.31.2-alpine3.23`; manifest `sha256:54f2a904c251d5a34adf545a72d32515a15e08418dae0266e23be2e18c66fefa` | M11 |
+| Trivy | `0.74.0`; image manifest `sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969` | M11 local image gate |
 
 TypeScript 7.0 is not the initial pin because its first release does not expose the programmatic API needed by the surrounding tooling ecosystem; re-evaluate TypeScript 7 after 7.1 and full lint/test/build compatibility. Deferred services are documented candidates, not permission to add them before their milestone.
 
@@ -7086,7 +7179,8 @@ Official verification references:
 - Prometheus: <https://prometheus.io/download/>
 - Grafana: <https://grafana.com/grafana/download/>
 - k6: <https://grafana.com/docs/k6/latest/release-notes/>
-- Docker/Kubernetes/Helm: <https://docs.docker.com/engine/release-notes/29/>, <https://github.com/docker/compose/releases>, <https://kubernetes.io/releases/>, and <https://github.com/helm/helm/releases>
+- Docker/Kubernetes/Helm/kind: <https://docs.docker.com/engine/release-notes/29/>, <https://github.com/docker/compose/releases>, <https://kubernetes.io/releases/>, <https://github.com/helm/helm/releases>, and <https://github.com/kubernetes-sigs/kind/releases>
+- Production image bases and scanner: <https://hub.docker.com/_/maven>, <https://hub.docker.com/_/eclipse-temurin>, <https://hub.docker.com/_/node>, <https://hub.docker.com/_/nginx>, and <https://github.com/aquasecurity/trivy/releases>
 
 LF-0003 resolved and recorded the PostgreSQL image manifest digest after a successful pull. Compose uses the readable tag and digest together, so a tag move cannot silently change the local database image. PostgreSQL 18 Compose volumes mount the image's version-appropriate data root at `/var/lib/postgresql`, not the older `/var/lib/postgresql/data` path.
 
@@ -7103,6 +7197,16 @@ LF-1003 uses JMH 1.37 in its own Maven module, following the OpenJDK recommendat
 benchmark harness from production artifacts. The Spring Boot OpenTelemetry starter remains managed
 by the existing Spring Boot 4.1.0 dependency baseline.
 
+LF-1101/LF-1103/LF-1104 re-verified Kubernetes 1.36.3, Helm 4.2.4, and kind 0.32.0 on
+**2026-08-18**, and resolved every M11 container reference to the manifest shown above. The current
+Temurin 25 JRE container still carries the 25.0.3 runtime while the host/CI compiler remains the
+required 25.0.4+7 baseline; it uses the same Java 25 class-file level and is upgraded by digest when
+the 25.0.4 JRE image is published and scanned. The local Docker Desktop test host exposes cgroup v1,
+so kind's current Kubernetes 1.35/1.36 nodes reject kubelet startup. The proof therefore uses the
+last release-compatible cgroup-v1 node, Kubernetes 1.34.8, while Helm lint/template targets current
+Kubernetes 1.36.3. This compatibility exception is local-test infrastructure, not the production
+cluster target.
+
 ### M0 build and quality pins
 
 The M0 reactor and workspace additionally pin:
@@ -7118,6 +7222,8 @@ The M0 reactor and workspace additionally pin:
 | ESLint / Prettier | `10.8.1` / `3.9.6` |
 | Java JSON Canonicalization | `io.github.erdtman:java-json-canonicalization:1.1` |
 | JMH / Maven Shade Plugin | `1.37` / `3.6.2` |
+| PostgreSQL JDBC | `42.7.12` |
+| Netty | `4.2.16.Final` |
 
 The root `pom.xml`, JavaScript package manifests, `pnpm-lock.yaml`, and SHA-pinned GitHub Actions are the executable source of truth for transitive and CI-tool versions.
 

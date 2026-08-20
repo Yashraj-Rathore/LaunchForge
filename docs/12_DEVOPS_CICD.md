@@ -149,7 +149,13 @@ Do not rebuild production from the same Git tag.
 
 Pin third-party Actions by full commit SHA.
 
-The current M0/M1 workflow in `.github/workflows/ci.yml` implements the applicable subset: the Maven reactor and architecture gates, the real PostgreSQL Testcontainers tenancy/session tests, the complete frontend format/lint/typecheck/test/build suite, Compose rendering, documentation and JSON-template validation, and a real Keycloak/seeded-Control-API Playwright identity smoke. Later-milestone gates above are added only when their corresponding artifacts exist. Every third-party Action is SHA-pinned, and service images use readable tags plus immutable manifests.
+The current workflow in `.github/workflows/ci.yml` implements the applicable through-M11 subset: the
+Maven reactor and architecture gates, real PostgreSQL integration tests, the complete frontend
+format/lint/typecheck/test/build suite, selected Playwright flows, all-profile Compose rendering,
+Helm lint/default/local rendering, documentation and JSON-template validation, and a real
+Keycloak/seeded-Control-API identity smoke. Later release/promotion gates above remain M12 work.
+Every third-party Action is SHA-pinned, and validation/service images use readable tags plus
+immutable manifests.
 
 ## 9. Staging
 
@@ -308,3 +314,57 @@ Document separately:
 - ClickHouse retention/backup if analytics matters commercially.
 
 LaunchForge code does not claim production DR until restore has been tested.
+
+## 18. M11 container and Kubernetes implementation
+
+LF-1101 through LF-1104 establish the production packaging boundary without implementing the M12
+release pipeline. `deploy/docker/` contains one shared Java workload Dockerfile, a one-shot Flyway
+migrator, and an Nginx-hosted same-origin web image. Builder/runtime images are digest-pinned,
+runtime users are fixed and non-root, and release metadata is supplied through OCI build arguments.
+The long-running images expose health checks; Compose and Kubernetes enforce read-only filesystems,
+bounded writable mounts, dropped capabilities, and no privilege escalation. Local Trivy 0.74.0
+scans of the final images found zero fixable HIGH/CRITICAL OS or JavaScript/JAR findings on
+2026-08-18. Scan results are time-sensitive and must be regenerated for every release.
+
+The root Compose file is now the production-shaped local topology. The `platform` profile adds an
+explicit migration job plus management, Config Edge, Event Worker/projector, and web; `demo` adds
+the fictional seed. Identity and distribution remain explicit profiles, while analytics and
+observability stay optional. `service_completed_successfully` makes migration completion a hard
+workload gate. Long-running services use dependency health gates and retain loopback-only host
+publishing by default. Exact startup, shutdown, and destructive local-volume reset commands are in
+`deploy/README.md`.
+
+`deploy/helm/launchforge/` assumes external PostgreSQL, Kafka, Redis, OIDC, and optional ClickHouse.
+Values hold only endpoints and Secret references. The pre-install/pre-upgrade migration Job blocks
+workloads; application pods never run Flyway. Management, Edge, worker, web, and migration each use
+dedicated service accounts with token automount disabled. The chart supplies startup/readiness/
+liveness probes, resources, rolling strategies, ingress, optional NetworkPolicies, management/Edge
+PDBs, and a Config Edge HPA. `enableServiceLinks: false` prevents Kubernetes-generated service
+variables from colliding with LaunchForge's typed environment variables.
+
+Validate the chart with the exact Helm baseline and render both production defaults and the local
+kind override:
+
+```powershell
+helm lint deploy/helm/launchforge --strict
+helm template launchforge deploy/helm/launchforge --namespace launchforge
+helm template prompt12 deploy/helm/launchforge --namespace launchforge --values deploy/local/kind/values.yaml
+```
+
+The repository CI performs the same lint and two renders using a digest-pinned Helm image. M12 is
+still responsible for image publishing, SBOM/provenance, immutable environment promotion, and
+release gates.
+
+The reproducible local proof is:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File eng/prove_kind_resilience.ps1
+```
+
+It uses kind 0.32.0 and the digest-pinned Kubernetes 1.34.8 node image because the validated local
+Docker Desktop host exposes cgroup v1, which current kind node images no longer accept. Kubernetes
+1.36.3 remains the production rendering target. The proof observes the Flyway hook completion
+before workloads, evaluates revision 1 through the Java SDK, removes Config Edge while the SDK
+continues from last-known-good, reconnects to revision 2, rolls all four application deployments,
+and verifies that PostgreSQL and Redis still report revision 2. This is local resilience evidence,
+not a production availability or capacity claim.

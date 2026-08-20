@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "launchforge.fullname" . }}-management
+  labels:
+    {{- include "launchforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: management
+spec:
+  replicas: {{ .Values.management.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "launchforge.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: management
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "launchforge.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: management
+      annotations:
+        checksum/runtime-config: {{ toJson (dict "database" .Values.external.database "redis" .Values.external.redis "oidc" .Values.external.oidc) | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "launchforge.fullname" . }}-management
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        {{- include "launchforge.podSecurityContext" . | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: management
+          image: {{ include "launchforge.image" .Values.images.management | quote }}
+          imagePullPolicy: {{ .Values.images.management.pullPolicy }}
+          securityContext:
+            {{- include "launchforge.containerSecurityContext" . | nindent 12 }}
+          ports:
+            - {name: http, containerPort: 8080, protocol: TCP}
+          env:
+            - {name: SPRING_FLYWAY_ENABLED, value: 'false'}
+            {{- include "launchforge.databaseEnv" . | nindent 12 }}
+            - {name: LAUNCHFORGE_REDIS_HOST, value: {{ .Values.external.redis.host | quote }}}
+            - {name: LAUNCHFORGE_REDIS_PORT, value: {{ .Values.external.redis.port | quote }}}
+            - {name: LAUNCHFORGE_OIDC_ISSUER_URI, value: {{ .Values.external.oidc.issuerUri | quote }}}
+            - {name: LAUNCHFORGE_OIDC_CLIENT_ID, value: {{ .Values.external.oidc.clientId | quote }}}
+            - {name: LAUNCHFORGE_SDK_KEY_PEPPER_VERSION, value: {{ .Values.secrets.sdkKeyPepperVersion | quote }}}
+            - name: LAUNCHFORGE_SDK_KEY_PEPPER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret | quote }}
+                  key: {{ .Values.secrets.sdkKeyPepperKey | quote }}
+            - name: LAUNCHFORGE_ANALYTICS_ENABLED
+              value: {{ .Values.external.analytics.enabled | quote }}
+            - name: LAUNCHFORGE_CLICKHOUSE_URL
+              value: {{ .Values.external.analytics.clickHouseUrl | quote }}
+            - name: LAUNCHFORGE_CLICKHOUSE_USER
+              value: {{ .Values.external.analytics.clickHouseUser | quote }}
+            {{- if .Values.external.analytics.enabled }}
+            - name: LAUNCHFORGE_CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret | quote }}
+                  key: {{ .Values.secrets.clickHousePasswordKey | quote }}
+            {{- end }}
+            {{- include "launchforge.commonJavaEnv" . | nindent 12 }}
+          startupProbe:
+            httpGet: {path: /actuator/health/liveness, port: http}
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: {path: /actuator/health/liveness, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: {path: /actuator/health/readiness, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.management.resources | nindent 12 }}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {sizeLimit: 128Mi}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: launchforge-management
+  labels:
+    {{- include "launchforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: management
+spec:
+  selector:
+    app.kubernetes.io/name: {{ include "launchforge.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: management
+  ports:
+    - {name: http, port: 8080, targetPort: http}

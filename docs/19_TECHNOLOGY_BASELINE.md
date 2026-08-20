@@ -55,8 +55,14 @@ Verified against official release sources on **2026-08-10**; M1-owned tools were
 | k6 | `1.7.1`; image `grafana/k6:1.7.1`; manifest `sha256:4fd3a694926b064d3491d9b02b01cde886583c4931f1223816e3d9a7bdfa7e0f` | M10 |
 | Docker Engine | tested-tooling target `29.6.2` | M0 developer environment |
 | Docker Compose | tested-tooling target `5.4.0` | M0 developer environment |
-| Kubernetes | tested deployment target `1.36.2` | Re-verify in M11 |
-| Helm | tested deployment target `4.2.3` | Re-verify in M11 |
+| Kubernetes | tested deployment/rendering target `1.36.3` | M11 |
+| Helm | `4.2.4`; CI image `alpine/helm:4.2.4`; manifest `sha256:76c375eed56144c68d6197c55bc5a4552fb42002190b796729901cbab3ae6e51` | M11 |
+| kind | `0.32.0`; local node `kindest/node:v1.34.8`; manifest `sha256:02722c2dedddcfc00febf5d27fbeb9b7b2c14294c82109ff4a85d89ac9ba3256` | M11 local proof |
+| Maven container builder | `maven:3.9.16-eclipse-temurin-25`; manifest `sha256:1b1fc6d0168ea616afd1c861d6f32ec37c9ec2ffe88a0351b3771dd4ad86b0d8` | M11 |
+| Temurin JRE container | `eclipse-temurin:25-jre-noble`; manifest `sha256:fbcf915c585659b30eb766ada4d6d7cfc9ec1040bf521e95bf61b10a25af73db` | M11 |
+| Node.js container builder | `node:24.19.0-bookworm-slim`; manifest `sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03` | M11 |
+| Nginx runtime | `nginx:1.31.2-alpine3.23`; manifest `sha256:54f2a904c251d5a34adf545a72d32515a15e08418dae0266e23be2e18c66fefa` | M11 |
+| Trivy | `0.74.0`; image manifest `sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969` | M11 local image gate |
 
 TypeScript 7.0 is not the initial pin because its first release does not expose the programmatic API needed by the surrounding tooling ecosystem; re-evaluate TypeScript 7 after 7.1 and full lint/test/build compatibility. Deferred services are documented candidates, not permission to add them before their milestone.
 
@@ -75,7 +81,8 @@ Official verification references:
 - Prometheus: <https://prometheus.io/download/>
 - Grafana: <https://grafana.com/grafana/download/>
 - k6: <https://grafana.com/docs/k6/latest/release-notes/>
-- Docker/Kubernetes/Helm: <https://docs.docker.com/engine/release-notes/29/>, <https://github.com/docker/compose/releases>, <https://kubernetes.io/releases/>, and <https://github.com/helm/helm/releases>
+- Docker/Kubernetes/Helm/kind: <https://docs.docker.com/engine/release-notes/29/>, <https://github.com/docker/compose/releases>, <https://kubernetes.io/releases/>, <https://github.com/helm/helm/releases>, and <https://github.com/kubernetes-sigs/kind/releases>
+- Production image bases and scanner: <https://hub.docker.com/_/maven>, <https://hub.docker.com/_/eclipse-temurin>, <https://hub.docker.com/_/node>, <https://hub.docker.com/_/nginx>, and <https://github.com/aquasecurity/trivy/releases>
 
 LF-0003 resolved and recorded the PostgreSQL image manifest digest after a successful pull. Compose uses the readable tag and digest together, so a tag move cannot silently change the local database image. PostgreSQL 18 Compose volumes mount the image's version-appropriate data root at `/var/lib/postgresql`, not the older `/var/lib/postgresql/data` path.
 
@@ -92,6 +99,16 @@ LF-1003 uses JMH 1.37 in its own Maven module, following the OpenJDK recommendat
 benchmark harness from production artifacts. The Spring Boot OpenTelemetry starter remains managed
 by the existing Spring Boot 4.1.0 dependency baseline.
 
+LF-1101/LF-1103/LF-1104 re-verified Kubernetes 1.36.3, Helm 4.2.4, and kind 0.32.0 on
+**2026-08-18**, and resolved every M11 container reference to the manifest shown above. The current
+Temurin 25 JRE container still carries the 25.0.3 runtime while the host/CI compiler remains the
+required 25.0.4+7 baseline; it uses the same Java 25 class-file level and is upgraded by digest when
+the 25.0.4 JRE image is published and scanned. The local Docker Desktop test host exposes cgroup v1,
+so kind's current Kubernetes 1.35/1.36 nodes reject kubelet startup. The proof therefore uses the
+last release-compatible cgroup-v1 node, Kubernetes 1.34.8, while Helm lint/template targets current
+Kubernetes 1.36.3. This compatibility exception is local-test infrastructure, not the production
+cluster target.
+
 ### M0 build and quality pins
 
 The M0 reactor and workspace additionally pin:
@@ -107,6 +124,8 @@ The M0 reactor and workspace additionally pin:
 | ESLint / Prettier | `10.8.1` / `3.9.6` |
 | Java JSON Canonicalization | `io.github.erdtman:java-json-canonicalization:1.1` |
 | JMH / Maven Shade Plugin | `1.37` / `3.6.2` |
+| PostgreSQL JDBC | `42.7.12` |
+| Netty | `4.2.16.Final` |
 
 The root `pom.xml`, JavaScript package manifests, `pnpm-lock.yaml`, and SHA-pinned GitHub Actions are the executable source of truth for transitive and CI-tool versions.
 

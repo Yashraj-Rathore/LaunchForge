@@ -173,11 +173,26 @@ jobs:
       LAUNCHFORGE_DEMO_USER_PASSWORD: ci-validation-only
       LAUNCHFORGE_CLICKHOUSE_PASSWORD: ci-validation-only
       LAUNCHFORGE_GRAFANA_ADMIN_PASSWORD: ci-validation-only
+      LAUNCHFORGE_SDK_KEY_PEPPER: ci-sdk-key-pepper-at-least-32-bytes
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Validate Compose
-        run: docker compose config --quiet
+        run: >-
+          docker compose --profile identity --profile distribution --profile analytics
+          --profile observability --profile platform --profile demo config --quiet
+      - name: Lint and render Helm chart
+        run: |
+          docker run --rm --volume "$PWD:/workspace" --workdir /workspace \
+            alpine/helm:4.2.4@sha256:76c375eed56144c68d6197c55bc5a4552fb42002190b796729901cbab3ae6e51 \
+            lint deploy/helm/launchforge --strict
+          docker run --rm --volume "$PWD:/workspace" --workdir /workspace \
+            alpine/helm:4.2.4@sha256:76c375eed56144c68d6197c55bc5a4552fb42002190b796729901cbab3ae6e51 \
+            template launchforge deploy/helm/launchforge --namespace launchforge > /dev/null
+          docker run --rm --volume "$PWD:/workspace" --workdir /workspace \
+            alpine/helm:4.2.4@sha256:76c375eed56144c68d6197c55bc5a4552fb42002190b796729901cbab3ae6e51 \
+            template prompt12 deploy/helm/launchforge --namespace launchforge \
+            --values deploy/local/kind/values.yaml > /dev/null
       - name: Validate documentation
         run: python eng/validate_docs.py
       - name: Validate JSON templates

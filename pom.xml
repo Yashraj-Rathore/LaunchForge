@@ -24,6 +24,7 @@
     <module>backend/launchforge-application</module>
     <module>backend/launchforge-contracts</module>
     <module>backend/launchforge-infrastructure</module>
+    <module>backend/launchforge-migrator</module>
     <module>backend/launchforge-control-api</module>
     <module>backend/launchforge-config-edge</module>
     <module>backend/launchforge-event-worker</module>
@@ -49,8 +50,10 @@
     <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
     <maven-enforcer-plugin.version>3.6.3</maven-enforcer-plugin.version>
     <maven-failsafe-plugin.version>3.5.6</maven-failsafe-plugin.version>
+    <netty.version>4.2.16.Final</netty.version>
     <maven-site-plugin.version>3.22.0</maven-site-plugin.version>
     <maven-surefire-plugin.version>3.5.6</maven-surefire-plugin.version>
+    <postgresql.version>42.7.12</postgresql.version>
     <maven-shade-plugin.version>3.6.2</maven-shade-plugin.version>
     <spotless-maven-plugin.version>3.9.0</spotless-maven-plugin.version>
     <testcontainers.version>2.0.5</testcontainers.version>

@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "launchforge.fullname" . }}-web
+  labels:
+    {{- include "launchforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  replicas: {{ .Values.web.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "launchforge.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "launchforge.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: web
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "launchforge.fullname" . }}-web
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 20
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile: {type: RuntimeDefault}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: web
+          image: {{ include "launchforge.image" .Values.images.web | quote }}
+          imagePullPolicy: {{ .Values.images.web.pullPolicy }}
+          securityContext:
+            {{- include "launchforge.containerSecurityContext" . | nindent 12 }}
+          ports:
+            - {name: http, containerPort: 8080, protocol: TCP}
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 3
+            failureThreshold: 20
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 3
+          resources:
+            {{- toYaml .Values.web.resources | nindent 12 }}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: nginx-cache, mountPath: /var/cache/nginx}
+            - {name: nginx-run, mountPath: /var/run/nginx}
+      volumes:
+        - name: tmp
+          emptyDir: {sizeLimit: 32Mi}
+        - name: nginx-cache
+          emptyDir: {sizeLimit: 32Mi}
+        - name: nginx-run
+          emptyDir: {sizeLimit: 1Mi}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "launchforge.fullname" . }}-web
+  labels:
+    {{- include "launchforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  selector:
+    app.kubernetes.io/name: {{ include "launchforge.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: web
+  ports:
+    - {name: http, port: 8080, targetPort: http}

@@ -21,6 +21,9 @@
 - Finalized the M10 telemetry/correlation contract, bounded metric and revision-diagnostic model,
   reproducible benchmark/load methodology, durable Java SDK LKG behavior, and executed failure
   drill evidence without converting local measurements into production claims.
+- Finalized the M11 image, profile-driven Compose, forward-only migration, external-service/secret,
+  Helm availability/security, digest promotion, local shutdown/reset, and Kubernetes resilience
+  operating contracts.
 
 ### Implementation
 
@@ -67,3 +70,13 @@
 - Fixed Compose validation in the repository-contract and identity smoke CI jobs by supplying the
   required local-only Grafana placeholder alongside the existing service placeholders, and kept
   the Redis-free local identity profile healthy by disabling only its Redis health contributor.
+- Implemented LF-1101–LF-1104 with five multi-stage fixed-UID production images, an explicit
+  one-shot Flyway module, profile-driven full-platform Compose ordering, and a Helm chart for
+  management, Config Edge, Event Worker/projector, web, and pre-deployment migrations.
+- Added digest-pinned bases, read-only runtime filesystems, probes, resource bounds, dedicated
+  token-free service accounts, Config Edge HPA, management/Edge PDBs, ingress, NetworkPolicy
+  examples, external Secret references, and optional external ClickHouse configuration.
+- Added CI Helm lint/default/local rendering and a repeatable isolated kind proof covering
+  migration ordering, Edge restart, SDK last-known-good/reconnect, rolling replacement, and
+  PostgreSQL/Redis revision correctness; local Trivy scans reported no fixable HIGH/CRITICAL
+  findings in the final M11 image set at validation time.

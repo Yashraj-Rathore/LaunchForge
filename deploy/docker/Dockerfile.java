@@ -1,0 +1,46 @@
+# syntax=docker/dockerfile:1.7
+ARG MAVEN_IMAGE=maven:3.9.16-eclipse-temurin-25@sha256:1b1fc6d0168ea616afd1c861d6f32ec37c9ec2ffe88a0351b3771dd4ad86b0d8
+ARG TEMURIN_JRE_IMAGE=eclipse-temurin:25-jre-noble@sha256:fbcf915c585659b30eb766ada4d6d7cfc9ec1040bf521e95bf61b10a25af73db
+
+FROM ${MAVEN_IMAGE} AS build
+WORKDIR /workspace
+COPY .mvn/ .mvn/
+COPY mvnw pom.xml ./
+COPY config/ config/
+COPY backend/ backend/
+COPY sdks/java/ sdks/java/
+COPY demos/spring-demo/ demos/spring-demo/
+COPY tests/architecture-tests/ tests/architecture-tests/
+COPY tests/integration-tests/ tests/integration-tests/
+COPY tests/performance/ tests/performance/
+ARG MODULE
+ARG ARTIFACT
+RUN mvn --batch-mode --no-transfer-progress -pl "${MODULE}" -am package -DskipTests \
+    && install -D -m 0444 "${ARTIFACT}" /out/application.jar
+
+FROM ${TEMURIN_JRE_IMAGE} AS runtime
+ARG APP_PORT
+ARG OCI_CREATED=unknown
+ARG OCI_REVISION=unknown
+ARG OCI_VERSION=dev
+LABEL org.opencontainers.image.title="LaunchForge Java workload" \
+      org.opencontainers.image.description="LaunchForge production Java workload" \
+      org.opencontainers.image.source="https://github.com/Yashraj-Rathore/LaunchForge" \
+      org.opencontainers.image.created="${OCI_CREATED}" \
+      org.opencontainers.image.revision="${OCI_REVISION}" \
+      org.opencontainers.image.version="${OCI_VERSION}" \
+      org.opencontainers.image.licenses="Apache-2.0"
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 10001 launchforge \
+    && useradd --uid 10001 --gid launchforge --no-create-home --shell /usr/sbin/nologin launchforge
+WORKDIR /opt/launchforge
+COPY --from=build --chown=10001:10001 /out/application.jar application.jar
+ENV APP_PORT=${APP_PORT} \
+    JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -Djava.io.tmpdir=/tmp"
+EXPOSE ${APP_PORT}
+USER 10001:10001
+HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=6 \
+  CMD curl --fail --silent --show-error "http://127.0.0.1:${APP_PORT}/actuator/health/liveness" >/dev/null || exit 1
+ENTRYPOINT ["java", "-jar", "/opt/launchforge/application.jar"]

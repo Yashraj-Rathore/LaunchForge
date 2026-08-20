@@ -1,8 +1,8 @@
 # Project Status
 
-**Status:** Prompt 11 reliability, observability, and performance implementation complete.
+**Status:** Prompt 12 production containers, Helm, and local Kubernetes resilience implementation complete.
 
-**Current milestone:** M10 reliability/performance (LF-1001–LF-1006) complete; stop point before Prompt 12 / M11 containers and Helm.
+**Current milestone:** M11 containers/Helm (LF-1101–LF-1104) complete; stop point before Prompt 13 / M12 CI/CD supply chain.
 
 **Specification baseline:** Canonical module paths, snapshot/checksum representation, algorithm-version-1 types and reason codes, milestone dependencies, and exact Prompt 0 toolchain pins were normalized on 2026-08-10.
 
@@ -19,7 +19,7 @@
 | M8 Analytics | LF-0801–LF-0805 | Complete (2026-08-13) |
 | M9 Security hardening | LF-0901–LF-0906 | Complete (2026-08-17) |
 | M10 Reliability/performance | LF-1001–LF-1006 | Complete (2026-08-17) |
-| M11 Containers/Helm | LF-1101–LF-1104 | Not started |
+| M11 Containers/Helm | LF-1101–LF-1104 | Complete (2026-08-18) |
 | M12 CI/CD supply chain | LF-1201–LF-1205 | Not started |
 | M13 Demo/pilot | LF-1301–LF-1305 | Not started |
 

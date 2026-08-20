@@ -1,0 +1,60 @@
+images:
+  management: {repository: launchforge-management, tag: prompt12, pullPolicy: Never}
+  configEdge: {repository: launchforge-config-edge, tag: prompt12, pullPolicy: Never}
+  eventWorker: {repository: launchforge-event-worker, tag: prompt12, pullPolicy: Never}
+  web: {repository: launchforge-web, tag: prompt12, pullPolicy: Never}
+  migrator: {repository: launchforge-migrator, tag: prompt12, pullPolicy: Never}
+
+external:
+  database:
+    jdbcUrl: jdbc:postgresql://host.docker.internal:55432/launchforge?connectTimeout=5&socketTimeout=15&tcpKeepAlive=true
+    username: launchforge
+  kafka:
+    bootstrapServers: host.docker.internal:59092
+    configTopic: launchforge.config.revision-published.v1
+  redis: {host: host.docker.internal, port: 56379}
+  oidc:
+    issuerUri: http://host.docker.internal:8081/realms/launchforge
+    clientId: launchforge-control
+  analytics:
+    enabled: false
+    kafkaTopic: launchforge.analytics.evaluations.v1
+    kafkaConsumerGroup: launchforge-analytics-writer-v1
+    clickHouseUrl: http://host.docker.internal:58123
+    clickHouseUser: launchforge
+  observability:
+    otelEnabled: false
+    otlpTracesEndpoint: http://host.docker.internal:4318/v1/traces
+    deploymentEnvironment: kind-prompt12
+
+secrets:
+  existingSecret: launchforge-runtime
+  databasePasswordKey: database-password
+  sdkKeyPepperKey: sdk-key-pepper
+  sdkKeyPepperVersion: v1
+
+management:
+  replicas: 1
+  resources:
+    requests: {cpu: 100m, memory: 384Mi}
+    limits: {cpu: 750m, memory: 768Mi}
+configEdge:
+  replicas: 2
+  resources:
+    requests: {cpu: 100m, memory: 384Mi}
+    limits: {cpu: '1', memory: 768Mi}
+eventWorker:
+  replicas: 1
+  resources:
+    requests: {cpu: 100m, memory: 384Mi}
+    limits: {cpu: 750m, memory: 768Mi}
+web:
+  replicas: 1
+
+autoscaling:
+  configEdge: {enabled: false, minReplicas: 2, maxReplicas: 4, targetCPUUtilizationPercentage: 70}
+podDisruptionBudgets:
+  management: {enabled: false, minAvailable: 1}
+  configEdge: {enabled: true, minAvailable: 1}
+ingress: {enabled: false}
+networkPolicies: {enabled: false}

@@ -1,0 +1,20 @@
+LaunchForge {{ .Chart.AppVersion }} was rendered for {{ .Release.Namespace }}.
+
+The chart expects these external services:
+- PostgreSQL: {{ .Values.external.database.jdbcUrl }}
+- Kafka: {{ .Values.external.kafka.bootstrapServers }}
+- Redis: {{ .Values.external.redis.host }}:{{ .Values.external.redis.port }}
+- OIDC issuer: {{ .Values.external.oidc.issuerUri }}
+{{- if .Values.external.analytics.enabled }}
+- ClickHouse: {{ .Values.external.analytics.clickHouseUrl }}
+{{- end }}
+
+The existing Secret {{ .Values.secrets.existingSecret }} must contain:
+- {{ .Values.secrets.databasePasswordKey }}
+- {{ .Values.secrets.sdkKeyPepperKey }}
+{{- if .Values.external.analytics.enabled }}
+- {{ .Values.secrets.clickHousePasswordKey }}
+{{- end }}
+
+The pre-install/pre-upgrade migration Job must complete successfully before Helm creates or
+replaces application workloads. Promote immutable image digests by setting images.*.digest.

@@ -114,6 +114,7 @@ LaunchForge/
     launchforge-control-api/
     launchforge-config-edge/
     launchforge-event-worker/
+    launchforge-migrator/
   frontend/
     admin-web/
   sdks/
@@ -398,6 +399,32 @@ pnpm --filter @launchforge/admin-web test:e2e
 The opt-in local SQL seed includes a fictional Development environment so a successful OIDC login
 lands directly in the console. The Analytics page handles disabled or unavailable telemetry
 without implying that configuration delivery is degraded.
+
+### Production-shaped deployment
+
+M11 adds five non-root, digest-based production images, an explicit one-shot Flyway migrator, the
+complete profile-driven local Compose topology, and `deploy/helm/launchforge`. Workloads cannot
+start before migrations complete. The chart assumes external PostgreSQL, Kafka, Redis, OIDC, and
+optional ClickHouse; production secret values are supplied only through an existing Kubernetes
+Secret. It includes probes, resource bounds, token-free service accounts, rolling updates,
+management/Edge disruption budgets, a Config Edge HPA, ingress, and NetworkPolicy examples.
+
+Start the complete fictional local stack after creating the ignored `.env` file:
+
+```powershell
+docker compose --profile identity --profile distribution --profile platform --profile demo up -d --build --wait
+```
+
+Validate Helm and execute the repeatable local Kubernetes migration/restart/reconnect proof with:
+
+```powershell
+helm lint deploy/helm/launchforge --strict
+powershell -NoProfile -ExecutionPolicy Bypass -File eng/prove_kind_resilience.ps1
+```
+
+The exact image, Helm, kind, shutdown/reset, secret, and resiliency instructions are in
+`deploy/README.md`. M12 remains responsible for publishing, SBOM/provenance, and environment
+promotion.
 
 On Unix-like systems, use `./mvnw` in place of `.\mvnw.cmd`. After initializing Git on Windows, record the executable bit with `git update-index --chmod=+x mvnw`.
 

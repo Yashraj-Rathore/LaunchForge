@@ -94,30 +94,30 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 
 ## M9 Security
 
-- [ ] LF-0901
-- [ ] LF-0902
-- [ ] LF-0903
-- [ ] LF-0904
-- [ ] LF-0905
-- [ ] LF-0906
+- [x] LF-0901
+- [x] LF-0902
+- [x] LF-0903
+- [x] LF-0904
+- [x] LF-0905
+- [x] LF-0906
 
 ## M10 Reliability/performance
 
-- [ ] LF-1001
-- [ ] LF-1002
-- [ ] LF-1003
-- [ ] LF-1004
-- [ ] LF-1005
-- [ ] LF-1006
+- [x] LF-1001
+- [x] LF-1002
+- [x] LF-1003
+- [x] LF-1004
+- [x] LF-1005
+- [x] LF-1006
 
 **Flagship portfolio checkpoint C**
 
 ## M11 Containers/Helm
 
-- [ ] LF-1101
-- [ ] LF-1102
-- [ ] LF-1103
-- [ ] LF-1104
+- [x] LF-1101
+- [x] LF-1102
+- [x] LF-1103
+- [x] LF-1104
 
 ## M12 CI/CD
 

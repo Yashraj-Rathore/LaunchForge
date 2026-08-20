@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: ${LAUNCHFORGE_POSTGRES_USER:-launchforge}
       POSTGRES_PASSWORD: ${LAUNCHFORGE_POSTGRES_PASSWORD:?Copy .env.example to .env and set LAUNCHFORGE_POSTGRES_PASSWORD}
     ports:
-      - '127.0.0.1:${LAUNCHFORGE_POSTGRES_PORT:-55432}:5432'
+      - '${LAUNCHFORGE_BIND_ADDRESS:-127.0.0.1}:${LAUNCHFORGE_POSTGRES_PORT:-55432}:5432'
     volumes:
       - launchforge-postgres:/var/lib/postgresql
     healthcheck:
@@ -30,8 +30,9 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${LAUNCHFORGE_KEYCLOAK_ADMIN_PASSWORD:?Set a local-only Keycloak admin password in .env}
       LAUNCHFORGE_DEMO_USER_PASSWORD: ${LAUNCHFORGE_DEMO_USER_PASSWORD:?Set a local-only demo user password in .env}
       KC_HEALTH_ENABLED: 'true'
+      KC_HOSTNAME: ${LAUNCHFORGE_CONTAINER_OIDC_ORIGIN:-http://host.docker.internal:8081}
     ports:
-      - '127.0.0.1:8081:8080'
+      - '${LAUNCHFORGE_BIND_ADDRESS:-127.0.0.1}:8081:8080'
     volumes:
       - ./deploy/local/keycloak/launchforge-realm.json:/opt/keycloak/data/import/launchforge-realm.json:ro
     healthcheck:
@@ -53,7 +54,7 @@ services:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_LISTENERS: INTERNAL://:9092,CONTROLLER://:9093,EXTERNAL://:9094
-      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:${LAUNCHFORGE_KAFKA_PORT:-59092}
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://${LAUNCHFORGE_KAFKA_ADVERTISED_HOST:-localhost}:${LAUNCHFORGE_KAFKA_PORT:-59092}
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
@@ -64,7 +65,7 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_NUM_PARTITIONS: 12
     ports:
-      - '127.0.0.1:${LAUNCHFORGE_KAFKA_PORT:-59092}:9094'
+      - '${LAUNCHFORGE_BIND_ADDRESS:-127.0.0.1}:${LAUNCHFORGE_KAFKA_PORT:-59092}:9094'
     healthcheck:
       test: [CMD-SHELL, /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list]
       interval: 5s
@@ -78,7 +79,7 @@ services:
     image: redis:8.2.8-bookworm@sha256:2f7462b9e93e0a7ae2edf3a0a0babc8a4d29f8bfc50849b906b7caaef925edc1
     command: [redis-server, --save, '', --appendonly, 'no']
     ports:
-      - '127.0.0.1:${LAUNCHFORGE_REDIS_PORT:-56379}:6379'
+      - '${LAUNCHFORGE_BIND_ADDRESS:-127.0.0.1}:${LAUNCHFORGE_REDIS_PORT:-56379}:6379'
     healthcheck:
       test: [CMD, redis-cli, ping]
       interval: 5s
@@ -169,6 +170,220 @@ services:
       timeout: 3s
       retries: 30
       start_period: 15s
+    stop_grace_period: 15s
+
+  migrations:
+    profiles: [platform]
+    image: launchforge-migrator:${LAUNCHFORGE_IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.migrator
+      args:
+        OCI_CREATED: ${LAUNCHFORGE_OCI_CREATED:-local}
+        OCI_REVISION: ${LAUNCHFORGE_OCI_REVISION:-local}
+        OCI_VERSION: ${LAUNCHFORGE_IMAGE_TAG:-local}
+    environment:
+      LAUNCHFORGE_DB_URL: jdbc:postgresql://postgres:5432/${LAUNCHFORGE_POSTGRES_DB:-launchforge}?connectTimeout=5&socketTimeout=15&tcpKeepAlive=true
+      LAUNCHFORGE_DB_USER: ${LAUNCHFORGE_POSTGRES_USER:-launchforge}
+      LAUNCHFORGE_DB_PASSWORD: ${LAUNCHFORGE_POSTGRES_PASSWORD:?Set a local-only PostgreSQL password in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: 'no'
+
+  demo-seed:
+    profiles: [demo]
+    image: postgres:18.4-bookworm@sha256:d9c83446333daec3f0588cc709adb80c26090b7f9f0f7ec8d43c243385d79818
+    environment:
+      PGHOST: postgres
+      PGDATABASE: ${LAUNCHFORGE_POSTGRES_DB:-launchforge}
+      PGUSER: ${LAUNCHFORGE_POSTGRES_USER:-launchforge}
+      PGPASSWORD: ${LAUNCHFORGE_POSTGRES_PASSWORD:?Set a local-only PostgreSQL password in .env}
+    command: [psql, --set, ON_ERROR_STOP=1, --file, /seed/tenancy-seed.sql]
+    volumes:
+      - ./deploy/local/tenancy-seed.sql:/seed/tenancy-seed.sql:ro
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: 'no'
+
+  launchforge-management:
+    profiles: [platform]
+    image: launchforge-management:${LAUNCHFORGE_IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.java
+      args:
+        MODULE: backend/launchforge-control-api
+        ARTIFACT: backend/launchforge-control-api/target/launchforge-control-api-0.1.0-SNAPSHOT-exec.jar
+        APP_PORT: 8080
+        OCI_CREATED: ${LAUNCHFORGE_OCI_CREATED:-local}
+        OCI_REVISION: ${LAUNCHFORGE_OCI_REVISION:-local}
+        OCI_VERSION: ${LAUNCHFORGE_IMAGE_TAG:-local}
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      SPRING_FLYWAY_ENABLED: 'false'
+      LAUNCHFORGE_DB_URL: jdbc:postgresql://postgres:5432/${LAUNCHFORGE_POSTGRES_DB:-launchforge}?connectTimeout=5&socketTimeout=15&tcpKeepAlive=true
+      LAUNCHFORGE_DB_USER: ${LAUNCHFORGE_POSTGRES_USER:-launchforge}
+      LAUNCHFORGE_DB_PASSWORD: ${LAUNCHFORGE_POSTGRES_PASSWORD:?Set a local-only PostgreSQL password in .env}
+      LAUNCHFORGE_REDIS_HOST: redis
+      LAUNCHFORGE_REDIS_PORT: 6379
+      LAUNCHFORGE_OIDC_ISSUER_URI: ${LAUNCHFORGE_CONTAINER_OIDC_ISSUER_URI:-http://host.docker.internal:8081/realms/launchforge}
+      LAUNCHFORGE_OIDC_CLIENT_ID: ${LAUNCHFORGE_OIDC_CLIENT_ID:-launchforge-control}
+      LAUNCHFORGE_SDK_KEY_PEPPER: ${LAUNCHFORGE_SDK_KEY_PEPPER:?Set a random local-only SDK key pepper in .env}
+      LAUNCHFORGE_SDK_KEY_PEPPER_VERSION: ${LAUNCHFORGE_SDK_KEY_PEPPER_VERSION:-v1}
+      LAUNCHFORGE_DEMO_SEED_ENABLED: 'false'
+      LAUNCHFORGE_ANALYTICS_ENABLED: ${LAUNCHFORGE_ANALYTICS_ENABLED:-false}
+      LAUNCHFORGE_CLICKHOUSE_URL: http://clickhouse:8123
+      LAUNCHFORGE_CLICKHOUSE_USER: ${LAUNCHFORGE_CLICKHOUSE_USER:-launchforge}
+      LAUNCHFORGE_CLICKHOUSE_PASSWORD: ${LAUNCHFORGE_CLICKHOUSE_PASSWORD:-}
+      LAUNCHFORGE_OTEL_ENABLED: ${LAUNCHFORGE_OTEL_ENABLED:-false}
+      LAUNCHFORGE_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+        required: false
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 30s
+
+  launchforge-config-edge:
+    profiles: [platform]
+    image: launchforge-config-edge:${LAUNCHFORGE_IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.java
+      args:
+        MODULE: backend/launchforge-config-edge
+        ARTIFACT: backend/launchforge-config-edge/target/launchforge-config-edge-0.1.0-SNAPSHOT-exec.jar
+        APP_PORT: 8082
+        OCI_CREATED: ${LAUNCHFORGE_OCI_CREATED:-local}
+        OCI_REVISION: ${LAUNCHFORGE_OCI_REVISION:-local}
+        OCI_VERSION: ${LAUNCHFORGE_IMAGE_TAG:-local}
+    environment:
+      LAUNCHFORGE_DB_URL: jdbc:postgresql://postgres:5432/${LAUNCHFORGE_POSTGRES_DB:-launchforge}?connectTimeout=5&socketTimeout=15&tcpKeepAlive=true
+      LAUNCHFORGE_DB_USER: ${LAUNCHFORGE_POSTGRES_USER:-launchforge}
+      LAUNCHFORGE_DB_PASSWORD: ${LAUNCHFORGE_POSTGRES_PASSWORD:?Set a local-only PostgreSQL password in .env}
+      LAUNCHFORGE_REDIS_HOST: redis
+      LAUNCHFORGE_REDIS_PORT: 6379
+      LAUNCHFORGE_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      LAUNCHFORGE_SDK_KEY_PEPPER: ${LAUNCHFORGE_SDK_KEY_PEPPER:?Set a random local-only SDK key pepper in .env}
+      LAUNCHFORGE_ANALYTICS_ENABLED: ${LAUNCHFORGE_ANALYTICS_ENABLED:-false}
+      LAUNCHFORGE_KAFKA_ANALYTICS_TOPIC: ${LAUNCHFORGE_KAFKA_ANALYTICS_TOPIC:-launchforge.analytics.evaluations.v1}
+      LAUNCHFORGE_OTEL_ENABLED: ${LAUNCHFORGE_OTEL_ENABLED:-false}
+      LAUNCHFORGE_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
+    ports:
+      - '127.0.0.1:${LAUNCHFORGE_CONFIG_EDGE_PORT:-8082}:8082'
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 45s
+
+  launchforge-event-worker:
+    profiles: [platform]
+    image: launchforge-event-worker:${LAUNCHFORGE_IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.java
+      args:
+        MODULE: backend/launchforge-event-worker
+        ARTIFACT: backend/launchforge-event-worker/target/launchforge-event-worker-0.1.0-SNAPSHOT-exec.jar
+        APP_PORT: 8083
+        OCI_CREATED: ${LAUNCHFORGE_OCI_CREATED:-local}
+        OCI_REVISION: ${LAUNCHFORGE_OCI_REVISION:-local}
+        OCI_VERSION: ${LAUNCHFORGE_IMAGE_TAG:-local}
+    environment:
+      LAUNCHFORGE_DB_URL: jdbc:postgresql://postgres:5432/${LAUNCHFORGE_POSTGRES_DB:-launchforge}?connectTimeout=5&socketTimeout=15&tcpKeepAlive=true
+      LAUNCHFORGE_DB_USER: ${LAUNCHFORGE_POSTGRES_USER:-launchforge}
+      LAUNCHFORGE_DB_PASSWORD: ${LAUNCHFORGE_POSTGRES_PASSWORD:?Set a local-only PostgreSQL password in .env}
+      LAUNCHFORGE_REDIS_HOST: redis
+      LAUNCHFORGE_REDIS_PORT: 6379
+      LAUNCHFORGE_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      LAUNCHFORGE_ANALYTICS_ENABLED: ${LAUNCHFORGE_ANALYTICS_ENABLED:-false}
+      LAUNCHFORGE_KAFKA_ANALYTICS_TOPIC: ${LAUNCHFORGE_KAFKA_ANALYTICS_TOPIC:-launchforge.analytics.evaluations.v1}
+      LAUNCHFORGE_KAFKA_ANALYTICS_CONSUMER_GROUP: ${LAUNCHFORGE_KAFKA_ANALYTICS_CONSUMER_GROUP:-launchforge-analytics-writer-v1}
+      LAUNCHFORGE_CLICKHOUSE_URL: http://clickhouse:8123
+      LAUNCHFORGE_CLICKHOUSE_USER: ${LAUNCHFORGE_CLICKHOUSE_USER:-launchforge}
+      LAUNCHFORGE_CLICKHOUSE_PASSWORD: ${LAUNCHFORGE_CLICKHOUSE_PASSWORD:-}
+      LAUNCHFORGE_OTEL_ENABLED: ${LAUNCHFORGE_OTEL_ENABLED:-false}
+      LAUNCHFORGE_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
+    ports:
+      - '127.0.0.1:${LAUNCHFORGE_EVENT_WORKER_PORT:-8083}:8083'
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+        required: false
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 45s
+
+  launchforge-web:
+    profiles: [platform]
+    image: launchforge-web:${LAUNCHFORGE_IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.web
+      args:
+        OCI_CREATED: ${LAUNCHFORGE_OCI_CREATED:-local}
+        OCI_REVISION: ${LAUNCHFORGE_OCI_REVISION:-local}
+        OCI_VERSION: ${LAUNCHFORGE_IMAGE_TAG:-local}
+    ports:
+      - '127.0.0.1:${LAUNCHFORGE_WEB_PORT:-8080}:8080'
+    depends_on:
+      launchforge-management:
+        condition: service_healthy
+      launchforge-config-edge:
+        condition: service_healthy
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+      - /var/cache/nginx:size=32m
+      - /var/run/nginx:size=1m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
     stop_grace_period: 15s
 
 volumes:

@@ -1,0 +1,60 @@
+{{- if and .Values.podDisruptionBudgets.management.enabled (gt (int .Values.management.replicas) 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "launchforge.fullname" . }}-management
+  labels:
+    {{- include "launchforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: management
+spec:
+  minAvailable: {{ .Values.podDisruptionBudgets.management.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "launchforge.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: management
+{{- end }}
+{{- if and .Values.podDisruptionBudgets.configEdge.enabled (gt (int .Values.configEdge.replicas) 1) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "launchforge.fullname" . }}-config-edge
+  labels:
+    {{- include "launchforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: config-edge
+spec:
+  minAvailable: {{ .Values.podDisruptionBudgets.configEdge.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "launchforge.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: config-edge
+{{- end }}
+{{- if .Values.autoscaling.configEdge.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "launchforge.fullname" . }}-config-edge
+  labels:
+    {{- include "launchforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: config-edge
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "launchforge.fullname" . }}-config-edge
+  minReplicas: {{ .Values.autoscaling.configEdge.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.configEdge.maxReplicas }}
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.configEdge.targetCPUUtilizationPercentage }}
+{{- end }}

@@ -1,0 +1,118 @@
+nameOverride: ''
+fullnameOverride: ''
+imagePullSecrets: []
+
+images:
+  management:
+    repository: ghcr.io/example/launchforge-management
+    tag: 0.1.0
+    digest: ''
+    pullPolicy: IfNotPresent
+  configEdge:
+    repository: ghcr.io/example/launchforge-config-edge
+    tag: 0.1.0
+    digest: ''
+    pullPolicy: IfNotPresent
+  eventWorker:
+    repository: ghcr.io/example/launchforge-event-worker
+    tag: 0.1.0
+    digest: ''
+    pullPolicy: IfNotPresent
+  web:
+    repository: ghcr.io/example/launchforge-web
+    tag: 0.1.0
+    digest: ''
+    pullPolicy: IfNotPresent
+  migrator:
+    repository: ghcr.io/example/launchforge-migrator
+    tag: 0.1.0
+    digest: ''
+    pullPolicy: IfNotPresent
+
+external:
+  database:
+    jdbcUrl: jdbc:postgresql://postgresql.example.invalid:5432/launchforge?connectTimeout=5&socketTimeout=15&tcpKeepAlive=true
+    username: launchforge
+  kafka:
+    bootstrapServers: kafka.example.invalid:9092
+    configTopic: launchforge.config.revision-published.v1
+  redis:
+    host: redis.example.invalid
+    port: 6379
+  oidc:
+    issuerUri: https://identity.example.invalid/realms/launchforge
+    clientId: launchforge-control
+  analytics:
+    enabled: false
+    kafkaTopic: launchforge.analytics.evaluations.v1
+    kafkaConsumerGroup: launchforge-analytics-writer-v1
+    clickHouseUrl: https://clickhouse.example.invalid
+    clickHouseUser: launchforge
+  observability:
+    otelEnabled: false
+    otlpTracesEndpoint: http://otel-collector.observability.svc:4318/v1/traces
+    deploymentEnvironment: production
+
+# This Secret must be created by the operator or an external-secrets controller.
+# The chart never renders secret values.
+secrets:
+  existingSecret: launchforge-runtime
+  databasePasswordKey: database-password
+  sdkKeyPepperKey: sdk-key-pepper
+  sdkKeyPepperVersion: v1
+  clickHousePasswordKey: clickhouse-password
+
+management:
+  replicas: 2
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {cpu: '1', memory: 1Gi}
+
+configEdge:
+  replicas: 2
+  terminationGracePeriodSeconds: 60
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits: {cpu: '2', memory: 1Gi}
+
+eventWorker:
+  replicas: 1
+  resources:
+    requests: {cpu: 200m, memory: 384Mi}
+    limits: {cpu: '1', memory: 768Mi}
+
+web:
+  replicas: 2
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 250m, memory: 256Mi}
+
+autoscaling:
+  configEdge:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+podDisruptionBudgets:
+  management:
+    enabled: true
+    minAvailable: 1
+  configEdge:
+    enabled: true
+    minAvailable: 1
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  host: launchforge.example.invalid
+  tlsSecretName: ''
+
+networkPolicies:
+  enabled: true
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

@@ -1,0 +1,48 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "launchforge.fullname" . }}-migrations-{{ .Release.Revision }}
+  labels:
+    {{- include "launchforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migrations
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        {{- include "launchforge.selectorLabels" (dict "root" . "component" "migrations" "Values" .Values "Chart" .Chart "Release" .Release) | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "launchforge.fullname" . }}-migrations
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      restartPolicy: Never
+      securityContext:
+        {{- include "launchforge.podSecurityContext" . | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: migrator
+          image: {{ include "launchforge.image" .Values.images.migrator | quote }}
+          imagePullPolicy: {{ .Values.images.migrator.pullPolicy }}
+          securityContext:
+            {{- include "launchforge.containerSecurityContext" . | nindent 12 }}
+          env:
+            {{- include "launchforge.databaseEnv" . | nindent 12 }}
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

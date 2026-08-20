@@ -18,11 +18,14 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "protocol": "openid-connect",
-      "redirectUris": ["http://localhost:5173/login/oauth2/code/keycloak"],
-      "webOrigins": ["http://localhost:5173"],
+      "redirectUris": [
+        "http://localhost:5173/login/oauth2/code/keycloak",
+        "http://localhost:8080/login/oauth2/code/keycloak"
+      ],
+      "webOrigins": ["http://localhost:5173", "http://localhost:8080"],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:5173/*"
+        "post.logout.redirect.uris": "http://localhost:5173/*##http://localhost:8080/*"
       }
     }
   ],

@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: launchforge-migrator
+  datasource:
+    url: ${LAUNCHFORGE_DB_URL}
+    username: ${LAUNCHFORGE_DB_USER}
+    password: ${LAUNCHFORGE_DB_PASSWORD}
+    hikari:
+      connection-timeout: 5000
+      validation-timeout: 2000
+      maximum-pool-size: 2
+  flyway:
+    enabled: true
+    clean-disabled: true
+    validate-on-migrate: true
+
+logging:
+  structured:
+    format:
+      console: ${LAUNCHFORGE_LOG_FORMAT:ecs}
