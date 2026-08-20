@@ -34,6 +34,42 @@ RUN pnpm typecheck
 RUN pnpm test
 RUN pnpm build
 
+FROM build AS demo-build
+ARG DEMO_EDGE_URL=http://127.0.0.1:8082
+ARG DEMO_CLIENT_KEY_SUFFIX=NorthstarDemoClientKey0000000001
+ENV VITE_LAUNCHFORGE_EDGE_URL=${DEMO_EDGE_URL}
+ENV VITE_LAUNCHFORGE_CLIENT_KEY=lf_client_${DEMO_CLIENT_KEY_SUFFIX}
+COPY sdks/javascript/ sdks/javascript/
+COPY demos/react-storefront/ demos/react-storefront/
+RUN pnpm --filter @launchforge/js-core build \
+    && pnpm --filter @launchforge/js-browser build \
+    && pnpm --filter @launchforge/react-sdk build \
+    && pnpm --filter @launchforge/react-storefront-demo build
+
+FROM ${NGINX_IMAGE} AS demo-runtime
+ARG OCI_CREATED=unknown
+ARG OCI_REVISION=unknown
+ARG OCI_VERSION=dev
+LABEL org.opencontainers.image.title="Northstar Commerce LaunchForge demo" \
+      org.opencontainers.image.description="Fictional React storefront using the LaunchForge browser SDK" \
+      org.opencontainers.image.source="https://github.com/Yashraj-Rathore/LaunchForge" \
+      org.opencontainers.image.created="${OCI_CREATED}" \
+      org.opencontainers.image.revision="${OCI_REVISION}" \
+      org.opencontainers.image.version="${OCI_VERSION}" \
+      org.opencontainers.image.licenses="Apache-2.0"
+RUN apk upgrade --no-cache \
+    && rm -rf /usr/share/nginx/html/* /etc/nginx/conf.d/default.conf \
+    && mkdir -p /var/cache/nginx /var/run/nginx \
+    && chown -R 101:101 /var/cache/nginx /var/run/nginx /etc/nginx/conf.d
+COPY --from=demo-build --chown=101:101 /workspace/demos/react-storefront/dist/ /usr/share/nginx/html/
+COPY --chown=101:101 deploy/docker/nginx.conf /etc/nginx/nginx.conf
+COPY --chown=101:101 deploy/docker/demo.conf /etc/nginx/conf.d/demo.conf
+EXPOSE 8080
+USER 101:101
+HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=6 \
+  CMD wget --quiet --spider http://127.0.0.1:8080/healthz || exit 1
+ENTRYPOINT ["nginx", "-g", "daemon off;"]
+
 FROM ${NGINX_IMAGE} AS runtime
 ARG OCI_CREATED=unknown
 ARG OCI_REVISION=unknown

@@ -30,6 +30,8 @@
   procedures.
 - Recorded the responsive M6 console contract for adaptive navigation, mobile-safe content,
   operational flag discovery, accessibility, and the 390 x 844 browser acceptance viewport.
+- Finalized the M13 deterministic fictional demo, integration quick starts, reproducible real-system
+  media route, measured case-study claims, and explicitly provisional pilot/commercial hypotheses.
 
 ### Implementation
 
@@ -106,3 +108,12 @@
 - Added Helm value-schema/release metadata, a retained pre-migration schema ledger, typed release
   manifest tooling and unit tests, strict E2E TypeScript checking, and runtime construction of the
   kind proof's deterministic fictional SDK key so source scans contain no credential-shaped value.
+- Implemented LF-1301–LF-1305 with a source-generated three-environment/four-flag Northstar seed,
+  guarded isolated reset/start verification, and a containerized live storefront backed by the
+  real public Config Edge contract.
+- Added tested Java, Spring Boot, browser JavaScript, and React quick starts; a deliberate four-minute
+  demo route with a condensed two-minute acceptance cut; reproducible Playwright screenshots/video;
+  and actual targeting, rollout, publish, kill-switch, revision, and audit behavior.
+- Added the portfolio case study and pilot package with exact-stack diagrams, measured benchmark
+  provenance, honest limitations, fictional persona/checklists, support boundaries, feedback
+  questions, and pricing models labeled as unvalidated hypotheses.

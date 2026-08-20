@@ -20,12 +20,13 @@
       "protocol": "openid-connect",
       "redirectUris": [
         "http://localhost:5173/login/oauth2/code/keycloak",
-        "http://localhost:8080/login/oauth2/code/keycloak"
+        "http://localhost:8080/login/oauth2/code/keycloak",
+        "http://127.0.0.1:8080/login/oauth2/code/keycloak"
       ],
-      "webOrigins": ["http://localhost:5173", "http://localhost:8080"],
+      "webOrigins": ["http://localhost:5173", "http://localhost:8080", "http://127.0.0.1:8080"],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "http://localhost:5173/*##http://localhost:8080/*"
+        "post.logout.redirect.uris": "http://localhost:5173/*##http://localhost:8080/*##http://127.0.0.1:8080/*"
       }
     }
   ],

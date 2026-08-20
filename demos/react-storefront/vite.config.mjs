@@ -11,6 +11,7 @@ export default defineConfig({
 function demoEdgeHarness() {
   let revision = 1;
   let enabled = true;
+  let enabledWeight = 10_000;
   const streams = new Set();
   return {
     name: 'launchforge-demo-edge-harness',
@@ -19,7 +20,7 @@ function demoEdgeHarness() {
         const url = new URL(request.url ?? '/', 'http://127.0.0.1:5174');
         const base = `/sdk/v1/client/${CLIENT_KEY}`;
         if (request.method === 'GET' && url.pathname === `${base}/snapshot`) {
-          const body = snapshot(revision, enabled);
+          const body = snapshot(revision, enabled, enabledWeight);
           const etag = `"demo-rev-${revision}-${body.checksum}"`;
           response.setHeader('Cache-Control', 'no-store');
           response.setHeader('ETag', etag);
@@ -46,12 +47,18 @@ function demoEdgeHarness() {
           request.on('close', () => streams.delete(response));
           return;
         }
-        if (request.method === 'POST' && url.pathname === '/demo/publish-kill-switch') {
+        if (request.method === 'POST' && url.pathname === '/demo/publish-rollout') {
           revision = 2;
+          enabledWeight = 50_000;
+          publishRevision(streams, revision);
+          response.statusCode = 204;
+          response.end();
+          return;
+        }
+        if (request.method === 'POST' && url.pathname === '/demo/publish-kill-switch') {
+          revision = 3;
           enabled = false;
-          for (const stream of streams) {
-            stream.write('id: 2\nevent: revision\ndata: {"revision":2}\n\n');
-          }
+          publishRevision(streams, revision);
           response.statusCode = 204;
           response.end();
           return;
@@ -62,7 +69,13 @@ function demoEdgeHarness() {
   };
 }
 
-function snapshot(revision, enabled) {
+function publishRevision(streams, revision) {
+  for (const stream of streams) {
+    stream.write(`id: ${revision}\nevent: revision\ndata: {"revision":${revision}}\n\n`);
+  }
+}
+
+function snapshot(revision, enabled, enabledWeight) {
   const projection = {
     schemaVersion: 1,
     algorithmVersion: 1,
@@ -105,8 +118,8 @@ function snapshot(revision, enabled) {
           attribute: 'userId',
           salt: 'stable_salt_1234',
           weights: [
-            { variation: 'on', weight: 50000 },
-            { variation: 'off', weight: 50000 },
+            { variation: 'on', weight: enabledWeight },
+            { variation: 'off', weight: 100_000 - enabledWeight },
           ],
         },
       },

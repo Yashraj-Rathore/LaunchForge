@@ -18,7 +18,10 @@ final class StorefrontController {
 
   @GetMapping("/{subject}")
   FeatureResponse features(
-      @PathVariable String subject, @RequestParam(defaultValue = "free") String plan) {
-    return features.evaluate(subject, plan);
+      @PathVariable String subject,
+      @RequestParam(defaultValue = "CA") String country,
+      @RequestParam(defaultValue = "pro") String plan,
+      @RequestParam(required = false) String userId) {
+    return features.evaluate(subject, country, plan, userId == null ? subject : userId);
   }
 }

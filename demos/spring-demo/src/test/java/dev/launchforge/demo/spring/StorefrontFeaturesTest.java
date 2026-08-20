@@ -39,13 +39,14 @@ class StorefrontFeaturesTest {
       server.close();
       StorefrontFeatures features = new StorefrontFeatures(client);
 
-      StorefrontFeatures.FeatureResponse response = features.evaluate("customer-123", "pro");
+      StorefrontFeatures.FeatureResponse response =
+          features.evaluate("customer-123", "CA", "pro", "customer-123");
 
       assertTrue(response.newCheckout());
-      assertEquals("midnight", response.checkoutTheme());
+      assertEquals("hybrid-v2", response.searchRanking());
       assertEquals(7, response.snapshotRevision());
       assertFalse(client.refreshAsync().get());
-      assertEquals(response, features.evaluate("customer-123", "pro"));
+      assertEquals(response, features.evaluate("customer-123", "CA", "pro", "customer-123"));
     }
   }
 
@@ -60,7 +61,7 @@ class StorefrontFeaturesTest {
     root.put("generatedAt", "2026-08-11T12:00:00Z");
     ObjectNode flags = root.putObject("flags");
     flags.set("new-checkout", flag(mapper, "boolean", false, true));
-    flags.set("checkout-theme", flag(mapper, "string", "classic", "midnight"));
+    flags.set("search-ranking", flag(mapper, "string", "lexical-v1", "hybrid-v2"));
     String projection = new JsonCanonicalizer(mapper.writeValueAsString(root)).getEncodedString();
     root.put(
         "checksum",

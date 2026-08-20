@@ -2,6 +2,141 @@
 
 > **Working project name.** Perform trademark/domain clearance before using `LaunchForge` commercially.
 
+> **Ship risky changes gradually. Disable them safely. Keep evaluation local.**
+
+LaunchForge is a Java-first feature flag and remote-configuration platform built to demonstrate a
+harder problem than dashboard CRUD: safely moving immutable configuration from an audited control
+plane to application SDKs without adding a network call to every customer request.
+
+![LaunchForge flag workspace](demos/demo-media/01-flag-workspace.png)
+
+![Northstar Commerce live rollout](demos/demo-media/05-live-rollout-update.png)
+
+[Watch the deliberate admin walkthrough](demos/demo-media/launchforge-admin-tour.webm) and
+[the connected storefront update](demos/demo-media/northstar-live-update.webm).
+
+## Try the complete fictional demo
+
+With the pinned Java/Node/Docker prerequisites installed:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File eng/demo.ps1 -Action Start
+```
+
+That command creates fresh local-only ignored settings, builds the full Compose topology, migrates
+PostgreSQL, applies a deterministic Northstar Commerce seed, starts the real React storefront,
+checks health and snapshot delivery, and prints the URLs plus generated local login. Restore the
+same baseline with:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File eng/demo.ps1 -Action Reset -ConfirmReset
+```
+
+The default recruiter walkthrough is deliberately paced at about four minutes; a reproducible
+two-minute track is also provided. See [the demo script](docs/16_DEMO_PORTFOLIO.md) and
+[the integration quick starts](docs/25_INTEGRATION_QUICKSTARTS.md).
+
+## Case study
+
+### The problem
+
+A remote flag service is easy to sketch but dangerous to place on every application request. It
+adds latency, couples application availability to the flag vendor, and makes partial failure part
+of the request path. LaunchForge separates configuration management from runtime evaluation:
+
+- operators publish a validated immutable environment revision;
+- PostgreSQL commits revision, audit, and outbox intent atomically;
+- Kafka and a Redis materialization distribute the new current revision;
+- WebFlux Edge nodes send bounded SSE revision hints;
+- Java and TypeScript SDKs fetch, validate, and atomically activate a snapshot; and
+- every flag evaluation then runs locally from immutable memory.
+
+### Engineering highlights
+
+- Java 25 / Spring Boot 4.1 modular control plane with ArchUnit-enforced boundaries
+- React 19 / TypeScript console using an OIDC same-origin BFF session
+- deterministic SHA-256 rollout across Java and TypeScript using one frozen golden corpus
+- immutable PostgreSQL revisions, optimistic concurrency, audited rollback-as-new-revision
+- transactional outbox, Kafka ordering by environment, idempotent projection, rebuildable Redis
+- WebFlux snapshot/SSE data plane with polling fallback and last-known-good SDK behavior
+- separate human, server SDK, and browser client credential classes
+- Testcontainers, Playwright, failure drills, JMH, k6 workload definitions, Docker Compose, Helm,
+  supply-chain scanning, SBOMs, and protected promotion workflows
+
+### Three deliberate tradeoffs
+
+1. **Local evaluation over remote per-request evaluation.** This protects application latency and
+   availability, at the cost of brief client staleness and stricter snapshot compatibility.
+2. **Full authoritative snapshots after revision hints over delta streaming.** This makes missed or
+   duplicate SSE messages harmless, at the cost of transferring a complete bounded snapshot.
+3. **Correct modular baseline before Kafka and Redis.** PostgreSQL-first delivery proved semantics
+   before distributed infrastructure was introduced; Redis remains disposable rather than
+   authoritative.
+
+### Publish-to-evaluation sequence
+
+```mermaid
+sequenceDiagram
+    participant Operator
+    participant Control as Control API
+    participant PG as PostgreSQL
+    participant Worker as Event Worker
+    participant Kafka
+    participant Redis
+    participant Edge as Config Edge
+    participant SDK
+
+    Operator->>Control: review and publish draft
+    Control->>PG: revision + audit + outbox (one transaction)
+    PG-->>Control: durable monotonic revision
+    Control-->>Operator: publish succeeded
+    Worker->>PG: lease pending outbox event
+    Worker->>Kafka: revision event keyed by environment
+    Kafka-->>Worker: broker acknowledgement
+    Worker->>Redis: validate and materialize newer snapshot
+    Redis-->>Edge: best-effort revision hint
+    Edge-->>SDK: SSE revision hint
+    SDK->>Edge: conditional authoritative snapshot fetch
+    SDK->>SDK: validate, atomically activate, evaluate locally
+```
+
+### Measured evidence, with limits
+
+The recorded JMH run on an i7-11700 / Temurin 25 measured pure local Java evaluation at
+34,634,586.748 ops/s for a boolean default, 26,235,311.991 ops/s for a first-rule match,
+3,733,354.443 ops/s for percentage rollout, and 884,441.528 ops/s for a maximum-position 100-rule
+match. These are one-machine, one-fork microbenchmark results from implementation SHA `993980f`,
+not production capacity or an SLO. Raw JSON, allocation results, commands, environment, and
+limitations are in [the reliability and performance report](docs/23_RELIABILITY_PERFORMANCE_REPORT.md).
+
+The HTTP/SSE k6 workloads are configuration-validated but have not been run on a controlled
+representative deployment, so this project makes no public HTTP capacity, SSE concurrency, or
+publish-convergence latency claim.
+
+### Verified portfolio statements
+
+- Built a multi-tenant Java/Spring and React feature-management platform with immutable
+  configuration revisions, deterministic targeting, role-scoped management, and audited rollback.
+- Implemented independent Java and TypeScript local evaluators that pass one language-neutral
+  golden corpus, with streaming refresh, bounded polling fallback, and last-known-good behavior.
+- Implemented durable revision propagation through a PostgreSQL transactional outbox, Kafka,
+  rebuildable Redis materialization, and horizontally scalable WebFlux/SSE Edge nodes.
+- Measured the pure Java evaluator with a reproducible JMH harness and published the raw artifact
+  and limitations; no unexecuted load target is presented as achieved capacity.
+
+### Current limitations
+
+- no claim of customers, revenue, uptime, multi-region operation, or production disaster recovery;
+- browser client configuration is intentionally public and cannot authorize server actions;
+- analytics is optional operational telemetry, not a causal experimentation system;
+- staging/production controls require the repository owner to configure external GitHub
+  Environments, cloud identity, and deployment infrastructure; and
+- the product name still requires commercial trademark/domain clearance.
+
+The next honest step is a narrow external pilot, not more speculative enterprise scope. The
+[pilot package](docs/26_PILOT_PACKAGE.md) defines the target team, entry/exit checks, feedback,
+support boundaries, and clearly provisional pricing hypotheses.
+
 ## What this package is
 
 This repository contains the implementation and source-of-truth specification for a production-style **feature flag, remote configuration, gradual rollout, kill-switch, and SDK delivery platform** built primarily with **Java / Spring Boot** and **React / TypeScript**.

@@ -129,11 +129,11 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 
 ## M13 Demo/pilot
 
-- [ ] LF-1301
-- [ ] LF-1302
-- [ ] LF-1303
-- [ ] LF-1304
-- [ ] LF-1305
+- [x] LF-1301
+- [x] LF-1302
+- [x] LF-1303
+- [x] LF-1304
+- [x] LF-1305
 
 ## Final review
 

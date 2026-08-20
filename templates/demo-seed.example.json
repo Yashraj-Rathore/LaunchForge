@@ -8,11 +8,24 @@
     "key": "storefront",
     "name": "Storefront"
   },
-  "environments": ["development", "staging", "production"],
-  "fictionalContexts": [
-    {"key": "canada-pro-user", "country": "CA", "plan": "pro"},
-    {"key": "us-free-user", "country": "US", "plan": "free"},
-    {"key": "internal-tester", "country": "CA", "plan": "internal"}
+  "environments": [
+    { "key": "development", "kind": "DEVELOPMENT", "publishedRevision": 1 },
+    { "key": "staging", "kind": "STAGING", "publishedRevision": 0 },
+    { "key": "production", "kind": "PRODUCTION", "publishedRevision": 0 }
   ],
-  "note": "Actual seed schema and flags are implemented in LF-1301."
+  "flags": [
+    { "key": "new-checkout", "type": "BOOLEAN", "clientVisible": true },
+    { "key": "search-ranking", "type": "STRING", "clientVisible": true },
+    { "key": "recommendation-card", "type": "JSON", "clientVisible": true },
+    { "key": "fraud-review-threshold", "type": "NUMBER", "clientVisible": false }
+  ],
+  "fictionalContexts": [
+    { "key": "canada-pro-user", "country": "CA", "plan": "pro", "userId": "maya-pro-01" },
+    { "key": "us-free-user", "country": "US", "plan": "free", "userId": "demo-60157" },
+    { "key": "internal-tester", "country": "US", "plan": "internal", "userId": "demo-26" },
+    { "key": "anonymous-user", "country": "US", "plan": "free" }
+  ],
+  "source": "deploy/local/tenancy-seed.sql",
+  "generator": "eng/generate_demo_seed.py",
+  "note": "All identities, attributes, configuration, and timestamps are fictional and deterministic."
 }

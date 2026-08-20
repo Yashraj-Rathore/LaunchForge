@@ -26,5 +26,7 @@
 | `22_SECURITY_HARDENING_REVIEW.md` | M9 threat assessment, evidence, residual risks, and release checks |
 | `23_RELIABILITY_PERFORMANCE_REPORT.md` | M10 telemetry, diagnostics, benchmark, load-harness, and failure-drill evidence |
 | `24_RELEASE_SUPPLY_CHAIN.md` | M12 PR gates, scanning, immutable release evidence, protected promotion, and rollback |
+| `25_INTEGRATION_QUICKSTARTS.md` | clean demo start plus tested Java, Spring, JavaScript, and React integration paths |
+| `26_PILOT_PACKAGE.md` | narrow pilot profile, checklists, pricing hypotheses, feedback, and operating boundaries |
 
 ADRs under `docs/decisions/` explain choices that must not be casually reversed.

@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1.7
+
+ARG NODE_IMAGE=node:24.19.0-bookworm-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03
+FROM ${NODE_IMAGE}
+
+WORKDIR /workspace
+
+RUN corepack enable && corepack prepare pnpm@11.21.0 --activate
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY frontend/admin-web/package.json frontend/admin-web/package.json
+COPY demos/react-storefront/package.json demos/react-storefront/package.json
+COPY sdks/javascript/packages/core/package.json sdks/javascript/packages/core/package.json
+COPY sdks/javascript/packages/browser/package.json sdks/javascript/packages/browser/package.json
+COPY sdks/javascript/packages/react/package.json sdks/javascript/packages/react/package.json
+COPY tests/e2e/package.json tests/e2e/package.json
+
+RUN pnpm install --frozen-lockfile \
+    && pnpm --filter @launchforge/e2e exec playwright install --with-deps chromium
+
+COPY tests/e2e/ tests/e2e/
+
+CMD ["pnpm", "--filter", "@launchforge/e2e", "exec", "playwright", "test", "-g", "deliberate real-system recruiter walkthrough"]

@@ -4,7 +4,7 @@ This application demonstrates the framework-independent LaunchForge Java SDK in 
 service. It evaluates two fictional flags locally:
 
 - `new-checkout` as a boolean;
-- `checkout-theme` as a string.
+- `search-ranking` as a string.
 
 Each response includes `snapshotRevision`, making a published change visible without redeploying
 the application. The client performs bounded blocking bootstrap, then uses the immutable in-memory
@@ -15,8 +15,8 @@ a fallback. Configuration is not a secrets mechanism; never put secrets in flag 
 
 1. Start PostgreSQL and the Control API, then start Config Edge on its default port `8082`. The
    Control API and edge must receive the same uncommitted `LAUNCHFORGE_SDK_KEY_PEPPER`.
-2. Through an authenticated Control API session, create the `new-checkout` boolean flag and the
-   `checkout-theme` string flag in a fictional development environment, publish revision 1, then
+2. Start the deterministic Prompt 14 stack, or create the `new-checkout` boolean flag and the
+   `search-ranking` string flag in a fictional development environment, publish revision 1, then
    create a server SDK key for that environment. Copy the returned plaintext key immediately; list
    operations expose metadata only.
 3. Start the storefront with that key:
@@ -32,7 +32,7 @@ java -jar demos/spring-demo/target/launchforge-spring-demo-0.1.0-SNAPSHOT-exec.j
 4. Read the current locally evaluated result:
 
 ```powershell
-Invoke-RestMethod 'http://localhost:8080/demo/customer-123?plan=pro'
+Invoke-RestMethod 'http://localhost:18080/demo/canada-pro-user?country=CA&plan=pro&userId=maya-pro-01'
 ```
 
 5. Change either flag and publish. Repeat the request without restarting the storefront. The flag
@@ -56,3 +56,6 @@ value:
 
 This command requires a running Docker engine for its PostgreSQL Testcontainer. Unit coverage for
 the demo response and exposed revision runs in the normal Maven build.
+
+The clean local setup, server-key step, endpoint boundary, and troubleshooting guide are in
+`docs/25_INTEGRATION_QUICKSTARTS.md`.

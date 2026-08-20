@@ -200,3 +200,15 @@ Even without revenue, useful evidence includes:
 - real but anonymized operational learnings.
 
 Never fabricate customer logos, revenue, or adoption.
+
+## 15. M13 pilot implementation baseline
+
+`docs/26_PILOT_PACKAGE.md` turns these hypotheses into a bounded pilot worksheet. It defines the
+2-30 developer Java/Spring team profile, local and private-hosted entry checklists, beta operating
+boundaries, feedback questions, success/stop signals, evidence record, and pricing models to test.
+Every pricing statement remains a hypothesis; no currency amount, billing system, customer,
+revenue, adoption, availability, or production disaster-recovery claim is introduced.
+
+The engineering entry path is `docs/25_INTEGRATION_QUICKSTARTS.md` and the deterministic fictional
+walkthrough is `docs/16_DEMO_PORTFOLIO.md`. A real pilot must complete the legal/privacy/restore and
+support responsibilities in the pilot package before accepting real customer data.

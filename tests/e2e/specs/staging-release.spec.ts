@@ -42,7 +42,7 @@ interface IssuedKey {
 
 interface DemoResponse {
   readonly newCheckout: boolean;
-  readonly checkoutTheme: string;
+  readonly searchRanking: string;
   readonly snapshotRevision: number;
 }
 
@@ -111,8 +111,8 @@ async function findOrCreateFlag(
     type,
     clientVisible: false,
     variations: [
-      { key: type === 'BOOLEAN' ? 'off' : 'classic', name: 'Safe', value: firstValue },
-      { key: type === 'BOOLEAN' ? 'on' : 'express', name: 'Enabled', value: secondValue },
+      { key: type === 'BOOLEAN' ? 'off' : 'baseline', name: 'Safe', value: firstValue },
+      { key: type === 'BOOLEAN' ? 'on' : 'hybrid', name: 'Enabled', value: secondValue },
     ],
   });
   return created.body;
@@ -288,13 +288,13 @@ test('staged release proves OIDC, publish, Edge, SSE, and Java demo convergence'
   await expect(page.getByRole('heading', { name: 'Feature flags' })).toBeVisible();
 
   const checkout = await findOrCreateFlag(page, projectId, 'new-checkout', 'BOOLEAN', false, true);
-  const theme = await findOrCreateFlag(
+  const ranking = await findOrCreateFlag(
     page,
     projectId,
-    'checkout-theme',
+    'search-ranking',
     'STRING',
-    'classic',
-    'express',
+    'lexical-v1',
+    'hybrid-v2',
   );
   await configureDraft(
     page,
@@ -307,12 +307,12 @@ test('staged release proves OIDC, publish, Edge, SSE, and Java demo convergence'
   );
   await configureDraft(
     page,
-    theme,
+    ranking,
     environmentId,
     true,
-    'express',
-    'classic',
-    `Release ${smokeId} selects express theme`,
+    'hybrid',
+    'baseline',
+    `Release ${smokeId} selects hybrid search ranking`,
   );
 
   let keyId: string | undefined;
@@ -332,7 +332,7 @@ test('staged release proves OIDC, publish, Edge, SSE, and Java demo convergence'
 
     demo = startJavaDemo(edgeUrl, secret);
     const firstDemo = await awaitDemo(firstRevision, true);
-    expect(firstDemo.checkoutTheme).toBe('express');
+    expect(firstDemo.searchRanking).toBe('hybrid-v2');
 
     const stream = awaitStreamRevision(edgeUrl, secret, firstRevision);
     cancelStream = stream.cancel;

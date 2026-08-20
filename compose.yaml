@@ -204,9 +204,19 @@ services:
       PGDATABASE: ${LAUNCHFORGE_POSTGRES_DB:-launchforge}
       PGUSER: ${LAUNCHFORGE_POSTGRES_USER:-launchforge}
       PGPASSWORD: ${LAUNCHFORGE_POSTGRES_PASSWORD:?Set a local-only PostgreSQL password in .env}
-    command: [psql, --set, ON_ERROR_STOP=1, --file, /seed/tenancy-seed.sql]
+    command:
+      - psql
+      - --set
+      - ON_ERROR_STOP=1
+      - --set
+      - demo_oidc_issuer=${LAUNCHFORGE_CONTAINER_OIDC_ISSUER_URI:-http://host.docker.internal:8081/realms/launchforge}
+      - --file
+      - /seed/tenancy-seed.sql
+      - --file
+      - /seed/compose-demo-issuer.sql
     volumes:
       - ./deploy/local/tenancy-seed.sql:/seed/tenancy-seed.sql:ro
+      - ./deploy/local/compose-demo-issuer.sql:/seed/compose-demo-issuer.sql:ro
     depends_on:
       migrations:
         condition: service_completed_successfully
@@ -381,6 +391,36 @@ services:
     tmpfs:
       - /tmp:size=32m,mode=1777
       - /var/cache/nginx:size=32m
+      - /var/run/nginx:size=1m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 15s
+
+  northstar-storefront:
+    profiles: [demo]
+    image: launchforge-northstar-demo:${LAUNCHFORGE_IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.web
+      target: demo-runtime
+      args:
+        OCI_CREATED: ${LAUNCHFORGE_OCI_CREATED:-local}
+        OCI_REVISION: ${LAUNCHFORGE_OCI_REVISION:-local}
+        OCI_VERSION: ${LAUNCHFORGE_IMAGE_TAG:-local}
+        DEMO_EDGE_URL: http://127.0.0.1:${LAUNCHFORGE_CONFIG_EDGE_PORT:-8082}
+        DEMO_CLIENT_KEY_SUFFIX: NorthstarDemoClientKey0000000001
+    ports:
+      - '127.0.0.1:${LAUNCHFORGE_DEMO_STOREFRONT_PORT:-5174}:8080'
+    depends_on:
+      demo-seed:
+        condition: service_completed_successfully
+      launchforge-config-edge:
+        condition: service_healthy
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+      - /var/cache/nginx:size=16m
       - /var/run/nginx:size=1m
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]

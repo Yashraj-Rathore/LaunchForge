@@ -10,6 +10,141 @@
 
 > **Working project name.** Perform trademark/domain clearance before using `LaunchForge` commercially.
 
+> **Ship risky changes gradually. Disable them safely. Keep evaluation local.**
+
+LaunchForge is a Java-first feature flag and remote-configuration platform built to demonstrate a
+harder problem than dashboard CRUD: safely moving immutable configuration from an audited control
+plane to application SDKs without adding a network call to every customer request.
+
+![LaunchForge flag workspace](demos/demo-media/01-flag-workspace.png)
+
+![Northstar Commerce live rollout](demos/demo-media/05-live-rollout-update.png)
+
+[Watch the deliberate admin walkthrough](demos/demo-media/launchforge-admin-tour.webm) and
+[the connected storefront update](demos/demo-media/northstar-live-update.webm).
+
+## Try the complete fictional demo
+
+With the pinned Java/Node/Docker prerequisites installed:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File eng/demo.ps1 -Action Start
+```
+
+That command creates fresh local-only ignored settings, builds the full Compose topology, migrates
+PostgreSQL, applies a deterministic Northstar Commerce seed, starts the real React storefront,
+checks health and snapshot delivery, and prints the URLs plus generated local login. Restore the
+same baseline with:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File eng/demo.ps1 -Action Reset -ConfirmReset
+```
+
+The default recruiter walkthrough is deliberately paced at about four minutes; a reproducible
+two-minute track is also provided. See [the demo script](docs/16_DEMO_PORTFOLIO.md) and
+[the integration quick starts](docs/25_INTEGRATION_QUICKSTARTS.md).
+
+## Case study
+
+### The problem
+
+A remote flag service is easy to sketch but dangerous to place on every application request. It
+adds latency, couples application availability to the flag vendor, and makes partial failure part
+of the request path. LaunchForge separates configuration management from runtime evaluation:
+
+- operators publish a validated immutable environment revision;
+- PostgreSQL commits revision, audit, and outbox intent atomically;
+- Kafka and a Redis materialization distribute the new current revision;
+- WebFlux Edge nodes send bounded SSE revision hints;
+- Java and TypeScript SDKs fetch, validate, and atomically activate a snapshot; and
+- every flag evaluation then runs locally from immutable memory.
+
+### Engineering highlights
+
+- Java 25 / Spring Boot 4.1 modular control plane with ArchUnit-enforced boundaries
+- React 19 / TypeScript console using an OIDC same-origin BFF session
+- deterministic SHA-256 rollout across Java and TypeScript using one frozen golden corpus
+- immutable PostgreSQL revisions, optimistic concurrency, audited rollback-as-new-revision
+- transactional outbox, Kafka ordering by environment, idempotent projection, rebuildable Redis
+- WebFlux snapshot/SSE data plane with polling fallback and last-known-good SDK behavior
+- separate human, server SDK, and browser client credential classes
+- Testcontainers, Playwright, failure drills, JMH, k6 workload definitions, Docker Compose, Helm,
+  supply-chain scanning, SBOMs, and protected promotion workflows
+
+### Three deliberate tradeoffs
+
+1. **Local evaluation over remote per-request evaluation.** This protects application latency and
+   availability, at the cost of brief client staleness and stricter snapshot compatibility.
+2. **Full authoritative snapshots after revision hints over delta streaming.** This makes missed or
+   duplicate SSE messages harmless, at the cost of transferring a complete bounded snapshot.
+3. **Correct modular baseline before Kafka and Redis.** PostgreSQL-first delivery proved semantics
+   before distributed infrastructure was introduced; Redis remains disposable rather than
+   authoritative.
+
+### Publish-to-evaluation sequence
+
+```mermaid
+sequenceDiagram
+    participant Operator
+    participant Control as Control API
+    participant PG as PostgreSQL
+    participant Worker as Event Worker
+    participant Kafka
+    participant Redis
+    participant Edge as Config Edge
+    participant SDK
+
+    Operator->>Control: review and publish draft
+    Control->>PG: revision + audit + outbox (one transaction)
+    PG-->>Control: durable monotonic revision
+    Control-->>Operator: publish succeeded
+    Worker->>PG: lease pending outbox event
+    Worker->>Kafka: revision event keyed by environment
+    Kafka-->>Worker: broker acknowledgement
+    Worker->>Redis: validate and materialize newer snapshot
+    Redis-->>Edge: best-effort revision hint
+    Edge-->>SDK: SSE revision hint
+    SDK->>Edge: conditional authoritative snapshot fetch
+    SDK->>SDK: validate, atomically activate, evaluate locally
+```
+
+### Measured evidence, with limits
+
+The recorded JMH run on an i7-11700 / Temurin 25 measured pure local Java evaluation at
+34,634,586.748 ops/s for a boolean default, 26,235,311.991 ops/s for a first-rule match,
+3,733,354.443 ops/s for percentage rollout, and 884,441.528 ops/s for a maximum-position 100-rule
+match. These are one-machine, one-fork microbenchmark results from implementation SHA `993980f`,
+not production capacity or an SLO. Raw JSON, allocation results, commands, environment, and
+limitations are in [the reliability and performance report](docs/23_RELIABILITY_PERFORMANCE_REPORT.md).
+
+The HTTP/SSE k6 workloads are configuration-validated but have not been run on a controlled
+representative deployment, so this project makes no public HTTP capacity, SSE concurrency, or
+publish-convergence latency claim.
+
+### Verified portfolio statements
+
+- Built a multi-tenant Java/Spring and React feature-management platform with immutable
+  configuration revisions, deterministic targeting, role-scoped management, and audited rollback.
+- Implemented independent Java and TypeScript local evaluators that pass one language-neutral
+  golden corpus, with streaming refresh, bounded polling fallback, and last-known-good behavior.
+- Implemented durable revision propagation through a PostgreSQL transactional outbox, Kafka,
+  rebuildable Redis materialization, and horizontally scalable WebFlux/SSE Edge nodes.
+- Measured the pure Java evaluator with a reproducible JMH harness and published the raw artifact
+  and limitations; no unexecuted load target is presented as achieved capacity.
+
+### Current limitations
+
+- no claim of customers, revenue, uptime, multi-region operation, or production disaster recovery;
+- browser client configuration is intentionally public and cannot authorize server actions;
+- analytics is optional operational telemetry, not a causal experimentation system;
+- staging/production controls require the repository owner to configure external GitHub
+  Environments, cloud identity, and deployment infrastructure; and
+- the product name still requires commercial trademark/domain clearance.
+
+The next honest step is a narrow external pilot, not more speculative enterprise scope. The
+[pilot package](docs/26_PILOT_PACKAGE.md) defines the target team, entry/exit checks, feedback,
+support boundaries, and clearly provisional pricing hypotheses.
+
 ## What this package is
 
 This repository contains the implementation and source-of-truth specification for a production-style **feature flag, remote configuration, gradual rollout, kill-switch, and SDK delivery platform** built primarily with **Java / Spring Boot** and **React / TypeScript**.
@@ -648,9 +783,9 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 
 # Project Status
 
-**Status:** Prompt 13 CI/CD and software supply-chain implementation complete.
+**Status:** Prompt 14 demo, portfolio, integration-guide, and pilot-readiness implementation complete.
 
-**Current milestone:** M12 CI/CD supply chain (LF-1201–LF-1205) complete; stop point before Prompt 14 / M13 demo and pilot readiness.
+**Current milestone:** M13 demo/pilot (LF-1301–LF-1305) complete; stop point before Prompt 15 final review.
 
 **Admin console refresh:** The M6 console received a responsive visual-system and usability refresh on 2026-08-20, including adaptive navigation, mobile-safe content, flag discovery, and responsive analytics/audit presentation. This does not advance the M13 milestone.
 
@@ -671,9 +806,15 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 | M10 Reliability/performance | LF-1001–LF-1006 | Complete (2026-08-17) |
 | M11 Containers/Helm | LF-1101–LF-1104 | Complete (2026-08-18) |
 | M12 CI/CD supply chain | LF-1201–LF-1205 | Complete (2026-08-20) |
-| M13 Demo/pilot | LF-1301–LF-1305 | Not started |
+| M13 Demo/pilot | LF-1301–LF-1305 | Complete (2026-08-20) |
 
 Update after each completed Codex prompt. Do not mark issues complete until validation passes.
+
+The M13 baseline includes a generated deterministic Northstar seed, guarded one-command reset,
+tested Java/Spring/JavaScript/React integration paths, real-system recruiter media capture, a
+measured case-study README, and a hypothesis-only pilot package. Demo UI transitions and the
+recommended four-minute presentation pauses are deliberately paced; configuration propagation is
+not delayed. Media and clean-start evidence are regenerated from the running stack.
 
 The repository-side M12 controls and local evidence pass. A real GHCR publication, GitHub
 attestation, staging smoke, and production approval require the repository owner to configure the
@@ -815,11 +956,11 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 
 ## M13 Demo/pilot
 
-- [ ] LF-1301
-- [ ] LF-1302
-- [ ] LF-1303
-- [ ] LF-1304
-- [ ] LF-1305
+- [x] LF-1301
+- [x] LF-1302
+- [x] LF-1303
+- [x] LF-1304
+- [x] LF-1305
 
 ## Final review
 
@@ -861,6 +1002,8 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 | `22_SECURITY_HARDENING_REVIEW.md` | M9 threat assessment, evidence, residual risks, and release checks |
 | `23_RELIABILITY_PERFORMANCE_REPORT.md` | M10 telemetry, diagnostics, benchmark, load-harness, and failure-drill evidence |
 | `24_RELEASE_SUPPLY_CHAIN.md` | M12 PR gates, scanning, immutable release evidence, protected promotion, and rollback |
+| `25_INTEGRATION_QUICKSTARTS.md` | clean demo start plus tested Java, Spring, JavaScript, and React integration paths |
+| `26_PILOT_PACKAGE.md` | narrow pilot profile, checklists, pricing hypotheses, feedback, and operating boundaries |
 
 ADRs under `docs/decisions/` explain choices that must not be casually reversed.
 
@@ -6419,19 +6562,25 @@ anonymous-user
 
 The seed stores only fictional attributes.
 
-## 4. Two-minute recruiter demo
+## 4. Deliberate recruiter demo (default, about four minutes)
 
-### 0:00-0:20 - Problem
+The default live walkthrough is intentionally slower than the minimum two-minute acceptance path.
+Speak before clicking, change one concept at a time, and leave the resulting visitor, reason,
+bucket, and revision visible for at least four seconds. The pacing is presentation-only; do not add
+latency to publication or SDK activation.
 
-Show a running demo storefront and explain:
+### 0:00-0:35 - Problem and safety model
 
-> LaunchForge lets teams change feature behavior safely without redeploying. The SDK evaluates flags locally so application requests do not depend on LaunchForge.
+Show the running Northstar storefront and say:
 
-### 0:20-0:45 - Targeting
+> LaunchForge changes feature behavior without redeploying. The SDK evaluates from an immutable
+> local snapshot, so an application request does not call LaunchForge.
 
-Open `new-checkout`.
+Pause on the visible Development revision and local evaluation diagnostics.
 
-Rule:
+### 0:35-1:20 - Ordered targeting
+
+Select **Maya / Canada Pro**, then **Alex / US Free**. Open `new-checkout` in the console and show:
 
 ```text
 country == CA
@@ -6439,41 +6588,56 @@ AND plan == pro
 -> ON
 ```
 
-Show Canadian Pro user receives new checkout while US Free user does not.
+Pause after each visitor. Explain `RULE_MATCH` first, then `ROLLOUT_MATCH`; do not switch users while
+still explaining the prior result.
 
-### 0:45-1:05 - Percentage rollout
+### 1:20-2:10 - Deterministic rollout
 
-Change a rollout from 10% to 50%.
+Select **Ivy / Rollout cohort**. Her stable bucket is `29240`, so she is outside the initial 10%
+cohort. Run the server-backed simulator with the same fictional context, then edit the allocation
+from 10%/90% to 50%/50%. Emphasize that the bucket does not change; only the cumulative boundary
+moves.
 
-Use the simulator to demonstrate deterministic bucketing.
+### 2:10-2:55 - Publish and live activation
 
-Explain that the same user remains in the same bucket.
+Save the draft, review the diff, and publish revision 2. Keep the connected storefront visible
+until Ivy changes to Express checkout and its revision advances. Pause on both values before moving
+on. The revision-only SSE message caused an authoritative snapshot fetch; it did not carry a delta
+or evaluation result.
 
-### 1:05-1:25 - Live publish
+### 2:55-3:30 - Kill switch
 
-Publish.
+Disable `new-checkout`, save, review, and publish revision 3. Wait for the connected storefront to
+show Classic checkout, `FLAG_DISABLED`, and revision 3. State explicitly that the application was
+not rebuilt or redeployed.
 
-Show:
+### 3:30-4:15 - Engineering evidence
 
-- revision increments;
-- distribution status catches up;
-- connected demo updates without application redeploy.
+Show immutable revision history and the audit reason, then the architecture diagram. Mention:
 
-### 1:25-1:40 - Kill switch
+- PostgreSQL revision plus transactional outbox;
+- Kafka/Redis distribution with PostgreSQL authority;
+- SSE revision hints and local Java/TypeScript evaluation;
+- the shared golden corpus and failure/LKG evidence; and
+- only the measured JMH results and limitations in `docs/23_RELIABILITY_PERFORMANCE_REPORT.md`.
 
-Disable the flag and publish.
+End before opening unrelated screens. Let the interviewer choose the deeper station.
 
-Show immediate safe fallback behavior.
+### Condensed two-minute acceptance path
 
-### 1:40-2:00 - Engineering depth
+The same real flow can be compressed without skipping evidence:
 
-Quickly show:
+```text
+0:00-0:20  problem + local evaluation
+0:20-0:45  Maya targeting versus Alex rollout
+0:45-1:05  Ivy bucket 29240; expand 10% -> 50%
+1:05-1:25  publish; revision and connected storefront update
+1:25-1:40  kill switch; FLAG_DISABLED at newer revision
+1:40-2:00  immutable history/audit + architecture
+```
 
-- architecture diagram;
-- immutable revision history/audit;
-- Java SDK;
-- Kafka/Redis/edge metrics;
-- benchmark link once real.
+Use the four-minute version by default. Use this condensed track only when the meeting format
+actually imposes a two-minute limit.
 
 ## 5. Engineering interview demo
 
@@ -6553,28 +6717,54 @@ It should not be framed as "another SaaS CRUD dashboard."
 
 ## 10. Screenshots
 
-Capture:
+Real-system media is generated into `demos/demo-media/`:
 
-- flag list;
-- rule builder;
-- rollout simulator;
-- publish review;
-- revision history;
-- SDK key page with fake/redacted key;
-- live demo split screen;
-- Grafana distribution dashboard.
+- `01-flag-workspace.png` - seeded flag list and environment context;
+- `02-targeting-and-rollout.png` - ordered targeting and rollout editor;
+- `03-deterministic-simulator.png` - exact fictional bucket result;
+- `04-storefront-ten-percent.png` - Ivy outside the initial cohort;
+- `05-live-rollout-update.png` - connected storefront after revision 2;
+- `06-kill-switch.png` - safe disabled result at revision 3;
+- `07-immutable-revisions.png` - monotonic revision history;
+- `08-audit-trail.png` - durable human reasons;
+- `launchforge-admin-tour.webm` - deliberate console portion; and
+- `northstar-live-update.webm` - connected storefront portion.
+
+The capture spec logs into the real Compose control plane, uses the real database/Edge/browser SDK,
+publishes real immutable revisions, and records each browser page. It does not substitute the
+in-process demo harness or edit evaluation behavior. The default `4000` millisecond pause makes the
+recording readable; values from `1000` through `5000` are supported:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File eng/capture_demo_media.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File eng/capture_demo_media.ps1 -StepDelayMs 5000
+```
+
+The wrapper builds a pinned Node 24/Playwright capture image and runs it with host networking; the
+host does not need a matching Node installation. Docker Desktop host networking must be enabled.
 
 ## 11. Demo reproducibility
 
-Provide one top-level command/script that:
+Start or restore the complete deterministic demo with one top-level script:
 
-- starts required Compose profile;
-- migrates;
-- seeds fictional data;
-- prints URLs/users;
-- verifies health.
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File eng/demo.ps1 -Action Start
+powershell -NoProfile -ExecutionPolicy Bypass -File eng/demo.ps1 -Action Reset -ConfirmReset
+```
 
-A separate reset command restores deterministic state.
+The script:
+
+- creates fresh local-only ignored configuration when absent;
+- starts the isolated Identity, Distribution, Platform, and Demo Compose profiles;
+- enforces migration-before-workload ordering;
+- seeds the generated fictional organization, three environments, four typed flags, contexts,
+  browser key, revision, audit, and outbox event;
+- starts the real React storefront;
+- verifies service health, exact database seed counts, and a browser-projected Edge snapshot; and
+- prints URLs and the generated local login.
+
+The reset action removes only the `launchforge-demo` Compose project's containers and named volumes,
+then rebuilds the same deterministic baseline. It requires the explicit `-ConfirmReset` switch.
 
 ## 12. Case study
 
@@ -6792,6 +6982,18 @@ Even without revenue, useful evidence includes:
 - real but anonymized operational learnings.
 
 Never fabricate customer logos, revenue, or adoption.
+
+## 15. M13 pilot implementation baseline
+
+`docs/26_PILOT_PACKAGE.md` turns these hypotheses into a bounded pilot worksheet. It defines the
+2-30 developer Java/Spring team profile, local and private-hosted entry checklists, beta operating
+boundaries, feedback questions, success/stop signals, evidence record, and pricing models to test.
+Every pricing statement remains a hypothesis; no currency amount, billing system, customer,
+revenue, adoption, availability, or production disaster-recovery claim is introduced.
+
+The engineering entry path is `docs/25_INTEGRATION_QUICKSTARTS.md` and the deterministic fictional
+walkthrough is `docs/16_DEMO_PORTFOLIO.md`. A real pilot must complete the legal/privacy/restore and
+support responsibilities in the pilot package before accepting real customer data.
 
 ---
 
@@ -8322,6 +8524,377 @@ CI additionally runs Actionlint, full Maven/integration/browser gates, dependenc
 and the real staging workflow. A local render proves repository mechanics; it does not claim that
 GitHub Environment approval, GHCR publication, cloud identity, or a live staging/production cluster
 has been exercised.
+
+---
+
+<!-- SOURCE: docs/25_INTEGRATION_QUICKSTARTS.md -->
+
+# 25 - Integration Quick Starts
+
+## 1. Clean local start
+
+Prerequisites are the pinned Java, Node/pnpm, Docker, and Compose versions in
+`docs/19_TECHNOLOGY_BASELINE.md`. From the repository root, one command creates an ignored `.env`
+with fresh local-only values, builds the platform, migrates PostgreSQL, applies the deterministic
+fictional seed, verifies health and snapshot delivery, and prints the URLs and local login:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File eng/demo.ps1 -Action Start
+```
+
+Open the admin console at `http://127.0.0.1:8080` and the real React storefront at
+`http://127.0.0.1:5174`. The script prints the generated `owner` password; it exists only in the
+ignored local `.env` file.
+
+Stop while preserving data:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File eng/demo.ps1 -Action Stop
+```
+
+Restore the exact fictional baseline. This removes only the isolated `launchforge-demo` Compose
+containers and named volumes, then starts and verifies them again:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File eng/demo.ps1 -Action Reset -ConfirmReset
+```
+
+## 2. Credential classes
+
+| Credential | Where it belongs | What it can access |
+|---|---|---|
+| Human OIDC session | HttpOnly same-origin browser session | authorized management operations |
+| Server SDK key | server environment variable or approved secret manager | one environment's server snapshot/stream |
+| Browser client key | public browser runtime configuration | one client-visible projection from approved origins |
+
+Create a one-time server SDK key from **SDK keys -> Server keys** in the seeded Development
+environment. Store it immediately in `LAUNCHFORGE_SDK_KEY`; list operations never return it again.
+The seeded browser key is intentionally public and is already compiled into the local fictional
+storefront. Never place a server key in a `VITE_*` value, browser bundle, screenshot, log, or source
+file. Flags are configuration, not secrets or authorization decisions.
+
+## 3. Plain Java quick start
+
+Install the current SDK artifact from this checkout:
+
+```powershell
+./mvnw.cmd -pl sdks/java/launchforge-java-sdk -am install
+```
+
+Add `dev.launchforge:launchforge-java-sdk:0.1.0-SNAPSHOT` to the application, then create one
+long-lived client:
+
+```java
+import dev.launchforge.sdk.EvaluationContext;
+import dev.launchforge.sdk.EvaluationDetail;
+import dev.launchforge.sdk.LaunchForgeClient;
+import java.net.URI;
+import java.time.Duration;
+
+try (LaunchForgeClient client = LaunchForgeClient.builder()
+    .baseUri(URI.create(System.getenv("LAUNCHFORGE_BASE_URI")))
+    .sdkKey(System.getenv("LAUNCHFORGE_SDK_KEY"))
+    .streaming(true)
+    .blockingBootstrap(Duration.ofSeconds(5))
+    .build()) {
+  EvaluationContext visitor = EvaluationContext.builder("canada-pro-user")
+      .attribute("country", "CA")
+      .attribute("plan", "pro")
+      .attribute("userId", "maya-pro-01")
+      .build();
+
+  EvaluationDetail<Boolean> checkout =
+      client.boolVariationDetail("new-checkout", visitor, false);
+  System.out.printf("enabled=%s reason=%s revision=%d%n",
+      checkout.value(), checkout.reason(), checkout.snapshotRevision().orElse(-1L));
+}
+```
+
+Local settings:
+
+```powershell
+$env:LAUNCHFORGE_BASE_URI = 'http://127.0.0.1:8082'
+$env:LAUNCHFORGE_SDK_KEY = '<one-time server SDK key>'
+```
+
+The evaluation call uses only the validated in-memory snapshot. Streaming is a revision hint and
+polling remains available; neither transport runs on the evaluation hot path.
+
+## 4. Spring Boot quick start
+
+Register that same client once and let Spring close it:
+
+```java
+@Bean(destroyMethod = "close")
+LaunchForgeClient launchForgeClient(
+    @Value("${launchforge.base-uri}") URI baseUri,
+    @Value("${launchforge.sdk-key}") String sdkKey) {
+  return LaunchForgeClient.builder()
+      .baseUri(baseUri)
+      .sdkKey(sdkKey)
+      .streaming(true)
+      .blockingBootstrap(Duration.ofSeconds(5))
+      .build();
+}
+```
+
+The committed Spring integration is executable:
+
+```powershell
+./mvnw.cmd -pl demos/spring-demo -am package
+java -jar demos/spring-demo/target/launchforge-spring-demo-0.1.0-SNAPSHOT-exec.jar --server.port=18080
+Invoke-RestMethod 'http://127.0.0.1:18080/demo/canada-pro-user?country=CA&plan=pro'
+```
+
+The explicit application port avoids the Compose admin console on host port 8080.
+
+## 5. Browser JavaScript quick start
+
+Use a browser client key created for the exact application origin:
+
+```ts
+import { LaunchForgeBrowserClient } from '@launchforge/js-browser';
+import { createEvaluationContext } from '@launchforge/js-core';
+
+const client = new LaunchForgeBrowserClient({
+  baseUrl: import.meta.env.VITE_LAUNCHFORGE_EDGE_URL,
+  clientKey: import.meta.env.VITE_LAUNCHFORGE_CLIENT_KEY,
+  initialContext: createEvaluationContext('canada-pro-user', {
+    country: 'CA',
+    plan: 'pro',
+    userId: 'maya-pro-01',
+  }),
+  streaming: true,
+});
+
+await client.start();
+const checkout = client.boolVariationDetail('new-checkout', false);
+console.log(checkout.value, checkout.reason, checkout.snapshotRevision);
+```
+
+Call `client.close()` when the application owns the client lifecycle. Browser requests omit
+credentials, and the key's exact CORS allowlist is enforced by Config Edge.
+
+## 6. React quick start
+
+The React package is a thin subscription layer over the browser client:
+
+```tsx
+const context = useMemo(
+  () => createEvaluationContext(user.id, {
+    country: user.country,
+    plan: user.plan,
+    userId: user.rolloutKey,
+  }),
+  [user.country, user.id, user.plan, user.rolloutKey],
+);
+
+const options = useMemo(() => ({
+  baseUrl: import.meta.env.VITE_LAUNCHFORGE_EDGE_URL,
+  clientKey: import.meta.env.VITE_LAUNCHFORGE_CLIENT_KEY,
+  initialContext: context,
+  streaming: true,
+}), []);
+
+<LaunchForgeProvider options={options} context={context}>
+  <Checkout />
+</LaunchForgeProvider>
+```
+
+Inside `Checkout`, call `useBooleanFlagDetail('new-checkout', false)`. The provider owns one client,
+subscribes to snapshot activation, rerenders on a valid newer revision, and releases resources on
+final unmount.
+
+## 7. Local and hosted endpoints
+
+| Purpose | Local demo | Hosted/private pilot |
+|---|---|---|
+| Admin/BFF | `http://127.0.0.1:8080` | deployment HTTPS origin |
+| Config Edge | `http://127.0.0.1:8082` | deployment HTTPS edge origin |
+| Northstar demo | `http://127.0.0.1:5174` | optional fictional demo origin |
+
+Hosted endpoints must use HTTPS. Never copy a local key into another environment; issue a key
+scoped to the target environment and rotate or revoke it after testing.
+
+## 8. Troubleshooting
+
+- `SNAPSHOT_UNAVAILABLE`: confirm the correct Edge URL/key class, key status, environment status,
+  and bounded bootstrap timeout.
+- Browser CORS denial: add the exact scheme/host/port to the browser key; wildcard and credentialed
+  browser delivery are deliberately unsupported.
+- A publish committed but the demo is unchanged: compare PostgreSQL/Redis revision diagnostics,
+  outbox age, and the revision shown by the SDK; do not republish blindly.
+- Stream disconnected: polling and last-known-good behavior remain active. Inspect Edge readiness,
+  rate limits, and key revocation before changing retry settings.
+- Port collision: change the matching `.env` host port; do not change only the SDK URL.
+- Reset requested: use the explicit isolated reset command above, not a broad Docker volume delete.
+
+## 9. Executable evidence
+
+The copy/paste paths above are covered by the normal build and focused demo gates:
+
+```powershell
+./mvnw.cmd -pl demos/spring-demo,sdks/java/launchforge-java-sdk -am verify
+corepack pnpm --filter @launchforge/react-storefront-demo test:e2e
+corepack pnpm --filter @launchforge/react-storefront-demo build
+python eng/generate_demo_seed.py --check
+python -m unittest eng.tests.test_demo_seed
+```
+
+The full clean-start and real-system capture commands are documented in
+`docs/16_DEMO_PORTFOLIO.md`.
+
+---
+
+<!-- SOURCE: docs/26_PILOT_PACKAGE.md -->
+
+# 26 - Pilot Package
+
+## 1. Status
+
+This is a commercial-validation hypothesis for a private beta, not evidence of customers, revenue,
+availability, or product-market fit. No payment system is required before an external team proves
+repeated value.
+
+## 2. Narrow pilot profile
+
+Start with a small SaaS or agency team that:
+
+- has roughly 2-30 developers and a Java/Spring-heavy backend;
+- deploys multiple times per month;
+- currently uses configuration files or homegrown flags for risky releases;
+- wants targeting, gradual rollout, a kill switch, and an audit trail; and
+- can accept a single-region beta with explicit support and recovery boundaries.
+
+The pilot is not appropriate for regulated/global workloads requiring contractual availability,
+multi-region failover, SAML/SCIM, advanced experimentation statistics, or completed disaster-
+recovery evidence.
+
+## 3. Entry checklist
+
+- name one technical owner and one decision-maker;
+- select one reversible, non-authorization feature;
+- choose local/self-hosted or private hosted evaluation;
+- confirm the Java, JavaScript, or React integration path;
+- agree that flags do not contain secrets or replace server authorization;
+- agree on fictional/synthetic data for the initial walkthrough;
+- record target integration time and the current release process;
+- define a rollback/kill-switch exercise before production use.
+
+## 4. Local/self-hosted pilot
+
+1. Run the deterministic Compose demo and the relevant SDK quick start.
+2. Replace only the fictional test application with the team's reversible feature.
+3. Issue environment-specific credentials; never reuse the demo values.
+4. Exercise targeting, 10% rollout, 50% rollout, kill switch, and configuration rollback.
+5. Stop Config Edge after bootstrap and confirm last-known-good behavior.
+6. Record integration time, confusing steps, missing operators, and operational concerns.
+
+The team owns infrastructure, HTTPS, OIDC, backups, monitoring, upgrades, and incident response.
+LaunchForge documentation supplies tested containers, Helm, and runbooks but does not claim a
+managed-service SLO.
+
+## 5. Private hosted pilot
+
+Before inviting a real team:
+
+- use a dedicated HTTPS deployment and OIDC tenant;
+- isolate pilot organization data and credentials;
+- configure monitoring, alert routing, audit retention, and key-compromise response;
+- complete and record PostgreSQL backup/restore evidence;
+- disclose the single-region beta boundary and maintenance process;
+- document support hours, escalation contact, data deletion, and pilot exit/export;
+- complete appropriate privacy, terms, subprocessor, tax, and company review outside this
+  engineering repository.
+
+The repository's successful local and CI tests are engineering evidence, not proof that those
+hosted operating controls have been executed.
+
+## 6. Pricing hypotheses to test
+
+These are interview choices, not published prices:
+
+- **Onboarding hypothesis:** a no-cost, time-boxed technical pilot reduces adoption friction more
+  than a paid setup package.
+- **Simple subscription hypothesis:** a flat team tier based on projects/environments/support is
+  easier to understand than per-evaluation billing.
+- **Managed-service hypothesis:** teams may pay first for hosted operations and onboarding while
+  keeping SDK evaluation local.
+- **Self-host hypothesis:** a free self-hosted core may create trust and integration evidence, with
+  paid support or hosting considered only after repeated usage.
+
+Do not meter unobserved local evaluations. Test willingness to pay and compare alternatives before
+selecting any currency amount, packaging, or contract term.
+
+## 7. Interview and feedback questions
+
+Ask for concrete behavior rather than compliments:
+
+1. Walk through the last release where a kill switch would have helped.
+2. How long did the first SDK integration actually take?
+3. Which step felt unsafe or unclear?
+4. Did the application keep expected behavior during an Edge outage?
+5. Was production publish, audit, and rollback understandable?
+6. Which operator, SDK, deployment, or approval was missing?
+7. Would the team replace its current mechanism? Why or why not?
+8. Who would own LaunchForge operationally?
+9. Which pricing unit feels predictable: project, environment, seat, support, or active client?
+10. What must be true before using it for a second feature?
+
+## 8. Pilot success and stop signals
+
+Positive evidence:
+
+- an external developer completes integration and records the time;
+- the team publishes more than one revision for a real reversible use case;
+- kill switch/outage behavior is exercised and understood;
+- at least one team asks to continue or integrate a second feature;
+- objections and feature requests are recorded without overstating adoption.
+
+Stop or narrow the pilot when:
+
+- the integration owner cannot explain local evaluation and credential classes;
+- the proposed flag controls authorization or secrets;
+- required legal/restore/security work is incomplete for real data;
+- the team does not return after the walkthrough; or
+- requested enterprise scope exceeds the stated beta boundary.
+
+## 9. Support and operating expectations
+
+For each pilot, write down rather than imply:
+
+- supported SDK/version and deployment topology;
+- response window and contact channel;
+- planned maintenance and upgrade notice;
+- data retention/deletion and export process;
+- backup/restore owner and last tested date;
+- incident communication owner;
+- credential rotation responsibility; and
+- pilot end date and removal procedure.
+
+No uptime percentage, support SLA, recovery objective, customer logo, or adoption number may be
+published until it exists in a real agreement or measured artifact.
+
+## 10. Evidence record template
+
+```text
+Pilot identifier (non-customer-safe label):
+Deployment mode:
+SDK and version:
+Reversible use case:
+Integration start/end:
+First successful local evaluation:
+First publish/revision:
+Kill-switch exercise:
+Outage/LKG exercise:
+Confusing steps:
+Missing capability:
+Continue/stop decision:
+Permission for any anonymized portfolio statement:
+```
+
+Keep real pilot records outside the public repository unless the participant explicitly approves a
+bounded anonymized statement.
 
 ---
 

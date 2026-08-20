@@ -38,6 +38,21 @@ creating a release tag.
 
 ## Complete local stack
 
+The fastest repeatable path is the Prompt 14 demo runner. It creates an ignored local `.env` with
+random local-only secrets when needed, starts an isolated `launchforge-demo` Compose project,
+verifies the seeded database and browser snapshot, and prints the console, Edge, and storefront
+URLs:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File eng/demo.ps1 -Action Start
+powershell -NoProfile -ExecutionPolicy Bypass -File eng/demo.ps1 -Action Verify
+powershell -NoProfile -ExecutionPolicy Bypass -File eng/demo.ps1 -Action Reset -ConfirmReset
+```
+
+Reset removes only the isolated demo project's named volumes and rebuilds the exact fictional
+baseline: three environments, four typed flags, one immutable Development revision, and one public
+browser key. It never creates or prints a server SDK key.
+
 Copy `.env.example` to the ignored `.env` file and replace every placeholder with local-only
 values. Generate the shared SDK-key pepper with at least 32 random bytes. Then render and start the
 production-shaped platform:
@@ -53,7 +68,8 @@ docker compose ps -a
 and every Java workload wait for that completion; management also waits for OIDC/Redis, while edge
 and worker wait for Kafka/Redis. The web container is published at `http://127.0.0.1:8080` only
 after management and Config Edge are healthy. Keycloak accepts the same-origin callback at that
-port. The seed contains only fictional local data.
+port. The Northstar storefront is published at `http://127.0.0.1:5174`. The seed contains only
+fictional local data.
 
 Add optional analytics or observability without changing the base topology:
 

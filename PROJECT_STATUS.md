@@ -1,8 +1,8 @@
 # Project Status
 
-**Status:** Prompt 13 CI/CD and software supply-chain implementation complete.
+**Status:** Prompt 14 demo, portfolio, integration-guide, and pilot-readiness implementation complete.
 
-**Current milestone:** M12 CI/CD supply chain (LF-1201–LF-1205) complete; stop point before Prompt 14 / M13 demo and pilot readiness.
+**Current milestone:** M13 demo/pilot (LF-1301–LF-1305) complete; stop point before Prompt 15 final review.
 
 **Admin console refresh:** The M6 console received a responsive visual-system and usability refresh on 2026-08-20, including adaptive navigation, mobile-safe content, flag discovery, and responsive analytics/audit presentation. This does not advance the M13 milestone.
 
@@ -23,9 +23,15 @@
 | M10 Reliability/performance | LF-1001–LF-1006 | Complete (2026-08-17) |
 | M11 Containers/Helm | LF-1101–LF-1104 | Complete (2026-08-18) |
 | M12 CI/CD supply chain | LF-1201–LF-1205 | Complete (2026-08-20) |
-| M13 Demo/pilot | LF-1301–LF-1305 | Not started |
+| M13 Demo/pilot | LF-1301–LF-1305 | Complete (2026-08-20) |
 
 Update after each completed Codex prompt. Do not mark issues complete until validation passes.
+
+The M13 baseline includes a generated deterministic Northstar seed, guarded one-command reset,
+tested Java/Spring/JavaScript/React integration paths, real-system recruiter media capture, a
+measured case-study README, and a hypothesis-only pilot package. Demo UI transitions and the
+recommended four-minute presentation pauses are deliberately paced; configuration propagation is
+not delayed. Media and clean-start evidence are regenerated from the running stack.
 
 The repository-side M12 controls and local evidence pass. A real GHCR publication, GitHub
 attestation, staging smoke, and production approval require the repository owner to configure the
