@@ -1,3 +1,4 @@
+{{- if .Values.migrations.enabled }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -46,3 +47,4 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 64Mi
+{{- end }}

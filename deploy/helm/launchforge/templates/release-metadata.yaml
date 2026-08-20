@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "launchforge.fullname" . }}-release-metadata
+  labels:
+    {{- include "launchforge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: release-metadata
+data:
+  release-version: {{ .Values.release.version | quote }}
+  git-sha: {{ .Values.release.revision | quote }}
+  database-schema-version: {{ .Values.release.databaseSchemaVersion | quote }}
+  snapshot-schema-versions: {{ join "," .Values.release.snapshotSchemaVersions | quote }}
+  evaluation-algorithm-versions: {{ join "," .Values.release.evaluationAlgorithmVersions | quote }}
+  management-image: {{ include "launchforge.image" .Values.images.management | quote }}
+  config-edge-image: {{ include "launchforge.image" .Values.images.configEdge | quote }}
+  event-worker-image: {{ include "launchforge.image" .Values.images.eventWorker | quote }}
+  web-image: {{ include "launchforge.image" .Values.images.web | quote }}
+  migrator-image: {{ include "launchforge.image" .Values.images.migrator | quote }}

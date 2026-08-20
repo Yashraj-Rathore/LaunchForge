@@ -422,9 +422,12 @@ helm lint deploy/helm/launchforge --strict
 powershell -NoProfile -ExecutionPolicy Bypass -File eng/prove_kind_resilience.ps1
 ```
 
-The exact image, Helm, kind, shutdown/reset, secret, and resiliency instructions are in
-`deploy/README.md`. M12 remains responsible for publishing, SBOM/provenance, and environment
-promotion.
+Prompt 13 adds the M12 pipeline: full-SHA-pinned PR security gates, Dependabot policy, five GHCR
+images built once and promoted by digest, SPDX SBOMs and GitHub attestations, protected staging
+smoke, approval-gated production promotion, and compatibility-blocked application rollback without
+reverse migrations. The exact image/Helm instructions are in `deploy/README.md`; branch protection,
+environment setup, release verification, and rollback procedures are in
+`docs/24_RELEASE_SUPPLY_CHAIN.md`.
 
 On Unix-like systems, use `./mvnw` in place of `.\mvnw.cmd`. After initializing Git on Windows, record the executable bit with `git update-index --chmod=+x mvnw`.
 

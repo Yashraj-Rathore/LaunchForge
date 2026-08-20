@@ -8,12 +8,19 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function ConvertTo-ProofBase64Url {
+    param([byte[]]$Bytes)
+    return [Convert]::ToBase64String($Bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+}
+
 $proofRepoRoot = Split-Path -Parent $PSScriptRoot
 $proofNamespace = 'launchforge'
 $proofRelease = 'prompt12'
 $proofFullname = 'prompt12-launchforge'
 $proofComposeProject = 'launchforge-prompt12'
-$proofSdkKey = 'lf_srv_ICEiIyQlJicoKSor_AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8'
+$proofSdkKey = 'lf_srv_{0}_{1}' -f `
+    (ConvertTo-ProofBase64Url ([byte[]](32..43))), `
+    (ConvertTo-ProofBase64Url ([byte[]](0..31)))
 $proofPepper = 'prompt12-local-pepper-at-least-32-bytes'
 $proofDatabasePassword = 'prompt12-local-postgres-only'
 $proofDemoProcess = $null

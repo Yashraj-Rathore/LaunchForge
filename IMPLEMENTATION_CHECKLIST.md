@@ -121,11 +121,11 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 
 ## M12 CI/CD
 
-- [ ] LF-1201
-- [ ] LF-1202
-- [ ] LF-1203
-- [ ] LF-1204
-- [ ] LF-1205
+- [x] LF-1201
+- [x] LF-1202
+- [x] LF-1203
+- [x] LF-1204
+- [x] LF-1205
 
 ## M13 Demo/pilot
 

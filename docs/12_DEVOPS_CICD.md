@@ -149,13 +149,12 @@ Do not rebuild production from the same Git tag.
 
 Pin third-party Actions by full commit SHA.
 
-The current workflow in `.github/workflows/ci.yml` implements the applicable through-M11 subset: the
-Maven reactor and architecture gates, real PostgreSQL integration tests, the complete frontend
-format/lint/typecheck/test/build suite, selected Playwright flows, all-profile Compose rendering,
-Helm lint/default/local rendering, documentation and JSON-template validation, and a real
-Keycloak/seeded-Control-API identity smoke. Later release/promotion gates above remain M12 work.
-Every third-party Action is SHA-pinned, and validation/service images use readable tags plus
-immutable manifests.
+The workflow in `.github/workflows/ci.yml` implements the complete M12 PR/main gate: Maven and
+PostgreSQL integration, both evaluator corpora, frontend format/lint/typecheck/test/build and
+Playwright flows, real Keycloak identity smoke, Compose/Helm/contracts, dependency review, proposed
+Git-history secret scanning, and fixable HIGH/CRITICAL dependency/misconfiguration scanning. Every
+third-party Action is SHA-pinned, repository validation rejects mutable Action references, and
+validation/service images use readable tags plus immutable manifests.
 
 ## 9. Staging
 
@@ -368,3 +367,32 @@ before workloads, evaluates revision 1 through the Java SDK, removes Config Edge
 continues from last-known-good, reconnects to revision 2, rolls all four application deployments,
 and verifies that PostgreSQL and Redis still report revision 2. This is local resilience evidence,
 not a production availability or capacity claim.
+
+## 19. M12 release and supply-chain implementation
+
+LF-1201 through LF-1205 add four workflow boundaries. `ci.yml` is the required PR/main quality and
+security gate. `release.yml` accepts only an annotated semantic-version tag on a successful `main`
+commit, builds the five images once, records GHCR digests, scans them, attaches SPDX SBOM/build
+provenance, and deploys the immutable bundle to staging. `promote-production.yml` consumes that exact
+successful workflow run behind the protected `production` environment. `rollback-production.yml`
+accepts only a prior staging-tested bundle whose application supports the current database schema.
+
+The versioned release manifest is generated and validated by `eng/release_manifest.py` from
+`deploy/release/compatibility.json`; it is never assembled from mutable tags during promotion. Helm
+release values are rendered from that manifest. A pre-migration, fail-closed schema ledger records
+the target schema before Flyway, while the ordinary release ConfigMap records the successfully
+deployed SHA, contract versions, and image references. Forward promotion enables the migration hook.
+Application rollback disables it and proves the schema ledger is unchanged. Configuration rollback
+continues to create a newer immutable product revision.
+
+GitHub-hosted controls cannot be fully expressed in repository source. The repository owner must
+configure the protected `main` ruleset, protected `v*` tags, required check names, CODEOWNERS review,
+and `staging`/`production` Environments. Production requires a reviewer and must prevent self-review.
+Provider OIDC is preferred; the portable baseline permits only a short-lived, narrowly scoped
+environment kubeconfig until a provider-specific identity step is chosen. Values transported by an
+environment secret contain no application secret values and reference Kubernetes Secrets managed
+outside Git.
+
+The full operating procedure, required environment variables, scanner exception policy,
+attestation verification, staging smoke, promotion, and rollback commands are normative in
+`docs/24_RELEASE_SUPPLY_CHAIN.md`.

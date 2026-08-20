@@ -1,0 +1,56 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: America/Toronto
+    open-pull-requests-limit: 5
+    labels: [dependencies, supply-chain]
+
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:30'
+      timezone: America/Toronto
+    open-pull-requests-limit: 5
+    labels: [dependencies, java]
+    groups:
+      java-patch-and-minor:
+        update-types: [patch, minor]
+    ignore:
+      - dependency-name: '*'
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '10:00'
+      timezone: America/Toronto
+    open-pull-requests-limit: 5
+    labels: [dependencies, javascript]
+    groups:
+      javascript-patch-and-minor:
+        update-types: [patch, minor]
+    ignore:
+      - dependency-name: '*'
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: docker
+    directory: /deploy/docker
+    schedule:
+      interval: weekly
+      day: monday
+      time: '10:30'
+      timezone: America/Toronto
+    open-pull-requests-limit: 5
+    labels: [dependencies, containers]
+    ignore:
+      - dependency-name: '*'
+        update-types: [version-update:semver-major]

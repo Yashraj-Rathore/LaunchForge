@@ -24,6 +24,10 @@
 - Finalized the M11 image, profile-driven Compose, forward-only migration, external-service/secret,
   Helm availability/security, digest promotion, local shutdown/reset, and Kubernetes resilience
   operating contracts.
+- Finalized the M12 required-check names, dependency/security gate and exception policy, immutable
+  release manifest, GitHub Environment setup, SBOM/attestation verification, same-digest staging and
+  production promotion, fail-closed schema ledger, and separate application/configuration rollback
+  procedures.
 
 ### Implementation
 
@@ -82,3 +86,15 @@
   findings in the final M11 image set at validation time.
 - Restored the localhost Keycloak issuer default for host-run identity workflows while keeping
   container and kind origins explicit, preventing OIDC metadata issuer mismatches in CI.
+- Implemented LF-1201–LF-1205 with SHA-pinned PR gates, weekly ecosystem Dependabot policy,
+  exact-version Gitleaks and Trivy scanning, machine-validated security exceptions, and repository
+  contracts for workflow pinning and database/release compatibility.
+- Added a tag-only five-image GHCR release workflow with immutable digest manifests, fixable
+  HIGH/CRITICAL image gates, per-image SPDX SBOMs, build/SBOM attestations, protected staging deploy,
+  and a real HTTPS/OIDC/publish/Edge/SSE/Java-demo smoke that revokes its one-time SDK key.
+- Added protected production promotion and application rollback workflows that consume only a
+  successful staging-tested release run, validate tag/SHA/repository/digest identity, block database
+  incompatibility, disable migrations on rollback, and never reverse Flyway.
+- Added Helm value-schema/release metadata, a retained pre-migration schema ledger, typed release
+  manifest tooling and unit tests, strict E2E TypeScript checking, and runtime construction of the
+  kind proof's deterministic fictional SDK key so source scans contain no credential-shaped value.

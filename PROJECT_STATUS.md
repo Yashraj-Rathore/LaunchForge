@@ -1,8 +1,8 @@
 # Project Status
 
-**Status:** Prompt 12 production containers, Helm, and local Kubernetes resilience implementation complete.
+**Status:** Prompt 13 CI/CD and software supply-chain implementation complete.
 
-**Current milestone:** M11 containers/Helm (LF-1101–LF-1104) complete; stop point before Prompt 13 / M12 CI/CD supply chain.
+**Current milestone:** M12 CI/CD supply chain (LF-1201–LF-1205) complete; stop point before Prompt 14 / M13 demo and pilot readiness.
 
 **Specification baseline:** Canonical module paths, snapshot/checksum representation, algorithm-version-1 types and reason codes, milestone dependencies, and exact Prompt 0 toolchain pins were normalized on 2026-08-10.
 
@@ -20,7 +20,12 @@
 | M9 Security hardening | LF-0901–LF-0906 | Complete (2026-08-17) |
 | M10 Reliability/performance | LF-1001–LF-1006 | Complete (2026-08-17) |
 | M11 Containers/Helm | LF-1101–LF-1104 | Complete (2026-08-18) |
-| M12 CI/CD supply chain | LF-1201–LF-1205 | Not started |
+| M12 CI/CD supply chain | LF-1201–LF-1205 | Complete (2026-08-20) |
 | M13 Demo/pilot | LF-1301–LF-1305 | Not started |
 
 Update after each completed Codex prompt. Do not mark issues complete until validation passes.
+
+The repository-side M12 controls and local evidence pass. A real GHCR publication, GitHub
+attestation, staging smoke, and production approval require the repository owner to configure the
+documented protected branch/tag rules and `staging`/`production` GitHub Environments, then create the
+first annotated release tag. Those external executions have not been claimed as local evidence.

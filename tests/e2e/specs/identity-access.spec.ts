@@ -1,5 +1,10 @@
 import { expect, test } from '@playwright/test';
 
+test.skip(
+  process.env.LAUNCHFORGE_RELEASE_SMOKE === 'true',
+  'The release smoke uses environment-provided staging resources.',
+);
+
 test('OIDC login scopes the shell and logout invalidates the session', async ({ page }) => {
   const username = process.env.LAUNCHFORGE_E2E_USERNAME ?? 'owner';
   const password = process.env.LAUNCHFORGE_E2E_PASSWORD;

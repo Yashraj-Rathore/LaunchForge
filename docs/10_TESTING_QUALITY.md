@@ -302,7 +302,9 @@ Only make resume claims from reproducible tagged benchmark artifacts.
 - architecture tests;
 - frontend tests;
 - build;
-- Compose/config validation where cheap.
+- Compose/config validation where cheap;
+- dependency review, pushed/PR-history secret scanning, and fixable HIGH/CRITICAL dependency or
+  infrastructure-misconfiguration scanning.
 
 ### PR integration gate
 
@@ -314,10 +316,17 @@ Only make resume claims from reproducible tagged benchmark artifacts.
 ### Release gate
 
 - complete integration/E2E;
-- container scan;
-- SBOM/provenance;
-- staging smoke;
+- immutable-digest container scan rejecting fixable HIGH/CRITICAL findings;
+- an SPDX JSON SBOM plus build/SBOM attestation for every deployable image;
+- protected staging deployment of the exact digest set;
+- HTTPS/OIDC, management mutation, publish, Edge snapshot, SSE, Java SDK/demo live-update smoke;
+- compatibility validation before forward migrations;
 - optional performance threshold.
+
+Production is not another build. The approval-gated promotion consumes the successful staging
+release artifact and proves its deployed Git SHA. Application rollback consumes a previously
+staging-tested compatible artifact with migrations disabled and verifies the current database
+schema is unchanged. See `docs/24_RELEASE_SUPPLY_CHAIN.md` for exact check names and evidence.
 
 ## 13. Coverage
 

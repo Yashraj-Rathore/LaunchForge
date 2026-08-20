@@ -2,6 +2,16 @@ nameOverride: ''
 fullnameOverride: ''
 imagePullSecrets: []
 
+release:
+  version: dev
+  revision: unknown
+  databaseSchemaVersion: 0
+  snapshotSchemaVersions: [1]
+  evaluationAlgorithmVersions: [1]
+
+migrations:
+  enabled: true
+
 images:
   management:
     repository: ghcr.io/example/launchforge-management
@@ -65,27 +75,27 @@ secrets:
 management:
   replicas: 2
   resources:
-    requests: {cpu: 250m, memory: 512Mi}
-    limits: {cpu: '1', memory: 1Gi}
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: '1', memory: 1Gi }
 
 configEdge:
   replicas: 2
   terminationGracePeriodSeconds: 60
   resources:
-    requests: {cpu: 250m, memory: 512Mi}
-    limits: {cpu: '2', memory: 1Gi}
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: '2', memory: 1Gi }
 
 eventWorker:
   replicas: 1
   resources:
-    requests: {cpu: 200m, memory: 384Mi}
-    limits: {cpu: '1', memory: 768Mi}
+    requests: { cpu: 200m, memory: 384Mi }
+    limits: { cpu: '1', memory: 768Mi }
 
 web:
   replicas: 2
   resources:
-    requests: {cpu: 50m, memory: 64Mi}
-    limits: {cpu: 250m, memory: 256Mi}
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 250m, memory: 256Mi }
 
 autoscaling:
   configEdge:

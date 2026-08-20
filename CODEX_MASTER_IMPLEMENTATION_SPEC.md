@@ -430,9 +430,12 @@ helm lint deploy/helm/launchforge --strict
 powershell -NoProfile -ExecutionPolicy Bypass -File eng/prove_kind_resilience.ps1
 ```
 
-The exact image, Helm, kind, shutdown/reset, secret, and resiliency instructions are in
-`deploy/README.md`. M12 remains responsible for publishing, SBOM/provenance, and environment
-promotion.
+Prompt 13 adds the M12 pipeline: full-SHA-pinned PR security gates, Dependabot policy, five GHCR
+images built once and promoted by digest, SPDX SBOMs and GitHub attestations, protected staging
+smoke, approval-gated production promotion, and compatibility-blocked application rollback without
+reverse migrations. The exact image/Helm instructions are in `deploy/README.md`; branch protection,
+environment setup, release verification, and rollback procedures are in
+`docs/24_RELEASE_SUPPLY_CHAIN.md`.
 
 On Unix-like systems, use `./mvnw` in place of `.\mvnw.cmd`. After initializing Git on Windows, record the executable bit with `git update-index --chmod=+x mvnw`.
 
@@ -645,9 +648,9 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 
 # Project Status
 
-**Status:** Prompt 12 production containers, Helm, and local Kubernetes resilience implementation complete.
+**Status:** Prompt 13 CI/CD and software supply-chain implementation complete.
 
-**Current milestone:** M11 containers/Helm (LF-1101–LF-1104) complete; stop point before Prompt 13 / M12 CI/CD supply chain.
+**Current milestone:** M12 CI/CD supply chain (LF-1201–LF-1205) complete; stop point before Prompt 14 / M13 demo and pilot readiness.
 
 **Specification baseline:** Canonical module paths, snapshot/checksum representation, algorithm-version-1 types and reason codes, milestone dependencies, and exact Prompt 0 toolchain pins were normalized on 2026-08-10.
 
@@ -665,10 +668,15 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 | M9 Security hardening | LF-0901–LF-0906 | Complete (2026-08-17) |
 | M10 Reliability/performance | LF-1001–LF-1006 | Complete (2026-08-17) |
 | M11 Containers/Helm | LF-1101–LF-1104 | Complete (2026-08-18) |
-| M12 CI/CD supply chain | LF-1201–LF-1205 | Not started |
+| M12 CI/CD supply chain | LF-1201–LF-1205 | Complete (2026-08-20) |
 | M13 Demo/pilot | LF-1301–LF-1305 | Not started |
 
 Update after each completed Codex prompt. Do not mark issues complete until validation passes.
+
+The repository-side M12 controls and local evidence pass. A real GHCR publication, GitHub
+attestation, staging smoke, and production approval require the repository owner to configure the
+documented protected branch/tag rules and `staging`/`production` GitHub Environments, then create the
+first annotated release tag. Those external executions have not been claimed as local evidence.
 
 ---
 
@@ -797,11 +805,11 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 
 ## M12 CI/CD
 
-- [ ] LF-1201
-- [ ] LF-1202
-- [ ] LF-1203
-- [ ] LF-1204
-- [ ] LF-1205
+- [x] LF-1201
+- [x] LF-1202
+- [x] LF-1203
+- [x] LF-1204
+- [x] LF-1205
 
 ## M13 Demo/pilot
 
@@ -850,6 +858,7 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 | `21_NON_GOALS_AND_FUTURE.md` | deliberate exclusions and future options |
 | `22_SECURITY_HARDENING_REVIEW.md` | M9 threat assessment, evidence, residual risks, and release checks |
 | `23_RELIABILITY_PERFORMANCE_REPORT.md` | M10 telemetry, diagnostics, benchmark, load-harness, and failure-drill evidence |
+| `24_RELEASE_SUPPLY_CHAIN.md` | M12 PR gates, scanning, immutable release evidence, protected promotion, and rollback |
 
 ADRs under `docs/decisions/` explain choices that must not be casually reversed.
 
@@ -3689,18 +3698,21 @@ context and fail if those values appear.
 
 ## 16. Dependency and supply-chain security
 
-CI should include:
+M12 implements:
 
-- Maven dependency review/vulnerability scan;
-- npm lockfile audit policy;
-- secret scan;
-- container scan;
-- pinned GitHub Actions SHAs;
-- SBOM generation;
-- provenance/attestation for release images;
-- immutable image digest promotion.
+- PR dependency review plus Trivy lockfile/configuration scanning, rejecting fixable HIGH/CRITICAL
+  findings;
+- pushed/PR-history Gitleaks scanning with an exact binary version;
+- weekly grouped patch/minor Dependabot PRs for GitHub Actions, Maven, pnpm/npm, and Docker while
+  major upgrades require explicit compatibility review;
+- repository validation that rejects any third-party Action not pinned by a full commit SHA;
+- immutable-digest release-image scanning, SPDX JSON SBOM generation, GitHub build/SBOM
+  attestations, and same-digest environment promotion;
+- a machine-validated, owner/approver/expiry-governed exception registry with no active exceptions.
 
-Do not auto-upgrade major dependencies without tests.
+No secret finding is suppressible. Every dependency update, including automated patch/minor PRs,
+must pass the complete required CI set. Exact exception and release verification procedures are in
+`docs/24_RELEASE_SUPPLY_CHAIN.md`.
 
 ## 17. Threat-model cases
 
@@ -4073,7 +4085,9 @@ Only make resume claims from reproducible tagged benchmark artifacts.
 - architecture tests;
 - frontend tests;
 - build;
-- Compose/config validation where cheap.
+- Compose/config validation where cheap;
+- dependency review, pushed/PR-history secret scanning, and fixable HIGH/CRITICAL dependency or
+  infrastructure-misconfiguration scanning.
 
 ### PR integration gate
 
@@ -4085,10 +4099,17 @@ Only make resume claims from reproducible tagged benchmark artifacts.
 ### Release gate
 
 - complete integration/E2E;
-- container scan;
-- SBOM/provenance;
-- staging smoke;
+- immutable-digest container scan rejecting fixable HIGH/CRITICAL findings;
+- an SPDX JSON SBOM plus build/SBOM attestation for every deployable image;
+- protected staging deployment of the exact digest set;
+- HTTPS/OIDC, management mutation, publish, Edge snapshot, SSE, Java SDK/demo live-update smoke;
+- compatibility validation before forward migrations;
 - optional performance threshold.
+
+Production is not another build. The approval-gated promotion consumes the successful staging
+release artifact and proves its deployed Git SHA. Application rollback consumes a previously
+staging-tested compatible artifact with migrations disabled and verifies the current database
+schema is unchanged. See `docs/24_RELEASE_SUPPLY_CHAIN.md` for exact check names and evidence.
 
 ## 13. Coverage
 
@@ -4616,13 +4637,12 @@ Do not rebuild production from the same Git tag.
 
 Pin third-party Actions by full commit SHA.
 
-The current workflow in `.github/workflows/ci.yml` implements the applicable through-M11 subset: the
-Maven reactor and architecture gates, real PostgreSQL integration tests, the complete frontend
-format/lint/typecheck/test/build suite, selected Playwright flows, all-profile Compose rendering,
-Helm lint/default/local rendering, documentation and JSON-template validation, and a real
-Keycloak/seeded-Control-API identity smoke. Later release/promotion gates above remain M12 work.
-Every third-party Action is SHA-pinned, and validation/service images use readable tags plus
-immutable manifests.
+The workflow in `.github/workflows/ci.yml` implements the complete M12 PR/main gate: Maven and
+PostgreSQL integration, both evaluator corpora, frontend format/lint/typecheck/test/build and
+Playwright flows, real Keycloak identity smoke, Compose/Helm/contracts, dependency review, proposed
+Git-history secret scanning, and fixable HIGH/CRITICAL dependency/misconfiguration scanning. Every
+third-party Action is SHA-pinned, repository validation rejects mutable Action references, and
+validation/service images use readable tags plus immutable manifests.
 
 ## 9. Staging
 
@@ -4835,6 +4855,35 @@ before workloads, evaluates revision 1 through the Java SDK, removes Config Edge
 continues from last-known-good, reconnects to revision 2, rolls all four application deployments,
 and verifies that PostgreSQL and Redis still report revision 2. This is local resilience evidence,
 not a production availability or capacity claim.
+
+## 19. M12 release and supply-chain implementation
+
+LF-1201 through LF-1205 add four workflow boundaries. `ci.yml` is the required PR/main quality and
+security gate. `release.yml` accepts only an annotated semantic-version tag on a successful `main`
+commit, builds the five images once, records GHCR digests, scans them, attaches SPDX SBOM/build
+provenance, and deploys the immutable bundle to staging. `promote-production.yml` consumes that exact
+successful workflow run behind the protected `production` environment. `rollback-production.yml`
+accepts only a prior staging-tested bundle whose application supports the current database schema.
+
+The versioned release manifest is generated and validated by `eng/release_manifest.py` from
+`deploy/release/compatibility.json`; it is never assembled from mutable tags during promotion. Helm
+release values are rendered from that manifest. A pre-migration, fail-closed schema ledger records
+the target schema before Flyway, while the ordinary release ConfigMap records the successfully
+deployed SHA, contract versions, and image references. Forward promotion enables the migration hook.
+Application rollback disables it and proves the schema ledger is unchanged. Configuration rollback
+continues to create a newer immutable product revision.
+
+GitHub-hosted controls cannot be fully expressed in repository source. The repository owner must
+configure the protected `main` ruleset, protected `v*` tags, required check names, CODEOWNERS review,
+and `staging`/`production` Environments. Production requires a reviewer and must prevent self-review.
+Provider OIDC is preferred; the portable baseline permits only a short-lived, narrowly scoped
+environment kubeconfig until a provider-specific identity step is chosen. Values transported by an
+environment secret contain no application secret values and reference Kubernetes Secrets managed
+outside Git.
+
+The full operating procedure, required environment variables, scanner exception policy,
+attestation verification, staging smoke, promotion, and rollback commands are normative in
+`docs/24_RELEASE_SUPPLY_CHAIN.md`.
 
 ---
 
@@ -6980,13 +7029,24 @@ absence of subject/context columns.
 
 ## Runbook N - Failed deployment
 
-1. compare Git SHA/image digest;
-2. check migration compatibility;
-3. if application regression, promote previous compatible digest;
-4. do not reverse DB migrations automatically;
-5. verify management/edge/projector smoke;
-6. verify published revision unchanged;
-7. document cause.
+1. stop further promotion and capture the failing Release/Promote run ID, tag, Git SHA, deployed
+   release-metadata ConfigMap, and all image digests;
+2. validate the release manifest and compare its SHA/digests with the cluster; do not substitute a
+   mutable tag;
+3. check the current database schema against the candidate application's declared compatibility;
+4. if the application regressed, run `Roll back production application` with an incident/change
+   reference and a previous successful staging run/tag;
+5. do not reverse Flyway migrations automatically; the rollback workflow disables the migration
+   Job and blocks an incompatible candidate;
+6. verify management, Edge snapshot, projector, SSE/SDK convergence, deployed SHA, and unchanged
+   database schema;
+7. verify the published configuration revision is unchanged. If configuration behavior must be
+   restored, use product revision history to publish a newer rollback revision instead;
+8. record approver, timeline, affected scope, evidence, and forward fix.
+
+Manifest and attestation verification commands, required GitHub Environment protection, and the
+distinction between application and configuration rollback are in
+`docs/24_RELEASE_SUPPLY_CHAIN.md`.
 
 ---
 
@@ -7161,6 +7221,8 @@ Verified against official release sources on **2026-08-10**; M1-owned tools were
 | Node.js container builder | `node:24.19.0-bookworm-slim`; manifest `sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03` | M11 |
 | Nginx runtime | `nginx:1.31.2-alpine3.23`; manifest `sha256:54f2a904c251d5a34adf545a72d32515a15e08418dae0266e23be2e18c66fefa` | M11 |
 | Trivy | `0.74.0`; image manifest `sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969` | M11 local image gate |
+| Gitleaks | `8.30.1`; official Windows x64 archive SHA-256 `d29144deff3a68aa93ced33dddf84b7fdc26070add4aa0f4513094c8332afc4e` | M12 secret gate |
+| Actionlint | `1.7.12`; source commit `914e7df21a07ef503a81201c76d2b11c789d3fca`; CI image manifest `sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667` | M12 workflow gate |
 
 TypeScript 7.0 is not the initial pin because its first release does not expose the programmatic API needed by the surrounding tooling ecosystem; re-evaluate TypeScript 7 after 7.1 and full lint/test/build compatibility. Deferred services are documented candidates, not permission to add them before their milestone.
 
@@ -7181,6 +7243,38 @@ Official verification references:
 - k6: <https://grafana.com/docs/k6/latest/release-notes/>
 - Docker/Kubernetes/Helm/kind: <https://docs.docker.com/engine/release-notes/29/>, <https://github.com/docker/compose/releases>, <https://kubernetes.io/releases/>, <https://github.com/helm/helm/releases>, and <https://github.com/kubernetes-sigs/kind/releases>
 - Production image bases and scanner: <https://hub.docker.com/_/maven>, <https://hub.docker.com/_/eclipse-temurin>, <https://hub.docker.com/_/node>, <https://hub.docker.com/_/nginx>, and <https://github.com/aquasecurity/trivy/releases>
+- CI/release Actions and workflow linter: <https://github.com/actions>, <https://github.com/docker>, <https://github.com/aquasecurity/trivy-action>, <https://github.com/gitleaks/gitleaks-action>, <https://github.com/anchore/sbom-action>, <https://github.com/Azure/setup-helm>, <https://github.com/Azure/setup-kubectl>, and <https://github.com/rhysd/actionlint/releases>
+
+### M12 GitHub Action pins
+
+Re-verified against the official repositories/releases on **2026-08-20**. Workflow source uses the
+full commit SHA and keeps the readable release beside it as a comment; Dependabot may update both
+through a fully gated pull request.
+
+| Action | Release | Commit SHA |
+|---|---|---|
+| `actions/checkout` | `v7.0.1` | `3d3c42e5aac5ba805825da76410c181273ba90b1` |
+| `actions/setup-java` | `v5.7.0` | `b6effb05e454b25005698d916606bdc6ffcbf961` |
+| `actions/setup-node` | `v7.0.0` | `820762786026740c76f36085b0efc47a31fe5020` |
+| `pnpm/action-setup` | `v6.0.10` | `0977fd99725f1db4007ccb2928dbb4e90d06cc86` |
+| `actions/dependency-review-action` | `v5.0.0` | `a1d282b36b6f3519aa1f3fc636f609c47dddb294` |
+| `gitleaks/gitleaks-action` | `v3.0.0` | `e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e` |
+| `aquasecurity/trivy-action` | `v0.36.0` | `ed142fd0673e97e23eac54620cfb913e5ce36c25` |
+| `docker/login-action` | `v4.6.0` | `dbcb813823bdd20940b903addbd779551569679f` |
+| `docker/setup-buildx-action` | `v4.3.0` | `37fe631027851001ddb9b187196cc803df7f5f0e` |
+| `docker/build-push-action` | `v7.3.0` | `53b7df96c91f9c12dcc8a07bcb9ccacbed38856a` |
+| `actions/upload-artifact` | `v7.0.1` | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` |
+| `actions/download-artifact` | `v8.0.1` | `3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c` |
+| `actions/attest-build-provenance` | `v4.2.2` | `4d101475d8b20a2381f78447822ac1eab6504dd8` |
+| `actions/attest-sbom` | `v4.1.0` | `c604332985a26aa8cf1bdc465b92731239ec6b9e` |
+| `anchore/sbom-action` | `v0.24.0` | `e22c389904149dbc22b58101806040fa8d37a610` |
+| `azure/setup-helm` | `v5.0.1` | `9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310` |
+| `azure/setup-kubectl` | `v5.1.0` | `829323503d1be3d00ca8346e5391ca0b07a9ab0d` |
+
+The locally downloaded official Actionlint Windows archive matched release checksum
+`6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f6e9`; CI uses the immutable image
+manifest above. These pins are repository provenance inputs, not a promise that future releases are
+safe without review.
 
 LF-0003 resolved and recorded the PostgreSQL image manifest digest after a successful pull. Compose uses the readable tag and digest together, so a tag move cannot silently change the local database image. PostgreSQL 18 Compose volumes mount the image's version-appropriate data root at `/var/lib/postgresql`, not the older `/var/lib/postgresql/data` path.
 
@@ -8009,6 +8103,199 @@ No LF-1001 through LF-1006 correctness gap remains. Before making any public cap
 run the committed k6 workloads on a controlled multi-instance deployment and complete
 `tests/performance/load-report-template.md`. M11 owns container images and Helm deployment;
 M12 owns release-performance gates and supply-chain automation.
+
+---
+
+<!-- SOURCE: docs/24_RELEASE_SUPPLY_CHAIN.md -->
+
+# 24 - CI/CD and Release Supply Chain
+
+## 1. Scope and release invariants
+
+This document is the operating contract for LF-1201 through LF-1205. It covers pull-request gates,
+dependency and secret controls, immutable release evidence, protected staging/production promotion,
+and application rollback.
+
+The non-negotiable invariants are:
+
+- a release starts from an annotated `vMAJOR.MINOR.PATCH` tag whose commit is on `main` and has a
+  successful `CI` run;
+- the five deployable images are built once and identified by registry `sha256` digest;
+- staging and production consume the same release manifest and image digests;
+- a management edit reaches runtime only through the existing immutable configuration-publication
+  workflow; a deployment never edits a published configuration revision;
+- database migrations move forward only; application rollback never reverses Flyway migrations;
+- configuration rollback remains a product operation that creates a newer immutable environment
+  revision;
+- no repository, workflow, image, release bundle, or committed Helm value contains credentials.
+
+## 2. Pull-request and main-branch gates
+
+`.github/workflows/ci.yml` supplies these required check names:
+
+| Required check | Evidence |
+|---|---|
+| Dependency, secret, and repository security | Dependency review on PRs, proposed-history Gitleaks, Trivy dependency/misconfiguration scan |
+| Java and JavaScript evaluator compatibility | Both evaluators execute the frozen language-neutral corpus |
+| Java quality and integration | Full Maven reactor plus PostgreSQL integration profile |
+| Frontend quality | Locked install, format, lint, type-check, unit, build, admin Playwright, and React demo Playwright |
+| OIDC tenancy browser smoke | Real Keycloak login, tenant access, and logout against PostgreSQL-backed Control API |
+| Repository contracts | Compose, Helm, documentation, workflow pinning, release tooling, and JSON contracts |
+
+Configure the `main` ruleset in GitHub to require all six checks, one approving review, CODEOWNERS
+review for owned paths, dismissal of stale approvals, conversation resolution, and a linear merge
+history. Apply the rule to administrators, block force pushes and deletion, and permit no direct
+push bypass. Protect `v*` tags from update or deletion. `.github/CODEOWNERS` assigns release,
+workflow, and supply-chain policy changes to the repository owner.
+
+The repository cannot create branch rules through workflow source. The owner must configure and
+periodically audit these GitHub settings; a green workflow without the ruleset is not equivalent to
+protected `main`.
+
+## 3. Dependencies, scanners, and exceptions
+
+Dependabot checks GitHub Actions, Maven, pnpm/npm, and Docker inputs each week. Patch and minor
+updates may be grouped but still require the entire PR gate. Major upgrades are deliberately
+ignored by the bot and require a compatibility review, an explicit PR, and an ADR when they change
+an architectural or contract decision. Lockfiles, the Maven wrapper, base-image digests, and full
+Action SHAs remain authoritative.
+
+Security gates are:
+
+- dependency review rejects newly introduced HIGH or CRITICAL advisories;
+- Gitleaks scans the pushed/PR commit range and rejects any detected secret;
+- Trivy filesystem scanning rejects fixable HIGH or CRITICAL dependency or configuration findings;
+- every release image is scanned by immutable digest and rejects fixable HIGH or CRITICAL
+  vulnerabilities before staging;
+- release Actions and repository workflow lint images are pinned by full immutable digest/SHA and
+  checked by `eng/validate_supply_chain.py`.
+
+An exception is allowed only when remediation is impossible within the release window and the
+residual risk is explicitly accepted. Add exactly one record to
+`security/supply-chain-exceptions.json` with a unique ID, scanner, narrow scope, rationale, owner,
+approver, and ISO expiry date. An expired or malformed record fails CI. Scanner ignore files are
+forbidden unless at least one governed record exists. There are no active exceptions at this
+baseline. Never suppress a secret finding; rotate/revoke the credential and remove it from history
+under an incident procedure.
+
+## 4. Immutable release workflow
+
+`.github/workflows/release.yml` runs only for an annotated semantic-version tag. It rejects a tag
+outside `main`, a commit without successful CI, or a tag that already has a GitHub Release. It then:
+
+1. builds management, Config Edge, Event Worker, web, and migrator images exactly once;
+2. publishes each image to GHCR with readable tag/SHA aliases but records only its immutable
+   `repository@sha256:digest` identity;
+3. scans the immutable digest, generates an SPDX JSON SBOM, and attaches GitHub build-provenance and
+   SBOM attestations to that digest;
+4. creates `release/release-manifest.json` with tag, full Git SHA, source repository, compatibility
+   versions, and all five digests;
+5. deploys that manifest to the protected `staging` environment with forward migrations enabled;
+6. executes the staging smoke; and
+7. creates the immutable GitHub Release with the manifest and all SBOMs only after staging succeeds.
+
+`deploy/release/compatibility.json` is the reviewed compatibility declaration. Its database
+migration version must match the highest committed Flyway migration. Snapshot and evaluation
+algorithm versions are also recorded in the release manifest and the deployed
+`release-metadata` ConfigMap. A separate pre-migration `database-schema` ConfigMap records the
+target schema before Flyway runs. This deliberately fails closed if migration succeeds but the
+later workload rollout fails: a subsequent rollback cannot trust a stale lower schema. It is kept
+with the external database and replaced before each future Helm operation. `eng/release_manifest.py`
+rejects missing images, mutable references, tag/SHA mismatches, and invalid compatibility metadata.
+
+Verify a downloaded release before use:
+
+```powershell
+gh release download v1.2.3 --pattern release-manifest.json --pattern "*.spdx.json" --dir release-proof
+python eng/release_manifest.py validate --manifest release-proof/release-manifest.json --expected-tag v1.2.3 --expected-sha <40-character-sha> --expected-repository Yashraj-Rathore/LaunchForge
+docker buildx imagetools inspect ghcr.io/yashraj-rathore/launchforge-management@sha256:<digest>
+gh attestation verify oci://ghcr.io/yashraj-rathore/launchforge-management@sha256:<digest> --repo Yashraj-Rathore/LaunchForge
+```
+
+Repeat the image and attestation checks for all five manifest entries. Inspect the SPDX files with
+the approved vulnerability/license tooling when release policy requires a human review.
+
+## 5. Staging environment and smoke
+
+Create a GitHub Environment named `staging`. The cloud-neutral workflow requests an OIDC token so a
+provider-specific workload-identity login can replace static cluster credentials. Until that
+provider step is selected, `LAUNCHFORGE_KUBE_CONFIG_B64` must be a narrowly scoped, short-lived
+kubeconfig stored as an environment secret. Never commit it. `LAUNCHFORGE_HELM_VALUES_B64` is a
+protected transport for non-secret environment values; those values must reference a Kubernetes
+Secret managed outside Git rather than contain secret material.
+
+Configure staging with:
+
+| Kind | Name | Purpose |
+|---|---|---|
+| secret | `LAUNCHFORGE_KUBE_CONFIG_B64` | Base64 kubeconfig until provider OIDC is wired |
+| secret | `LAUNCHFORGE_HELM_VALUES_B64` | Base64 non-secret Helm environment override |
+| secret | `LAUNCHFORGE_SMOKE_PASSWORD` | Fictional least-privilege staging operator password |
+| variable | `LAUNCHFORGE_HELM_RELEASE` | Helm release name; defaults to `launchforge` |
+| variable | `LAUNCHFORGE_NAMESPACE` | Kubernetes namespace; defaults to `launchforge` |
+| variable | `LAUNCHFORGE_WEB_URL` | HTTPS same-origin web entry point |
+| variable | `LAUNCHFORGE_EDGE_URL` | HTTPS Config Edge entry point |
+| variable | `LAUNCHFORGE_SMOKE_USERNAME` | Fictional staging OIDC operator |
+| variable | `LAUNCHFORGE_SMOKE_PROJECT_ID` | Dedicated fictional smoke project UUID |
+| variable | `LAUNCHFORGE_SMOKE_ENVIRONMENT_ID` | Dedicated fictional smoke environment UUID |
+
+The dedicated project must contain no customer data. The smoke proves HTTPS, real OIDC login,
+management mutation, publish, Config Edge snapshot delivery, revision-only SSE, Java SDK streaming
+refresh, and the Java demo kill-switch change without application redeploy. It creates a one-time
+server SDK key and revokes it during cleanup. Playwright tracing is disabled for this external flow
+so the one-time secret is not persisted in an artifact.
+
+## 6. Production promotion
+
+Create a GitHub Environment named `production` with at least one required reviewer, prevent the
+requester from approving their own deployment, restrict deployment to protected release sources,
+and store production-scoped cluster access and non-secret Helm overrides under the same names used
+by staging. Prefer provider workload identity through the workflow's `id-token: write` permission;
+do not add cloud access keys to repository or workflow source.
+
+Run `Promote production` with the successful `Release` workflow run ID and its exact tag. The
+workflow verifies the run originated in this repository from that pushed tag, completed
+successfully (including staging), and produced a manifest matching the checked-out tag and SHA.
+After protected approval it checks database compatibility, enables the forward migration Job, and
+deploys the same digest set. A fresh image build is neither required nor allowed. The deployed
+ConfigMap SHA must equal the manifest SHA before promotion is considered successful.
+
+## 7. Application and configuration rollback
+
+Run `Roll back production application` with an incident/change reference and a previously
+staging-tested release run/tag. Protected production approval still applies. The workflow reads the
+current recorded database schema, blocks a candidate whose application compatibility range excludes
+that schema, renders the candidate digests with migrations disabled, verifies that no migration Job
+is present, deploys, and proves the database schema record did not move backward.
+
+If no older application supports the current schema, do not force the rollback. Forward-fix the
+application or restore the database through the separately approved disaster-recovery procedure.
+Flyway migrations are never automatically undone.
+
+To restore customer flag behavior, do not run the application workflow. Use LaunchForge revision
+history to publish a newer configuration revision whose content restores the selected historical
+state. This preserves ordering, audit, SDK convergence, and immutable history.
+
+## 8. Local repository verification
+
+Run before proposing a release-policy change:
+
+```powershell
+python -m unittest discover -s eng/tests -p "test_*.py"
+python eng/validate_supply_chain.py
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+helm lint deploy/helm/launchforge --strict
+helm template launchforge deploy/helm/launchforge --namespace launchforge
+```
+
+CI additionally runs Actionlint, full Maven/integration/browser gates, dependency/secret scanning,
+and the real staging workflow. A local render proves repository mechanics; it does not claim that
+GitHub Environment approval, GHCR publication, cloud identity, or a live staging/production cluster
+has been exercised.
 
 ---
 

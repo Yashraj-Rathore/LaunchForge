@@ -63,6 +63,8 @@ Verified against official release sources on **2026-08-10**; M1-owned tools were
 | Node.js container builder | `node:24.19.0-bookworm-slim`; manifest `sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03` | M11 |
 | Nginx runtime | `nginx:1.31.2-alpine3.23`; manifest `sha256:54f2a904c251d5a34adf545a72d32515a15e08418dae0266e23be2e18c66fefa` | M11 |
 | Trivy | `0.74.0`; image manifest `sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969` | M11 local image gate |
+| Gitleaks | `8.30.1`; official Windows x64 archive SHA-256 `d29144deff3a68aa93ced33dddf84b7fdc26070add4aa0f4513094c8332afc4e` | M12 secret gate |
+| Actionlint | `1.7.12`; source commit `914e7df21a07ef503a81201c76d2b11c789d3fca`; CI image manifest `sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667` | M12 workflow gate |
 
 TypeScript 7.0 is not the initial pin because its first release does not expose the programmatic API needed by the surrounding tooling ecosystem; re-evaluate TypeScript 7 after 7.1 and full lint/test/build compatibility. Deferred services are documented candidates, not permission to add them before their milestone.
 
@@ -83,6 +85,38 @@ Official verification references:
 - k6: <https://grafana.com/docs/k6/latest/release-notes/>
 - Docker/Kubernetes/Helm/kind: <https://docs.docker.com/engine/release-notes/29/>, <https://github.com/docker/compose/releases>, <https://kubernetes.io/releases/>, <https://github.com/helm/helm/releases>, and <https://github.com/kubernetes-sigs/kind/releases>
 - Production image bases and scanner: <https://hub.docker.com/_/maven>, <https://hub.docker.com/_/eclipse-temurin>, <https://hub.docker.com/_/node>, <https://hub.docker.com/_/nginx>, and <https://github.com/aquasecurity/trivy/releases>
+- CI/release Actions and workflow linter: <https://github.com/actions>, <https://github.com/docker>, <https://github.com/aquasecurity/trivy-action>, <https://github.com/gitleaks/gitleaks-action>, <https://github.com/anchore/sbom-action>, <https://github.com/Azure/setup-helm>, <https://github.com/Azure/setup-kubectl>, and <https://github.com/rhysd/actionlint/releases>
+
+### M12 GitHub Action pins
+
+Re-verified against the official repositories/releases on **2026-08-20**. Workflow source uses the
+full commit SHA and keeps the readable release beside it as a comment; Dependabot may update both
+through a fully gated pull request.
+
+| Action | Release | Commit SHA |
+|---|---|---|
+| `actions/checkout` | `v7.0.1` | `3d3c42e5aac5ba805825da76410c181273ba90b1` |
+| `actions/setup-java` | `v5.7.0` | `b6effb05e454b25005698d916606bdc6ffcbf961` |
+| `actions/setup-node` | `v7.0.0` | `820762786026740c76f36085b0efc47a31fe5020` |
+| `pnpm/action-setup` | `v6.0.10` | `0977fd99725f1db4007ccb2928dbb4e90d06cc86` |
+| `actions/dependency-review-action` | `v5.0.0` | `a1d282b36b6f3519aa1f3fc636f609c47dddb294` |
+| `gitleaks/gitleaks-action` | `v3.0.0` | `e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e` |
+| `aquasecurity/trivy-action` | `v0.36.0` | `ed142fd0673e97e23eac54620cfb913e5ce36c25` |
+| `docker/login-action` | `v4.6.0` | `dbcb813823bdd20940b903addbd779551569679f` |
+| `docker/setup-buildx-action` | `v4.3.0` | `37fe631027851001ddb9b187196cc803df7f5f0e` |
+| `docker/build-push-action` | `v7.3.0` | `53b7df96c91f9c12dcc8a07bcb9ccacbed38856a` |
+| `actions/upload-artifact` | `v7.0.1` | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` |
+| `actions/download-artifact` | `v8.0.1` | `3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c` |
+| `actions/attest-build-provenance` | `v4.2.2` | `4d101475d8b20a2381f78447822ac1eab6504dd8` |
+| `actions/attest-sbom` | `v4.1.0` | `c604332985a26aa8cf1bdc465b92731239ec6b9e` |
+| `anchore/sbom-action` | `v0.24.0` | `e22c389904149dbc22b58101806040fa8d37a610` |
+| `azure/setup-helm` | `v5.0.1` | `9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310` |
+| `azure/setup-kubectl` | `v5.1.0` | `829323503d1be3d00ca8346e5391ca0b07a9ab0d` |
+
+The locally downloaded official Actionlint Windows archive matched release checksum
+`6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f6e9`; CI uses the immutable image
+manifest above. These pins are repository provenance inputs, not a promise that future releases are
+safe without review.
 
 LF-0003 resolved and recorded the PostgreSQL image manifest digest after a successful pull. Compose uses the readable tag and digest together, so a tag move cannot silently change the local database image. PostgreSQL 18 Compose volumes mount the image's version-appropriate data root at `/var/lib/postgresql`, not the older `/var/lib/postgresql/data` path.
 

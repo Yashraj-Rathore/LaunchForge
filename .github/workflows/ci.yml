@@ -7,12 +7,54 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  supply-chain:
+    name: Dependency, secret, and repository security
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Review pull-request dependency changes
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: never
+      - name: Set up Temurin Java for Maven dependency analysis
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: 25.0.4+7.0.LTS
+          cache: maven
+      - name: Populate the locked Maven dependency cache for Trivy
+        run: bash ./mvnw --batch-mode --no-transfer-progress dependency:resolve -DskipTests
+      - name: Scan proposed Git history for secrets
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: 'false'
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: 'false'
+          GITLEAKS_VERSION: '8.30.1'
+      - name: Scan dependencies and infrastructure configuration
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig
+          version: v0.74.0
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+
   evaluator-compatibility:
     name: Java and JavaScript evaluator compatibility
     runs-on: ubuntu-latest
@@ -148,7 +190,7 @@ jobs:
           nohup java -jar backend/launchforge-control-api/target/launchforge-control-api-0.1.0-SNAPSHOT-exec.jar \
             --spring.profiles.active=local >/tmp/launchforge-control.log 2>&1 &
           echo $! >/tmp/launchforge-control.pid
-          for attempt in $(seq 1 60); do
+          for _ in $(seq 1 60); do
             if curl --fail --silent http://127.0.0.1:8080/actuator/health >/dev/null; then
               exit 0
             fi
@@ -195,10 +237,21 @@ jobs:
             --values deploy/local/kind/values.yaml > /dev/null
       - name: Validate documentation
         run: python eng/validate_docs.py
-      - name: Validate JSON templates
+      - name: Validate workflows and supply-chain contracts
+        run: |
+          docker run --rm --volume "$PWD:/repo" --workdir /repo \
+            rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+          python -m unittest discover -s eng/tests -p 'test_*.py'
+          python eng/validate_supply_chain.py
+      - name: Validate JSON templates and contracts
         run: |
           python -m json.tool templates/config-snapshot.example.json > /dev/null
           python -m json.tool templates/sdk-golden-vectors.json > /dev/null
           python -m json.tool templates/demo-seed.example.json > /dev/null
           python -m json.tool contracts/events/config-revision-published-v1.schema.json > /dev/null
           python -m json.tool contracts/events/config-revision-published-v1.example.json > /dev/null
+          python -m json.tool contracts/events/evaluation-event-batch-v1.schema.json > /dev/null
+          python -m json.tool contracts/events/evaluation-event-batch-v1.example.json > /dev/null
+          python -m json.tool deploy/helm/launchforge/values.schema.json > /dev/null
+          python -m json.tool deploy/release/compatibility.json > /dev/null
+          python -m json.tool security/supply-chain-exceptions.json > /dev/null

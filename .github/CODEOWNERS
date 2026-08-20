@@ -1,0 +1,6 @@
+# Require an explicit repository owner review for release/security automation changes.
+/.github/ @Yashraj-Rathore
+/deploy/release/ @Yashraj-Rathore
+/security/ @Yashraj-Rathore
+/eng/release_manifest.py @Yashraj-Rathore
+/eng/validate_supply_chain.py @Yashraj-Rathore

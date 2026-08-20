@@ -17,6 +17,10 @@ playwright-report/
 .pnpm-store/
 *.tsbuildinfo
 
+# Python engineering tools
+__pycache__/
+*.pyc
+
 # Local configuration and secrets
 .env
 .env.*

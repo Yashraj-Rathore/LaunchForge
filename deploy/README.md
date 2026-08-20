@@ -30,9 +30,11 @@ format, lint, type-check, unit-test, and production-build gates in the pinned No
 docker build --target validation -f deploy/docker/Dockerfile.web -t launchforge-web-validation:local .
 ```
 
-Release automation must set `OCI_CREATED`, `OCI_REVISION`, and `OCI_VERSION`, scan every image,
-publish immutable digests, and promote those same digests. Building/publishing/SBOM/provenance and
-environment promotion belong to M12; the M11 images do not imply a production release.
+The M12 release workflow sets `OCI_CREATED`, `OCI_REVISION`, and `OCI_VERSION`, scans every immutable
+digest, publishes the five images to GHCR, generates SPDX SBOMs and attestations, and promotes those
+same digests through staging and protected production. Operators must configure GitHub branch/tag
+rules and the staging/production Environments described in `docs/24_RELEASE_SUPPLY_CHAIN.md` before
+creating a release tag.
 
 ## Complete local stack
 
@@ -98,6 +100,15 @@ NetworkPolicy examples. Enable analytics only after supplying its ClickHouse end
 Application rollback selects a previously proven compatible image digest and reruns Helm. It does
 not reverse Flyway migrations. Product configuration rollback is separate and publishes a newer
 immutable environment revision.
+
+Release automation supplies digest and compatibility values generated from the immutable manifest.
+`migrations.enabled` defaults to `true`; only the protected application rollback workflow may set it
+to `false`, after compatibility validation, so an older application can be restored without running
+or reversing database migrations. The chart records the effective tag, SHA, database schema,
+snapshot/evaluation versions, and all five image references in a release metadata ConfigMap. A
+separate pre-migration schema ledger is retained with the external database and records the target
+before Flyway, preventing a failed post-migration rollout from leaving rollback checks with a stale
+lower schema.
 
 ## Local Kubernetes resilience proof
 

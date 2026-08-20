@@ -22,6 +22,9 @@ FROM build AS validation
 COPY .github/ .github/
 COPY .prettierignore .prettierrc.json compose.yaml ./
 COPY contracts/golden-vectors/ contracts/golden-vectors/
+COPY deploy/helm/launchforge/ deploy/helm/launchforge/
+COPY deploy/release/ deploy/release/
+COPY security/ security/
 COPY sdks/javascript/ sdks/javascript/
 COPY demos/react-storefront/ demos/react-storefront/
 COPY tests/e2e/ tests/e2e/

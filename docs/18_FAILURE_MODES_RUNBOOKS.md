@@ -256,13 +256,24 @@ absence of subject/context columns.
 
 ## Runbook N - Failed deployment
 
-1. compare Git SHA/image digest;
-2. check migration compatibility;
-3. if application regression, promote previous compatible digest;
-4. do not reverse DB migrations automatically;
-5. verify management/edge/projector smoke;
-6. verify published revision unchanged;
-7. document cause.
+1. stop further promotion and capture the failing Release/Promote run ID, tag, Git SHA, deployed
+   release-metadata ConfigMap, and all image digests;
+2. validate the release manifest and compare its SHA/digests with the cluster; do not substitute a
+   mutable tag;
+3. check the current database schema against the candidate application's declared compatibility;
+4. if the application regressed, run `Roll back production application` with an incident/change
+   reference and a previous successful staging run/tag;
+5. do not reverse Flyway migrations automatically; the rollback workflow disables the migration
+   Job and blocks an incompatible candidate;
+6. verify management, Edge snapshot, projector, SSE/SDK convergence, deployed SHA, and unchanged
+   database schema;
+7. verify the published configuration revision is unchanged. If configuration behavior must be
+   restored, use product revision history to publish a newer rollback revision instead;
+8. record approver, timeline, affected scope, evidence, and forward fix.
+
+Manifest and attestation verification commands, required GitHub Environment protection, and the
+distinction between application and configuration rollback are in
+`docs/24_RELEASE_SUPPLY_CHAIN.md`.
 
 ---
 

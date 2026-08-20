@@ -379,18 +379,21 @@ context and fail if those values appear.
 
 ## 16. Dependency and supply-chain security
 
-CI should include:
+M12 implements:
 
-- Maven dependency review/vulnerability scan;
-- npm lockfile audit policy;
-- secret scan;
-- container scan;
-- pinned GitHub Actions SHAs;
-- SBOM generation;
-- provenance/attestation for release images;
-- immutable image digest promotion.
+- PR dependency review plus Trivy lockfile/configuration scanning, rejecting fixable HIGH/CRITICAL
+  findings;
+- pushed/PR-history Gitleaks scanning with an exact binary version;
+- weekly grouped patch/minor Dependabot PRs for GitHub Actions, Maven, pnpm/npm, and Docker while
+  major upgrades require explicit compatibility review;
+- repository validation that rejects any third-party Action not pinned by a full commit SHA;
+- immutable-digest release-image scanning, SPDX JSON SBOM generation, GitHub build/SBOM
+  attestations, and same-digest environment promotion;
+- a machine-validated, owner/approver/expiry-governed exception registry with no active exceptions.
 
-Do not auto-upgrade major dependencies without tests.
+No secret finding is suppressible. Every dependency update, including automated patch/minor PRs,
+must pass the complete required CI set. Exact exception and release verification procedures are in
+`docs/24_RELEASE_SUPPLY_CHAIN.md`.
 
 ## 17. Threat-model cases
 
