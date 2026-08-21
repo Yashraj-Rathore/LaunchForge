@@ -15,6 +15,8 @@ spring:
     redis:
       host: ${LAUNCHFORGE_REDIS_HOST:localhost}
       port: ${LAUNCHFORGE_REDIS_PORT:56379}
+      username: ${LAUNCHFORGE_REDIS_USERNAME:}
+      password: ${LAUNCHFORGE_REDIS_PASSWORD:}
       connect-timeout: 2s
       timeout: 2s
   kafka:
@@ -50,6 +52,7 @@ launchforge:
     maximum-concurrent-database-fallbacks: ${LAUNCHFORGE_EDGE_MAX_DB_FALLBACKS:8}
     database-fallback-acquire-timeout: ${LAUNCHFORGE_EDGE_DB_FALLBACK_ACQUIRE_TIMEOUT:100ms}
     invalidation-channel: ${LAUNCHFORGE_REDIS_INVALIDATION_CHANNEL:launchforge:config:revision-hints:v1}
+    materialization-verification-keys: ${LAUNCHFORGE_MATERIALIZATION_VERIFICATION_KEYS}
   analytics:
     ingestion:
       enabled: ${LAUNCHFORGE_ANALYTICS_ENABLED:false}

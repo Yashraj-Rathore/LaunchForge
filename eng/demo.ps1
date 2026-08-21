@@ -38,6 +38,55 @@ function Initialize-DemoEnvironment {
     }
 
     $content = [System.IO.File]::ReadAllText($demoEnvPath)
+    $template = [System.IO.File]::ReadAllText($demoEnvTemplatePath)
+    foreach ($name in @(
+        'LAUNCHFORGE_REDIS_MANAGEMENT_PASSWORD',
+        'LAUNCHFORGE_REDIS_CONFIG_EDGE_PASSWORD',
+        'LAUNCHFORGE_REDIS_EVENT_WORKER_PASSWORD',
+        'LAUNCHFORGE_MATERIALIZATION_SIGNING_KEY_ID',
+        'LAUNCHFORGE_MATERIALIZATION_SIGNING_PRIVATE_KEY',
+        'LAUNCHFORGE_MATERIALIZATION_VERIFICATION_KEYS'
+    )) {
+        if ($content -notmatch "(?m)^$([regex]::Escape($name))=") {
+            $line = [regex]::Match(
+                $template,
+                "(?m)^$([regex]::Escape($name))=[^\r\n]+$"
+            ).Value
+            if ([string]::IsNullOrWhiteSpace($line)) {
+                throw "$name is missing from .env.example"
+            }
+            $content = $content.TrimEnd() + [Environment]::NewLine + $line + [Environment]::NewLine
+        }
+    }
+
+    $materializationKeys = @()
+    if ($content.Contains('replace-with-local-ed25519-private-key') -or
+        $content.Contains('replace-with-local-ed25519-public-key')) {
+        $generator = Join-Path $demoRepoRoot 'eng\MaterializationKeyPairGenerator.java'
+        $materializationKeys = @(& java $generator)
+        if ($LASTEXITCODE -ne 0 -or $materializationKeys.Count -ne 2) {
+            throw 'Unable to generate the local Ed25519 materialization key pair.'
+        }
+        $keyIdMatch = [regex]::Match(
+            $content,
+            '(?m)^LAUNCHFORGE_MATERIALIZATION_SIGNING_KEY_ID=(?<value>[A-Za-z0-9._-]{1,32})$'
+        )
+        if (-not $keyIdMatch.Success) {
+            throw 'LAUNCHFORGE_MATERIALIZATION_SIGNING_KEY_ID is invalid in .env.'
+        }
+        $content = [regex]::Replace(
+            $content,
+            '(?m)^LAUNCHFORGE_MATERIALIZATION_SIGNING_PRIVATE_KEY=[^\r\n]+$',
+            "LAUNCHFORGE_MATERIALIZATION_SIGNING_PRIVATE_KEY=$($materializationKeys[0])"
+        )
+        $verificationValue = '{0}:{1}' -f `
+            $keyIdMatch.Groups['value'].Value, $materializationKeys[1]
+        $content = [regex]::Replace(
+            $content,
+            '(?m)^LAUNCHFORGE_MATERIALIZATION_VERIFICATION_KEYS=[^\r\n]+$',
+            "LAUNCHFORGE_MATERIALIZATION_VERIFICATION_KEYS=$verificationValue"
+        )
+    }
     $replacements = [ordered]@{
         'replace-with-a-local-only-password' = "local-db-$(New-RandomHex 16)"
         'replace-with-the-same-local-only-password' = $null
@@ -46,6 +95,11 @@ function Initialize-DemoEnvironment {
         'replace-with-at-least-32-random-bytes' = (New-RandomHex 32)
         'replace-with-a-local-only-clickhouse-password' = "local-clickhouse-$(New-RandomHex 16)"
         'replace-with-a-local-only-grafana-password' = "local-grafana-$(New-RandomHex 16)"
+        'replace-with-a-local-management-redis-password' = "local-management-$(New-RandomHex 16)"
+        'replace-with-a-local-config-edge-redis-password' = "local-config-edge-$(New-RandomHex 16)"
+        'replace-with-a-local-event-worker-redis-password' = "local-event-worker-$(New-RandomHex 16)"
+        'replace-with-local-ed25519-private-key' = if ($materializationKeys.Count -eq 2) { $materializationKeys[0] } else { '' }
+        'replace-with-local-ed25519-public-key' = if ($materializationKeys.Count -eq 2) { $materializationKeys[1] } else { '' }
     }
     $databaseMatch = [regex]::Match(
         $content,

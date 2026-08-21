@@ -36,6 +36,8 @@ spring:
     redis:
       host: ${LAUNCHFORGE_REDIS_HOST:localhost}
       port: ${LAUNCHFORGE_REDIS_PORT:56379}
+      username: ${LAUNCHFORGE_REDIS_USERNAME:}
+      password: ${LAUNCHFORGE_REDIS_PASSWORD:}
       connect-timeout: 2s
       timeout: 2s
 
@@ -44,6 +46,8 @@ launchforge:
     topic: ${LAUNCHFORGE_KAFKA_CONFIG_TOPIC:launchforge.config.revision-published.v1}
     consumer-group: ${LAUNCHFORGE_KAFKA_CONSUMER_GROUP:launchforge-config-projector-v1}
     invalidation-channel: ${LAUNCHFORGE_REDIS_INVALIDATION_CHANNEL:launchforge:config:revision-hints:v1}
+    materialization-signing-key-id: ${LAUNCHFORGE_MATERIALIZATION_SIGNING_KEY_ID}
+    materialization-signing-private-key: ${LAUNCHFORGE_MATERIALIZATION_SIGNING_PRIVATE_KEY}
   analytics:
     worker:
       enabled: ${LAUNCHFORGE_ANALYTICS_ENABLED:false}

@@ -1,6 +1,6 @@
 # Project Status
 
-**Status:** Prompt 15 final architecture review complete; documented corrections await explicit approval.
+**Status:** Prompt 15 final architecture review complete; P15-01 corrected and remaining findings await explicit approval.
 
 **Current milestone:** M13 demo/pilot (LF-1301–LF-1305) complete; Prompt 15 review recorded in `docs/27_FINAL_ARCHITECTURE_REVIEW.md`.
 
@@ -38,9 +38,11 @@ attestation, staging smoke, and production approval require the repository owner
 documented protected branch/tag rules and `staging`/`production` GitHub Environments, then create the
 first annotated release tag. Those external executions have not been claimed as local evidence.
 
-The final review found no Critical issue and four High hosted-release blockers: Redis materialization
-provenance, analytics/configuration scheduler isolation, production Kafka/Redis authentication and
-TLS modeling, and absent live GitHub change/deployment controls. Six Medium and three Low findings
-are also staged. Prompt 15 is review-only, so no finding has been corrected and the project is not
-claimed ready for a hosted production pilot. Corrections must be approved and implemented one issue
-at a time.
+The final review found no Critical issue and four initial High hosted-release blockers. P15-01 was
+corrected on 2026-08-21 with worker-only Ed25519 materialization signing, Edge public-key
+verification and monotonic replay rejection, process-scoped Redis ACL credentials, and focused plus
+container integration evidence. Three High findings remain: analytics/configuration scheduler
+isolation, production Kafka/Redis transport-security modeling (Redis ACL credentials are now
+modeled, but TLS and Kafka SASL/TLS remain open), and absent live GitHub change/deployment controls.
+Six Medium and three Low findings are also staged, so the project is not claimed ready for a hosted
+production pilot. Corrections remain one explicitly approved issue at a time.

@@ -4,7 +4,8 @@
 
 **Prompt:** 15 — final architecture, security, compatibility, failure-mode, test, claim, and toolchain review
 
-**Disposition:** Review complete. Findings are documented only; no finding was corrected as part of this prompt.
+**Disposition:** Review complete. P15-01 was corrected in a separately approved follow-up on
+2026-08-21; the remaining findings retain their original review ranking.
 
 ## Executive decision
 
@@ -13,49 +14,48 @@ tenant-scoped management paths, immutable publication model, outbox ordering mod
 last-known-good behavior, and module boundaries have substantial automated evidence. It is suitable
 for its current local portfolio/demo purpose.
 
-It is **not ready for a hosted production pilot or release** until the four High findings are
-corrected and revalidated. The most important code risks are that a self-consistent Redis value can
-be served without authoritative provenance and that optional analytics can block the same default
-scheduled-execution lane used by configuration distribution. The Helm chart also lacks a usable
-production authentication/TLS model for Kafka and Redis, and the repository currently has no active
-GitHub branch rules or deployment environments.
+It is **not ready for a hosted production pilot or release** until the three unresolved High
+findings are corrected and revalidated. Optional analytics can still block the same default
+scheduled-execution lane used by configuration distribution. The Helm chart still lacks a complete
+production Kafka/Redis TLS and Kafka authentication model, and the repository currently has no
+active GitHub branch rules or deployment environments. P15-01 no longer contributes to that count.
 
 | Severity | Count | Meaning in this review |
 |---|---:|---|
 | Critical | 0 | No demonstrated unauthenticated compromise, cross-tenant API access, secret disclosure, or deterministic-evaluation corruption was found. |
-| High | 4 | Release blocker with a credible runtime integrity, availability, transport-security, or change-control consequence. |
+| High | 3 | Unresolved release blocker with a credible availability, transport-security, or change-control consequence. |
 | Medium | 6 | Contract, tenant-integrity, resilience, or product-completeness gap that must be scheduled before broad use. |
 | Low | 3 | Documentation or forward-toolchain debt with limited current runtime impact. |
 
-## Ranked findings
-
-### High
+## Resolved since review
 
 #### P15-01 — Redis materialization can become the runtime author without authoritative provenance
 
-`RedisBackedEdgeRepository.findCurrentSnapshot` accepts a complete Redis hash and does not consult
-PostgreSQL on that path. `SnapshotIntegrityVerifier` proves canonical JSON and a plain SHA-256
-checksum are internally consistent, but that checksum is unkeyed: an actor able to write Redis can
-create a different canonical snapshot and its matching checksum for an environment. The repository
-test `servesACompleteRedisSnapshotWithoutUsingPostgres` explicitly verifies that the database is not
-called. Server and browser SDK checksum validation cannot distinguish such a forged, self-consistent
-snapshot from an authoritative publication.
+**Resolved 2026-08-21.** Event Worker now signs a domain-separated, versioned Ed25519 envelope that
+binds environment ID, revision, schema version, checksum, and canonical snapshot; a separate
+signature protects lightweight revision polling. Config Edge receives only a bounded set of trusted
+public keys, verifies provenance before treating Redis as a hit, and rejects revisions below its
+bounded observed watermark. Invalid cache content falls back to PostgreSQL and otherwise fails
+closed so SDK last-known-good/default behavior remains intact.
 
-This violates the stated boundary that PostgreSQL is authoritative and Redis is rebuildable
-materialization. It also makes the Redis-poisoning mitigation claimed in
-`docs/22_SECURITY_HARDENING_REVIEW.md` incomplete.
+Local Compose and Helm now provide distinct Management, Config Edge, and Event Worker Redis users
+and secret-backed passwords. Redis ACLs permit only Event Worker to write runtime snapshot keys, and
+Edge no longer backfills them. Worker reconciliation remains the authoritative rebuild path.
 
-Evidence:
+Correction evidence:
 
-- `backend/launchforge-config-edge/src/main/java/dev/launchforge/configedge/persistence/RedisBackedEdgeRepository.java` — `findCurrentSnapshot` and `findCurrentRevision`
-- `backend/launchforge-config-edge/src/main/java/dev/launchforge/configedge/snapshot/SnapshotIntegrityVerifier.java` — plain checksum verification
-- `backend/launchforge-config-edge/src/test/java/dev/launchforge/configedge/persistence/RedisBackedEdgeRepositoryTest.java` — Redis fast-path test and database `never()` assertion
-- `docs/07_REALTIME_AND_EVENTING.md`, `docs/09_SECURITY_PRIVACY.md`, and `docs/22_SECURITY_HARDENING_REVIEW.md` — authority and poisoning expectations
+- `RedisMaterializationProvenanceTest` and `RedisMaterializationVerifierTest` cover field binding,
+  untrusted signers, tampering, key rotation, and malformed trust configuration.
+- `RedisBackedEdgeRepositoryTest` proves a forged self-consistent value is not served when
+  PostgreSQL is unavailable and an older signed value is rejected after a newer observation.
+- `DistributionPipelineIT` uses real Redis ACL identities and proves forbidden writes, forged and
+  replayed materializations returning the authoritative revision, rebuild, and outage fallback.
+- `compose.yaml`, `deploy/local/redis/launchforge-redis-entrypoint.sh`, and the Helm chart render the
+  separated credentials and worker-only private signing key.
 
-Required correction evidence: authenticate materialization provenance with a design that remains
-safe during PostgreSQL outages, separate least-privilege Redis credentials/ACLs by process, and add
-a test proving a forged self-consistent Redis payload and a replayed older revision are never served
-as current.
+## Ranked unresolved findings
+
+### High
 
 #### P15-02 — Analytics can block configuration distribution on the shared scheduler
 
@@ -79,14 +79,13 @@ Required correction evidence: use distinct bounded execution resources for analy
 configuration work, retain bounded ClickHouse I/O, and add an integration test in which ClickHouse
 does not respond while outbox publication and reconciliation continue within their SLO.
 
-#### P15-03 — The Helm production path does not model Kafka or Redis authentication/TLS
+#### P15-03 — The Helm production path does not completely model Kafka or Redis transport security
 
-The chart calls Kafka and Redis external managed dependencies, but its values and templates expose
-only Kafka bootstrap servers/topic and Redis host/port. There are no secret references or explicit
-TLS/SASL/ACL settings for either service and no bounded `extraEnv` escape hatch. The application
-configuration likewise supplies only those basic settings. A typical authenticated managed Kafka
-or Redis service cannot be configured through the documented chart contract without modifying the
-chart.
+P15-01 added secret-backed, process-specific Redis ACL usernames/passwords to the chart and
+application configuration. The chart still exposes no Redis TLS settings and no Kafka TLS/SASL
+settings or bounded `extraEnv` escape hatch. A typical TLS-only Redis service or authenticated
+managed Kafka service therefore still cannot be configured through the documented chart contract
+without modifying the chart.
 
 Evidence:
 
@@ -97,9 +96,9 @@ Evidence:
 - the three deployable `application.yml` files under `backend/`
 - `docs/09_SECURITY_PRIVACY.md` and `docs/12_DEVOPS_CICD.md` — production transport and secret expectations
 
-Required correction evidence: define explicit secret-backed Kafka SASL/TLS and Redis TLS/ACL
-configuration, render it without secret values, validate it in Helm/Compose tests, and demonstrate
-connections to authenticated TLS-enabled test services.
+Required correction evidence: retain the new Redis ACL identities, define explicit secret-backed
+Kafka SASL/TLS and Redis TLS configuration, render it without secret values, validate it in
+Helm/Compose tests, and demonstrate connections to authenticated TLS-enabled test services.
 
 #### P15-04 — Required GitHub change and deployment controls are not active
 
@@ -216,8 +215,9 @@ is predictable toolchain debt. The separately documented Temurin runtime-image p
 
 ## Security and tenant-isolation review
 
-P15-01, P15-03, P15-08, and P15-11 are the security/tenant findings. No cross-organization API
-access was reproduced. Server-derived organization scope, role checks, compound ownership on core
+P15-03, P15-08, and P15-11 are the unresolved security/tenant findings; P15-01 is resolved as
+recorded above. No cross-organization API access was reproduced. Server-derived organization
+scope, role checks, compound ownership on core
 entities, SDK credential-class separation, hash-only server-key verification, CSRF/OIDC/session
 boundaries, and privacy-safe request logging were traced in code and exercised by the 25-test
 container integration suite. Direct-resource cross-tenant access, Viewer denial, final-Owner
@@ -249,14 +249,13 @@ revision. The full distribution integration test passed PostgreSQL → outbox �
 → SDK convergence and stale/duplicate/rebuild behavior.
 
 Outstanding compatibility findings are P15-05 (UTF-8 value sizing) and P15-06 (5 MiB versus 8 MiB
-configuration). P15-01 is a provenance defect after a snapshot leaves the authoritative pipeline.
+configuration). The former P15-01 provenance defect is resolved as recorded above.
 
 ## Failure-mode gaps
 
 - P15-02: analytics outage can delay configuration scheduled work.
 - P15-07: a never-resolving browser analytics request has no timeout.
 - P15-10: a poison authoritative row can starve later reconciliation.
-- P15-01: cache compromise is not distinguished from authoritative materialization.
 
 Existing failure evidence remains strong for SDK last-known-good/default behavior, stream-to-poll
 fallback, Redis loss/rebuild, duplicate/stale events, key revocation, atomic publication failure,
@@ -270,7 +269,6 @@ Each P15 finding needs the focused regression evidence stated with it. In additi
 - controlled load evidence is local and bounded, not production capacity proof;
 - the release/promotion/restore workflows have not run against configured hosted environments;
 - no chaos test holds ClickHouse indefinitely while asserting distribution progress;
-- no test forges a valid-checksum Redis snapshot from outside the projector;
 - no multibyte boundary corpus tests management publication and both SDKs at 64 KiB;
 - no browser test uses a never-resolving analytics fetch;
 - no database test attempts cross-tenant audit or key-rotation lineage;
@@ -303,7 +301,8 @@ configuration changes begin.
 
 ### Stage 0 — hosted-release blockers
 
-1. **P15-01:** establish authenticated Redis materialization provenance and least-privilege ACLs.
+1. **P15-01 (resolved 2026-08-21):** authenticated Redis materialization provenance and
+   least-privilege ACLs established and regression-tested.
 2. **P15-02:** isolate analytics and configuration schedulers; prove ClickHouse failure isolation.
 3. **P15-03:** add secret-backed Kafka/Redis authentication and TLS to deployment contracts.
 4. **P15-04:** configure and verify live GitHub rulesets, environments, and first staged promotion.
@@ -344,3 +343,16 @@ configuration changes begin.
 
 The live GitHub Actions results for the published commit are separate evidence and are recorded in
 the completion report. A green build does not resolve the documented architectural findings.
+
+### P15-01 correction validation - 2026-08-21
+
+- `./mvnw.cmd --batch-mode --no-transfer-progress -pl backend/launchforge-contracts,backend/launchforge-config-edge,backend/launchforge-event-worker,tests/integration-tests -am test -DskipITs`
+  — passed the affected contract, Config Edge, Event Worker, and supporting reactor unit tests.
+- `./mvnw.cmd --batch-mode --no-transfer-progress -pl tests/integration-tests -am verify -Pintegration "-Dit.test=DistributionPipelineIT" "-Dfailsafe.failIfNoSpecifiedTests=false"`
+  — passed the Docker-backed signed materialization, forged snapshot, signed replay, process ACL,
+  reconciliation, multi-edge, and fallback drill with one test and zero failures/errors.
+- Compose rendering, strict Helm lint/default and Kind rendering, PowerShell parsing, and generated
+  specification synchronization passed with the new credentials and signing configuration.
+
+The full repository validation and live GitHub Actions result for the correction are separate
+evidence recorded in its completion report.

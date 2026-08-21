@@ -49,6 +49,19 @@ spec:
             {{- include "launchforge.databaseEnv" . | nindent 12 }}
             - {name: LAUNCHFORGE_REDIS_HOST, value: {{ .Values.external.redis.host | quote }}}
             - {name: LAUNCHFORGE_REDIS_PORT, value: {{ .Values.external.redis.port | quote }}}
+            - {name: LAUNCHFORGE_REDIS_USERNAME, value: {{ .Values.external.redis.usernames.eventWorker | quote }}}
+            - name: LAUNCHFORGE_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret | quote }}
+                  key: {{ .Values.secrets.redisEventWorkerPasswordKey | quote }}
+            - name: LAUNCHFORGE_MATERIALIZATION_SIGNING_KEY_ID
+              value: {{ .Values.external.redis.materializationSigningKeyId | quote }}
+            - name: LAUNCHFORGE_MATERIALIZATION_SIGNING_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret | quote }}
+                  key: {{ .Values.secrets.materializationSigningPrivateKeyKey | quote }}
             - {name: LAUNCHFORGE_KAFKA_BOOTSTRAP_SERVERS, value: {{ .Values.external.kafka.bootstrapServers | quote }}}
             - {name: LAUNCHFORGE_KAFKA_CONFIG_TOPIC, value: {{ .Values.external.kafka.configTopic | quote }}}
             - name: LAUNCHFORGE_ANALYTICS_ENABLED

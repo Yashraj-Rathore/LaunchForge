@@ -138,7 +138,8 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 ## Final review
 
 - [x] Run Prompt 15
-- [ ] Create issues for findings
+- [x] Record staged finding IDs in the final review
+- [x] Correct P15-01 authenticated Redis materialization provenance and ACL isolation
 - [ ] Correct findings one issue at a time
 - [ ] Clean-clone demo validation
 - [ ] Verify every resume claim

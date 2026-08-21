@@ -98,8 +98,10 @@ must observe its successful completion before creating or replacing application 
 Create a values file outside the repository containing production endpoints and immutable image
 digests. Create the referenced Kubernetes Secret through an approved secret manager or
 external-secrets controller. It must contain the configured database password and SDK-key pepper;
-when analytics is enabled it must also contain the ClickHouse password. Do not put secret values in
-Helm values or `--set` history.
+the three configured Redis-user passwords; the Event Worker materialization-signing private key;
+and the Config Edge `key-id:public-key` verification set. When analytics is enabled it must also
+contain the ClickHouse password. Keep the signing private key out of Management and Edge. Do not put
+secret values in Helm values or `--set` history.
 
 ```powershell
 helm lint deploy/helm/launchforge --strict

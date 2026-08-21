@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Security
+
+- Corrected P15-01 by signing Redis snapshot/revision materializations with worker-only Ed25519
+  keys, verifying trusted public keys and bounded monotonic revision watermarks in Config Edge, and
+  removing Edge snapshot backfill rights.
+- Added distinct Management, Config Edge, and Event Worker Redis ACL identities to Compose and Helm,
+  local key generation, and forged self-consistent snapshot, signed replay, ACL, PostgreSQL fallback,
+  and rebuild integration coverage.
+
 ### Documentation
 
 - Added complete LaunchForge architecture, product, SDK, evaluation, security, eventing, testing, operations, deployment, commercialization, and Codex implementation package.
@@ -72,7 +81,7 @@
   coverage.
 - Added a tenant-authorized audit read API, stable-ID variation updates in the existing optimistic transaction, and a narrowly isolated Control API simulator that reuses the pure Java SDK evaluator without persisting or logging evaluation context.
 - Implemented LF-0701–LF-0706 with multi-worker expiring outbox leases, broker-acknowledged publication, bounded retry/permanent-failure handling, a versioned additive Kafka contract keyed by environment, and an idempotent PostgreSQL-validating projector.
-- Added atomic monotonic Redis snapshot hashes, a PostgreSQL reconciliation rebuild, one global bounded Pub/Sub hint channel, Redis-first Config Edge reads, monotonic cache backfill, and semaphore-bounded PostgreSQL fallback with cache/projection/outbox metrics.
+- Added atomic monotonic Redis snapshot hashes, a PostgreSQL reconciliation rebuild, one global bounded Pub/Sub hint channel, Redis-first Config Edge reads, and semaphore-bounded PostgreSQL fallback with cache/projection/outbox metrics. P15-01 later removed Edge cache backfill in favor of worker-only signed materialization.
 - Added digest-pinned Kafka 4.3.1 and Redis 8.2.8 distribution services plus a Testcontainers drill proving lease recovery, duplicate safety, Kafka catch-up, projector recovery, Redis rebuild/outage fallback, two-edge convergence/restart, and Java SDK last-known-good evaluation.
 - Implemented LF-0801–LF-0805 with explicit opt-in Java/browser SDK analytics, context-free bounded batches, tenant scope derived from server/browser keys, a dedicated Kafka topic and bounded Event Worker buffer, and best-effort failure behavior that never changes local evaluation results.
 - Added digest-pinned ClickHouse 26.7.1.1315, a 90-day privacy-bounded MergeTree schema, duplicate-tolerant aggregate queries, a tenant-authorized operational analytics UI, Micrometer ingestion/worker/query signals, and real ClickHouse integration coverage for storage, retention, privacy, and duplicate handling.

@@ -441,9 +441,11 @@ M7 implements LF-0701 through LF-0706 in `launchforge-event-worker` and Config E
 workers safely lease the PostgreSQL outbox, require a Kafka acknowledgement before marking a row
 published, and retry transient broker failures with bounded exponential backoff. Versioned
 revision events are keyed by environment. The idempotent projector validates immutable PostgreSQL
-content before atomically advancing a rebuildable Redis hash and publishing a bounded hint on one
-global channel. Config Edge reads Redis first and uses a semaphore-bounded PostgreSQL fallback;
-Redis is never authoritative.
+content, signs the environment/revision/snapshot envelope with Ed25519, then atomically advances a
+rebuildable Redis hash and publishes a bounded hint on one global channel. Config Edge holds only
+trusted public keys, rejects invalid or regressed materializations, and uses a semaphore-bounded
+PostgreSQL fallback. Distinct Redis ACL users prevent Edge and Management from writing runtime
+snapshot keys; Redis is never authoritative.
 
 Start the digest-pinned local KRaft broker and Redis cache with PostgreSQL:
 

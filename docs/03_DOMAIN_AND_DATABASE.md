@@ -137,6 +137,12 @@ To create or verify `checksum`:
 
 All present fields, including additive fields understood by a later compatible reader, participate in the checksum. Snapshot schemas and frozen checksum fixtures must test property ordering, Unicode, numeric rendering, and both server/browser projections.
 
+The snapshot SHA-256 checksum is a portable content-integrity contract for SDKs; it is not proof of
+publication authority. Redis materializations therefore carry a separate versioned Ed25519
+provenance envelope. The signature binds environment ID, revision, schema version, checksum, and
+the complete canonical snapshot. A second domain-separated signature binds the lightweight
+revision poll response. PostgreSQL revision rows remain the system of record.
+
 ## Identifier canonicalization
 
 - Organization slugs match `^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$`.

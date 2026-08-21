@@ -12,7 +12,14 @@ external:
   kafka:
     bootstrapServers: host.docker.internal:59092
     configTopic: launchforge.config.revision-published.v1
-  redis: {host: host.docker.internal, port: 56379}
+  redis:
+    host: host.docker.internal
+    port: 56379
+    usernames:
+      management: launchforge-management
+      configEdge: launchforge-config-edge
+      eventWorker: launchforge-event-worker
+    materializationSigningKeyId: kind-v1
   oidc:
     issuerUri: http://host.docker.internal:8081/realms/launchforge
     clientId: launchforge-control

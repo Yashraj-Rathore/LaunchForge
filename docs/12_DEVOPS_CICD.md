@@ -334,7 +334,9 @@ publishing by default. Exact startup, shutdown, and destructive local-volume res
 `deploy/README.md`.
 
 `deploy/helm/launchforge/` assumes external PostgreSQL, Kafka, Redis, OIDC, and optional ClickHouse.
-Values hold only endpoints and Secret references. The pre-install/pre-upgrade migration Job blocks
+Values hold endpoints, distinct Redis usernames, a non-secret materialization signing key ID, and
+Secret key references. The runtime Secret supplies per-process Redis passwords, the worker-only
+Ed25519 private key, and the Edge verification-key set. The pre-install/pre-upgrade migration Job blocks
 workloads; application pods never run Flyway. Management, Edge, worker, web, and migration each use
 dedicated service accounts with token automount disabled. The chart supplies startup/readiness/
 liveness probes, resources, rolling strategies, ingress, optional NetworkPolicies, management/Edge

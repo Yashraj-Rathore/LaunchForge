@@ -20,11 +20,14 @@ import dev.launchforge.sdk.EvaluationContext;
 import dev.launchforge.sdk.LaunchForgeClient;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -47,6 +50,7 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.testcontainers.containers.Container.ExecResult;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Container;
@@ -68,6 +72,23 @@ class DistributionPipelineIT {
   private static final UUID SDK_KEY_ID = UUID.fromString("74000000-0000-0000-0000-000000000001");
   private static final Instant NOW = Instant.parse("2026-08-13T12:00:00Z");
   private static final String PEPPER = "distribution-test-pepper-with-more-than-thirty-two-bytes";
+  private static final String REDIS_ADMIN_PASSWORD = "integration-test-admin-redis-password";
+  private static final String REDIS_MANAGEMENT_PASSWORD =
+      "integration-test-management-redis-password";
+  private static final String REDIS_EDGE_PASSWORD = "integration-test-edge-redis-password";
+  private static final String REDIS_WORKER_PASSWORD = "integration-test-worker-redis-password";
+  private static final String MATERIALIZATION_KEY_ID = "integration-v1";
+  private static final KeyPair MATERIALIZATION_KEYS = materializationKeys();
+  private static final String MATERIALIZATION_PRIVATE_KEY =
+      Base64.getUrlEncoder()
+          .withoutPadding()
+          .encodeToString(MATERIALIZATION_KEYS.getPrivate().getEncoded());
+  private static final String MATERIALIZATION_VERIFICATION_KEYS =
+      MATERIALIZATION_KEY_ID
+          + ':'
+          + Base64.getUrlEncoder()
+              .withoutPadding()
+              .encodeToString(MATERIALIZATION_KEYS.getPublic().getEncoded());
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   @Container
@@ -97,6 +118,7 @@ class DistributionPipelineIT {
 
   @BeforeAll
   static void migrateAndSeed() {
+    configureRedisAcl();
     DriverManagerDataSource configured =
         new DriverManagerDataSource(
             POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
@@ -118,6 +140,7 @@ class DistributionPipelineIT {
   void durableDistributionConvergesAcrossFailuresAndMultipleEdges() throws Exception {
     proveLeaseRecovery();
     worker = startWorker();
+    proveRedisAclIsolation();
     provePermanentOutboxFailure();
 
     Revision revisionOne = publishRevision(1, true);
@@ -155,6 +178,7 @@ class DistributionPipelineIT {
     await(() -> outboxStatus(revisionTwo.eventId()).equals("PUBLISHED"), Duration.ofSeconds(30));
     await(() -> redisRevision() == 2, Duration.ofSeconds(30));
     await(() -> currentRevision(edgeTwo) == 2, Duration.ofSeconds(10));
+    Map<String, String> signedRevisionTwo = redisSnapshotHash();
 
     edgeOne = startEdge();
     assertEquals(2, currentRevision(edgeOne));
@@ -166,8 +190,35 @@ class DistributionPipelineIT {
     assertEquals(2, redisRevision());
     listeners.start();
     await(() -> redisRevision() == 3, Duration.ofSeconds(30));
+    await(() -> currentRevision(edgeOne) == 3, Duration.ofSeconds(10));
+    await(() -> currentRevision(edgeTwo) == 3, Duration.ofSeconds(10));
 
-    REDIS.execInContainer("redis-cli", "FLUSHALL");
+    writeRedisSnapshot(signedRevisionTwo);
+    assertEquals(3, currentRevision(edgeOne));
+    assertEquals(3, currentSnapshotRevision(edgeTwo));
+
+    Snapshot forged = snapshot(4, false);
+    Map<String, String> forgedMaterialization = new LinkedHashMap<>(signedRevisionTwo);
+    forgedMaterialization.put("revision", "4");
+    forgedMaterialization.put("checksum", forged.checksum());
+    forgedMaterialization.put("snapshot", forged.canonical());
+    writeRedisSnapshot(forgedMaterialization);
+    assertEquals(3, currentRevision(edgeOne));
+    assertEquals(3, currentSnapshotRevision(edgeTwo));
+
+    redisAdmin("DEL", RedisSnapshotMaterializer.key(ENVIRONMENT_ID));
+    worker.getBean(ProjectionReconciler.class).reconcile();
+    await(() -> redisRevision() == 3, Duration.ofSeconds(10));
+
+    POSTGRES.getDockerClient().pauseContainerCmd(POSTGRES.getContainerId()).exec();
+    try {
+      assertEquals(3, currentSnapshotRevision(edgeOne));
+      assertEquals(3, currentSnapshotRevision(edgeTwo));
+    } finally {
+      POSTGRES.getDockerClient().unpauseContainerCmd(POSTGRES.getContainerId()).exec();
+    }
+
+    redisAdmin("FLUSHALL");
     worker.getBean(ProjectionReconciler.class).reconcile();
     await(() -> redisRevision() == 3, Duration.ofSeconds(10));
 
@@ -247,7 +298,12 @@ class DistributionPipelineIT {
                 "launchforge.distribution.publish-timeout=500ms",
                 "launchforge.distribution.retry-initial-backoff=100ms",
                 "launchforge.distribution.retry-maximum-backoff=1s",
-                "launchforge.distribution.reconciliation-interval=1h"));
+                "launchforge.distribution.reconciliation-interval=1h",
+                "spring.data.redis.username=launchforge-event-worker",
+                "spring.data.redis.password=" + REDIS_WORKER_PASSWORD,
+                "launchforge.distribution.materialization-signing-key-id=" + MATERIALIZATION_KEY_ID,
+                "launchforge.distribution.materialization-signing-private-key="
+                    + MATERIALIZATION_PRIVATE_KEY));
   }
 
   private static ConfigurableApplicationContext startEdge() {
@@ -268,7 +324,11 @@ class DistributionPipelineIT {
                     + "ReactiveManagementWebSecurityAutoConfiguration",
                 "launchforge.sdk-keys.peppers.v1=" + PEPPER,
                 "launchforge.config-edge.revision-poll-interval=100ms",
-                "launchforge.config-edge.heartbeat-interval=1s"));
+                "launchforge.config-edge.heartbeat-interval=1s",
+                "spring.data.redis.username=launchforge-config-edge",
+                "spring.data.redis.password=" + REDIS_EDGE_PASSWORD,
+                "launchforge.config-edge.materialization-verification-keys="
+                    + MATERIALIZATION_VERIFICATION_KEYS));
   }
 
   private static String[] arguments(String... applicationArguments) {
@@ -481,19 +541,187 @@ class DistributionPipelineIT {
   }
 
   private static long redisRevision() {
+    String value =
+        redisAdmin("HGET", RedisSnapshotMaterializer.key(ENVIRONMENT_ID), "revision")
+            .getStdout()
+            .trim();
+    return value.isEmpty() ? 0 : Long.parseLong(value);
+  }
+
+  private static void configureRedisAcl() {
+    redisDefault(
+        "ACL",
+        "SETUSER",
+        "launchforge-test-admin",
+        "reset",
+        "on",
+        '>' + REDIS_ADMIN_PASSWORD,
+        "~*",
+        "&*",
+        "+@all");
+    redisDefault(
+        "ACL",
+        "SETUSER",
+        "launchforge-management",
+        "reset",
+        "on",
+        '>' + REDIS_MANAGEMENT_PASSWORD,
+        "%RW~launchforge:security:rate:v1:control:*",
+        "%R~launchforge:config:snapshot:*",
+        "&launchforge:config:revision-hints:v1",
+        "+@connection",
+        "+@read",
+        "+@write",
+        "+@pubsub",
+        "+eval",
+        "+evalsha");
+    redisDefault(
+        "ACL",
+        "SETUSER",
+        "launchforge-config-edge",
+        "reset",
+        "on",
+        '>' + REDIS_EDGE_PASSWORD,
+        "%RW~launchforge:security:*",
+        "%R~launchforge:config:snapshot:*",
+        "&launchforge:config:revision-hints:v1",
+        "+@connection",
+        "+@read",
+        "+@write",
+        "+@pubsub",
+        "+eval",
+        "+evalsha");
+    redisDefault(
+        "ACL",
+        "SETUSER",
+        "launchforge-event-worker",
+        "reset",
+        "on",
+        '>' + REDIS_WORKER_PASSWORD,
+        "%RW~launchforge:config:snapshot:*",
+        "&launchforge:config:revision-hints:v1",
+        "+@connection",
+        "+@read",
+        "+@write",
+        "+publish",
+        "+eval",
+        "+evalsha");
+    redisDefault("ACL", "SETUSER", "default", "off");
+  }
+
+  private static void proveRedisAclIsolation() {
+    assertEquals(
+        0,
+        redisAs(
+                "launchforge-management",
+                REDIS_MANAGEMENT_PASSWORD,
+                "INCR",
+                "launchforge:security:rate:v1:control:integration")
+            .getExitCode());
+    assertTrue(
+        redisAs(
+                    "launchforge-management",
+                    REDIS_MANAGEMENT_PASSWORD,
+                    "HSET",
+                    RedisSnapshotMaterializer.key(ENVIRONMENT_ID),
+                    "revision",
+                    "999")
+                .getExitCode()
+            != 0);
+    assertTrue(
+        redisAs(
+                    "launchforge-config-edge",
+                    REDIS_EDGE_PASSWORD,
+                    "HSET",
+                    RedisSnapshotMaterializer.key(ENVIRONMENT_ID),
+                    "revision",
+                    "999")
+                .getExitCode()
+            != 0);
+    assertTrue(
+        redisAs(
+                    "launchforge-event-worker",
+                    REDIS_WORKER_PASSWORD,
+                    "SET",
+                    "launchforge:security:rate:v1:control:forged",
+                    "1")
+                .getExitCode()
+            != 0);
+    redisAdmin("DEL", "launchforge:security:rate:v1:control:integration");
+  }
+
+  private static Map<String, String> redisSnapshotHash() {
+    String[] fields =
+        redisAdmin("HGETALL", RedisSnapshotMaterializer.key(ENVIRONMENT_ID))
+            .getStdout()
+            .lines()
+            .toArray(String[]::new);
+    if (fields.length == 0 || fields.length % 2 != 0) {
+      throw new IllegalStateException("Redis snapshot hash is incomplete");
+    }
+    Map<String, String> values = new LinkedHashMap<>();
+    for (int index = 0; index < fields.length; index += 2) {
+      values.put(fields[index], fields[index + 1]);
+    }
+    return values;
+  }
+
+  private static void writeRedisSnapshot(Map<String, String> values) {
+    java.util.ArrayList<String> command = new java.util.ArrayList<>();
+    command.add("HSET");
+    command.add(RedisSnapshotMaterializer.key(ENVIRONMENT_ID));
+    values.forEach(
+        (field, value) -> {
+          command.add(field);
+          command.add(value);
+        });
+    ExecResult result = redisAdmin(command.toArray(String[]::new));
+    if (result.getExitCode() != 0) {
+      throw new IllegalStateException("Unable to replace the Redis snapshot test fixture");
+    }
+  }
+
+  private static ExecResult redisDefault(String... command) {
+    java.util.ArrayList<String> arguments = new java.util.ArrayList<>();
+    arguments.add("redis-cli");
+    arguments.add("-e");
+    arguments.addAll(List.of(command));
+    return redisExec(arguments);
+  }
+
+  private static ExecResult redisAdmin(String... command) {
+    return redisAs("launchforge-test-admin", REDIS_ADMIN_PASSWORD, command);
+  }
+
+  private static ExecResult redisAs(String user, String password, String... command) {
+    java.util.ArrayList<String> arguments = new java.util.ArrayList<>();
+    arguments.add("redis-cli");
+    arguments.add("-e");
+    arguments.add("--user");
+    arguments.add(user);
+    arguments.add("--pass");
+    arguments.add(password);
+    arguments.add("--no-auth-warning");
+    arguments.addAll(List.of(command));
+    return redisExec(arguments);
+  }
+
+  private static ExecResult redisExec(List<String> arguments) {
     try {
-      String value =
-          REDIS
-              .execInContainer(
-                  "redis-cli", "HGET", RedisSnapshotMaterializer.key(ENVIRONMENT_ID), "revision")
-              .getStdout()
-              .trim();
-      return value.isEmpty() ? 0 : Long.parseLong(value);
+      return REDIS.execInContainer(arguments.toArray(String[]::new));
     } catch (InterruptedException exception) {
       Thread.currentThread().interrupt();
-      throw new IllegalStateException("Interrupted while reading Redis", exception);
+      throw new IllegalStateException("Interrupted while accessing Redis", exception);
     } catch (java.io.IOException exception) {
-      throw new IllegalStateException("Unable to read Redis", exception);
+      throw new IllegalStateException("Unable to access Redis", exception);
+    }
+  }
+
+  private static KeyPair materializationKeys() {
+    try {
+      return KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+    } catch (java.security.NoSuchAlgorithmException exception) {
+      throw new IllegalStateException("Java runtime does not provide Ed25519", exception);
     }
   }
 

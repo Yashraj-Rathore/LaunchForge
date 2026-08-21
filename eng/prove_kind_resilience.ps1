@@ -23,6 +23,9 @@ $proofSdkKey = 'lf_srv_{0}_{1}' -f `
     (ConvertTo-ProofBase64Url ([byte[]](0..31)))
 $proofPepper = 'prompt12-local-pepper-at-least-32-bytes'
 $proofDatabasePassword = 'prompt12-local-postgres-only'
+$proofRedisManagementPassword = 'prompt12-local-management-redis-only'
+$proofRedisConfigEdgePassword = 'prompt12-local-config-edge-redis-only'
+$proofRedisEventWorkerPassword = 'prompt12-local-event-worker-redis-only'
 $proofDemoProcess = $null
 $proofPortForwardProcess = $null
 
@@ -125,6 +128,13 @@ $proofValues = Join-Path $proofRepoRoot 'deploy\local\kind\values.yaml'
 $proofChart = Join-Path $proofRepoRoot 'deploy\helm\launchforge'
 $proofRevisionOne = Join-Path $proofRepoRoot 'deploy\local\kind\seed-revision-1.sql'
 $proofRevisionTwo = Join-Path $proofRepoRoot 'deploy\local\kind\seed-revision-2.sql'
+$proofMaterializationKeyGenerator = Join-Path $proofRepoRoot 'eng\MaterializationKeyPairGenerator.java'
+$proofMaterializationKeys = @(& java $proofMaterializationKeyGenerator)
+if ($LASTEXITCODE -ne 0 -or $proofMaterializationKeys.Count -ne 2) {
+    throw 'Unable to generate the proof Ed25519 materialization key pair.'
+}
+$proofMaterializationPrivateKey = $proofMaterializationKeys[0]
+$proofMaterializationVerificationKeys = "kind-v1:$($proofMaterializationKeys[1])"
 
 Push-Location $proofRepoRoot
 try {
@@ -134,6 +144,12 @@ try {
     $env:LAUNCHFORGE_CLICKHOUSE_PASSWORD = 'prompt12-local-clickhouse-only'
     $env:LAUNCHFORGE_GRAFANA_ADMIN_PASSWORD = 'prompt12-local-grafana-only'
     $env:LAUNCHFORGE_SDK_KEY_PEPPER = $proofPepper
+    $env:LAUNCHFORGE_REDIS_MANAGEMENT_PASSWORD = $proofRedisManagementPassword
+    $env:LAUNCHFORGE_REDIS_CONFIG_EDGE_PASSWORD = $proofRedisConfigEdgePassword
+    $env:LAUNCHFORGE_REDIS_EVENT_WORKER_PASSWORD = $proofRedisEventWorkerPassword
+    $env:LAUNCHFORGE_MATERIALIZATION_SIGNING_KEY_ID = 'kind-v1'
+    $env:LAUNCHFORGE_MATERIALIZATION_SIGNING_PRIVATE_KEY = $proofMaterializationPrivateKey
+    $env:LAUNCHFORGE_MATERIALIZATION_VERIFICATION_KEYS = $proofMaterializationVerificationKeys
     $env:LAUNCHFORGE_BIND_ADDRESS = '0.0.0.0'
     $env:LAUNCHFORGE_KAFKA_ADVERTISED_HOST = 'host.docker.internal'
     $env:LAUNCHFORGE_CONTAINER_OIDC_ORIGIN = 'http://host.docker.internal:8081'
@@ -181,7 +197,12 @@ try {
     Invoke-ProofCommand $proofKubectl @(
         '--context', "kind-$ClusterName", '-n', $proofNamespace, 'create', 'secret', 'generic',
         'launchforge-runtime', "--from-literal=database-password=$proofDatabasePassword",
-        "--from-literal=sdk-key-pepper=$proofPepper", '--from-literal=clickhouse-password=unused-local-proof'
+        "--from-literal=sdk-key-pepper=$proofPepper", '--from-literal=clickhouse-password=unused-local-proof',
+        "--from-literal=redis-management-password=$proofRedisManagementPassword",
+        "--from-literal=redis-config-edge-password=$proofRedisConfigEdgePassword",
+        "--from-literal=redis-event-worker-password=$proofRedisEventWorkerPassword",
+        "--from-literal=materialization-signing-private-key=$proofMaterializationPrivateKey",
+        "--from-literal=materialization-verification-keys=$proofMaterializationVerificationKeys"
     )
 
     Write-Host 'Installing Helm release; the pre-install migration Job blocks workload creation...'
@@ -198,7 +219,10 @@ try {
 
     Invoke-ProofSeed $proofRevisionOne
     Wait-ProofCondition -Description 'Redis revision 1 projection' -Attempts 60 -Condition {
-        $revision = (& docker compose --project-name $proofComposeProject exec -T redis redis-cli HGET 'launchforge:config:snapshot:63000000-0000-0000-0000-000000000001' revision)
+        $revision = (& docker compose --project-name $proofComposeProject exec -T `
+            -e REDISCLI_AUTH=$proofRedisEventWorkerPassword redis `
+            redis-cli --user launchforge-event-worker HGET `
+            'launchforge:config:snapshot:63000000-0000-0000-0000-000000000001' revision)
         return $revision.Trim() -eq '1'
     }
 
@@ -250,7 +274,10 @@ try {
     Start-ProofPortForward
     Wait-ProofDemoRevision 2
     $databaseRevision = (& docker compose --project-name $proofComposeProject exec -T postgres psql -At -U launchforge -d launchforge -c "SELECT current_revision FROM environments WHERE id = '63000000-0000-0000-0000-000000000001'").Trim()
-    $redisRevision = (& docker compose --project-name $proofComposeProject exec -T redis redis-cli HGET 'launchforge:config:snapshot:63000000-0000-0000-0000-000000000001' revision).Trim()
+    $redisRevision = (& docker compose --project-name $proofComposeProject exec -T `
+        -e REDISCLI_AUTH=$proofRedisEventWorkerPassword redis `
+        redis-cli --user launchforge-event-worker HGET `
+        'launchforge:config:snapshot:63000000-0000-0000-0000-000000000001' revision).Trim()
     if ($databaseRevision -ne '2' -or $redisRevision -ne '2') {
         throw "Revision mismatch after rolling replacement: PostgreSQL=$databaseRevision Redis=$redisRevision"
     }

@@ -49,6 +49,17 @@ spec:
             {{- include "launchforge.databaseEnv" . | nindent 12 }}
             - {name: LAUNCHFORGE_REDIS_HOST, value: {{ .Values.external.redis.host | quote }}}
             - {name: LAUNCHFORGE_REDIS_PORT, value: {{ .Values.external.redis.port | quote }}}
+            - {name: LAUNCHFORGE_REDIS_USERNAME, value: {{ .Values.external.redis.usernames.configEdge | quote }}}
+            - name: LAUNCHFORGE_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret | quote }}
+                  key: {{ .Values.secrets.redisConfigEdgePasswordKey | quote }}
+            - name: LAUNCHFORGE_MATERIALIZATION_VERIFICATION_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret | quote }}
+                  key: {{ .Values.secrets.materializationVerificationKeysKey | quote }}
             - {name: LAUNCHFORGE_KAFKA_BOOTSTRAP_SERVERS, value: {{ .Values.external.kafka.bootstrapServers | quote }}}
             - name: LAUNCHFORGE_SDK_KEY_PEPPER
               valueFrom:

@@ -5,6 +5,7 @@ import dev.launchforge.configedge.snapshot.SnapshotIntegrityVerifier;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -16,7 +17,6 @@ import java.util.function.Supplier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Repository;
 
 @Primary
@@ -28,13 +28,16 @@ import org.springframework.stereotype.Repository;
     matchIfMissing = true)
 public class RedisBackedEdgeRepository implements EdgeRepository {
   public static final String KEY_PREFIX = "launchforge:config:snapshot:";
-  private static final DefaultRedisScript<Long> BACKFILL_SCRIPT = backfillScript();
+  private static final int MAXIMUM_REVISION_WATERMARKS = 100_000;
+  private static final List<Object> REVISION_FIELDS =
+      List.of("revision", "provenanceVersion", "provenanceKeyId", "revisionSignature");
   private final JdbcEdgeRepository database;
   private final StringRedisTemplate redis;
   private final SnapshotIntegrityVerifier snapshotVerifier;
+  private final RedisMaterializationVerifier materializationVerifier;
   private final Semaphore databaseFallbacks;
   private final Duration fallbackAcquireTimeout;
-  private final String invalidationChannel;
+  private final Map<UUID, Long> revisionWatermarks = new LinkedHashMap<>(256, 0.75f, true);
   private final Counter cacheHits;
   private final Counter cacheMisses;
   private final Counter cacheErrors;
@@ -45,14 +48,15 @@ public class RedisBackedEdgeRepository implements EdgeRepository {
       JdbcEdgeRepository database,
       StringRedisTemplate redis,
       SnapshotIntegrityVerifier snapshotVerifier,
+      RedisMaterializationVerifier materializationVerifier,
       ConfigEdgeProperties properties,
       MeterRegistry registry) {
     this.database = database;
     this.redis = redis;
     this.snapshotVerifier = snapshotVerifier;
+    this.materializationVerifier = materializationVerifier;
     this.databaseFallbacks = new Semaphore(properties.maximumConcurrentDatabaseFallbacks());
     this.fallbackAcquireTimeout = properties.databaseFallbackAcquireTimeout();
-    this.invalidationChannel = properties.invalidationChannel();
     this.cacheHits = registry.counter("launchforge.edge.snapshot.cache", "outcome", "hit");
     this.cacheMisses = registry.counter("launchforge.edge.snapshot.cache", "outcome", "miss");
     this.cacheErrors = registry.counter("launchforge.edge.snapshot.cache", "outcome", "error");
@@ -78,6 +82,16 @@ public class RedisBackedEdgeRepository implements EdgeRepository {
       Map<Object, Object> values = redis.opsForHash().entries(key(environmentId));
       if (!values.isEmpty()) {
         StoredSnapshot snapshot = storedSnapshot(environmentId, values);
+        materializationVerifier.verifySnapshot(
+            environmentId,
+            snapshot.revision(),
+            snapshot.schemaVersion(),
+            snapshot.checksum(),
+            snapshot.canonicalSnapshot(),
+            required(values, "provenanceVersion"),
+            required(values, "provenanceKeyId"),
+            required(values, "snapshotSignature"));
+        requireMonotonic(environmentId, snapshot.revision());
         cacheHits.increment();
         return Optional.of(snapshot);
       }
@@ -90,7 +104,7 @@ public class RedisBackedEdgeRepository implements EdgeRepository {
     fallback.ifPresent(
         snapshot -> {
           snapshotVerifier.verify(snapshot);
-          backfillBestEffort(snapshot);
+          requireMonotonic(environmentId, snapshot.revision());
         });
     return fallback;
   }
@@ -98,9 +112,15 @@ public class RedisBackedEdgeRepository implements EdgeRepository {
   @Override
   public OptionalLong findCurrentRevision(UUID environmentId) {
     try {
-      Object value = redis.opsForHash().get(key(environmentId), "revision");
-      if (value != null) {
-        long revision = positiveLong(value, "revision");
+      List<Object> values = redis.opsForHash().multiGet(key(environmentId), REVISION_FIELDS);
+      if (values != null && !values.isEmpty() && values.getFirst() != null) {
+        if (values.size() != REVISION_FIELDS.size()) {
+          throw new IllegalArgumentException("Redis revision provenance is incomplete");
+        }
+        long revision = positiveLong(values.getFirst(), "revision");
+        materializationVerifier.verifyRevision(
+            environmentId, revision, values.get(1), values.get(2), values.get(3));
+        requireMonotonic(environmentId, revision);
         cacheHits.increment();
         return OptionalLong.of(revision);
       }
@@ -108,8 +128,12 @@ public class RedisBackedEdgeRepository implements EdgeRepository {
     } catch (RuntimeException exception) {
       cacheErrors.increment();
     }
-    return databaseFallback(
-        () -> database.findCurrentRevision(environmentId), OptionalLong.empty());
+    OptionalLong fallback =
+        databaseFallback(() -> database.findCurrentRevision(environmentId), OptionalLong.empty());
+    if (fallback.isPresent()) {
+      requireMonotonic(environmentId, fallback.getAsLong());
+    }
+    return fallback;
   }
 
   @Override
@@ -159,22 +183,6 @@ public class RedisBackedEdgeRepository implements EdgeRepository {
     }
   }
 
-  private void backfillBestEffort(StoredSnapshot snapshot) {
-    try {
-      redis.execute(
-          BACKFILL_SCRIPT,
-          List.of(key(snapshot.environmentId())),
-          Long.toString(snapshot.revision()),
-          Integer.toString(snapshot.schemaVersion()),
-          snapshot.checksum(),
-          snapshot.canonicalSnapshot(),
-          invalidationChannel,
-          revisionHint(snapshot.environmentId(), snapshot.revision()));
-    } catch (RuntimeException exception) {
-      cacheErrors.increment();
-    }
-  }
-
   private static StoredSnapshot storedSnapshot(UUID environmentId, Map<Object, Object> values) {
     long revision = positiveLong(required(values, "revision"), "revision");
     int schemaVersion =
@@ -204,33 +212,21 @@ public class RedisBackedEdgeRepository implements EdgeRepository {
     }
   }
 
-  private static String revisionHint(UUID environmentId, long revision) {
-    return "{\"schemaVersion\":1,\"environmentId\":\""
-        + environmentId
-        + "\",\"revision\":"
-        + revision
-        + '}';
-  }
-
   private static String key(UUID environmentId) {
     return KEY_PREFIX + environmentId;
   }
 
-  private static DefaultRedisScript<Long> backfillScript() {
-    DefaultRedisScript<Long> script = new DefaultRedisScript<>();
-    script.setResultType(Long.class);
-    script.setScriptText(
-        """
-        local current = redis.call('HGET', KEYS[1], 'revision')
-        if current and tonumber(current) >= tonumber(ARGV[1]) then
-          return 0
-        end
-        redis.call('HSET', KEYS[1],
-          'revision', ARGV[1], 'schemaVersion', ARGV[2],
-          'checksum', ARGV[3], 'snapshot', ARGV[4])
-        redis.call('PUBLISH', ARGV[5], ARGV[6])
-        return 1
-        """);
-    return script;
+  private void requireMonotonic(UUID environmentId, long revision) {
+    synchronized (revisionWatermarks) {
+      Long observed = revisionWatermarks.get(environmentId);
+      if (observed != null && revision < observed) {
+        throw new IllegalArgumentException("Redis revision regressed below the observed watermark");
+      }
+      revisionWatermarks.put(environmentId, revision);
+      if (revisionWatermarks.size() > MAXIMUM_REVISION_WATERMARKS) {
+        UUID eldest = revisionWatermarks.keySet().iterator().next();
+        revisionWatermarks.remove(eldest);
+      }
+    }
   }
 }

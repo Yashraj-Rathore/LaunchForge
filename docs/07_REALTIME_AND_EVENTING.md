@@ -151,8 +151,17 @@ A total Redis flush must be recoverable from PostgreSQL/Kafka.
 
 M7 stores one hash per environment at
 `launchforge:config:snapshot:<environment-uuid>` with `revision`, `schemaVersion`, `checksum`, and
-the canonical `snapshot`. A Lua compare-and-set writes and notifies only when the incoming revision
-is strictly newer, preventing stale consumers and PostgreSQL fallbacks from regressing state.
+the canonical `snapshot`. P15-01 adds `provenanceVersion`, `provenanceKeyId`, `snapshotSignature`,
+and `revisionSignature`. The Event Worker validates PostgreSQL content and signs both the full
+snapshot envelope and the lightweight revision tuple with an Ed25519 private key. Config Edge is
+configured only with one or more trusted public keys so it cannot mint materializations. A Lua
+compare-and-set writes and notifies only when the incoming revision is strictly newer.
+
+Redis access is process-scoped. Event Worker may read/write only snapshot materialization keys and
+publish the bounded hint; Config Edge may read those keys and use its separate ephemeral security
+namespace but cannot write materializations; Management has its own rate-limit namespace. Edge no
+longer backfills snapshot keys. The worker's authoritative reconciliation scan is the only rebuild
+path. These ACLs prevent a compromised reader from replacing a signed value.
 
 ## 7. Projection consumer
 
@@ -203,10 +212,11 @@ and reads the current published revision directly from PostgreSQL on a bounded e
 Each bounded SSE connection periodically revalidates key/scope lifecycle and checks the current
 environment revision; only strictly newer revision notices are emitted. M7 preserves that public
 contract while adding a Redis-first snapshot/revision path and a single global Pub/Sub hint
-subscription. Redis misses, malformed values, and connection failures use a semaphore-bounded
-PostgreSQL fallback with a bounded acquire timeout. A successful fallback backfills Redis only when
-its revision is newer. Periodic revision checks remain active, so a lost Pub/Sub hint cannot prevent
-convergence.
+subscription. Before a cache hit is served, Edge verifies the trusted signing key, versioned
+signature, and an in-process monotonic revision watermark. Redis misses, unsigned/unknown/forged or
+regressed values, and connection failures use a semaphore-bounded PostgreSQL fallback with a bounded
+acquire timeout. Edge never writes the snapshot namespace. Periodic signed revision checks remain
+active, so a lost Pub/Sub hint cannot prevent convergence.
 
 M8 adds analytics as a separate, conditional route/controller/policy. It validates bounded
 context-free event batches, derives tenant scope from the authenticated server/browser key, and
@@ -225,6 +235,7 @@ Fast path:
 SDK request
    -> authenticate key
    -> resolve environment
+   -> verify Redis materialization provenance and monotonic watermark
    -> Redis current snapshot
    -> response
 ```
@@ -234,11 +245,16 @@ Fallback path:
 ```text
 Redis miss/unavailable
    -> PostgreSQL published revision
-   -> validate/materialize
+   -> validate authoritative snapshot
    -> response
 ```
 
 Redis failure should increase latency before it causes unavailability.
+
+If PostgreSQL is also unavailable, a valid signed Redis materialization may continue to be served.
+An invalid or regressed value fails closed; SDKs retain their last-known-good snapshot or use the
+caller default. A newly started Edge relies on the Redis write ACL to prevent replay of an older
+signed hash; a running Edge additionally rejects revisions below its bounded observed watermark.
 
 ## 10. ETag contract
 

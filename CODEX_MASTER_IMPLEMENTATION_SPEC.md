@@ -449,9 +449,11 @@ M7 implements LF-0701 through LF-0706 in `launchforge-event-worker` and Config E
 workers safely lease the PostgreSQL outbox, require a Kafka acknowledgement before marking a row
 published, and retry transient broker failures with bounded exponential backoff. Versioned
 revision events are keyed by environment. The idempotent projector validates immutable PostgreSQL
-content before atomically advancing a rebuildable Redis hash and publishing a bounded hint on one
-global channel. Config Edge reads Redis first and uses a semaphore-bounded PostgreSQL fallback;
-Redis is never authoritative.
+content, signs the environment/revision/snapshot envelope with Ed25519, then atomically advances a
+rebuildable Redis hash and publishes a bounded hint on one global channel. Config Edge holds only
+trusted public keys, rejects invalid or regressed materializations, and uses a semaphore-bounded
+PostgreSQL fallback. Distinct Redis ACL users prevent Edge and Management from writing runtime
+snapshot keys; Redis is never authoritative.
 
 Start the digest-pinned local KRaft broker and Redis cache with PostgreSQL:
 
@@ -783,7 +785,7 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 
 # Project Status
 
-**Status:** Prompt 15 final architecture review complete; documented corrections await explicit approval.
+**Status:** Prompt 15 final architecture review complete; P15-01 corrected and remaining findings await explicit approval.
 
 **Current milestone:** M13 demo/pilot (LF-1301–LF-1305) complete; Prompt 15 review recorded in `docs/27_FINAL_ARCHITECTURE_REVIEW.md`.
 
@@ -821,12 +823,14 @@ attestation, staging smoke, and production approval require the repository owner
 documented protected branch/tag rules and `staging`/`production` GitHub Environments, then create the
 first annotated release tag. Those external executions have not been claimed as local evidence.
 
-The final review found no Critical issue and four High hosted-release blockers: Redis materialization
-provenance, analytics/configuration scheduler isolation, production Kafka/Redis authentication and
-TLS modeling, and absent live GitHub change/deployment controls. Six Medium and three Low findings
-are also staged. Prompt 15 is review-only, so no finding has been corrected and the project is not
-claimed ready for a hosted production pilot. Corrections must be approved and implemented one issue
-at a time.
+The final review found no Critical issue and four initial High hosted-release blockers. P15-01 was
+corrected on 2026-08-21 with worker-only Ed25519 materialization signing, Edge public-key
+verification and monotonic replay rejection, process-scoped Redis ACL credentials, and focused plus
+container integration evidence. Three High findings remain: analytics/configuration scheduler
+isolation, production Kafka/Redis transport-security modeling (Redis ACL credentials are now
+modeled, but TLS and Kafka SASL/TLS remain open), and absent live GitHub change/deployment controls.
+Six Medium and three Low findings are also staged, so the project is not claimed ready for a hosted
+production pilot. Corrections remain one explicitly approved issue at a time.
 
 ---
 
@@ -972,7 +976,8 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 ## Final review
 
 - [x] Run Prompt 15
-- [ ] Create issues for findings
+- [x] Record staged finding IDs in the final review
+- [x] Correct P15-01 authenticated Redis materialization provenance and ACL isolation
 - [ ] Correct findings one issue at a time
 - [ ] Clean-clone demo validation
 - [ ] Verify every resume claim
@@ -1613,6 +1618,12 @@ To create or verify `checksum`:
 5. encode the digest as exactly 64 lowercase hexadecimal characters.
 
 All present fields, including additive fields understood by a later compatible reader, participate in the checksum. Snapshot schemas and frozen checksum fixtures must test property ordering, Unicode, numeric rendering, and both server/browser projections.
+
+The snapshot SHA-256 checksum is a portable content-integrity contract for SDKs; it is not proof of
+publication authority. Redis materializations therefore carry a separate versioned Ed25519
+provenance envelope. The signature binds environment ID, revision, schema version, checksum, and
+the complete canonical snapshot. A second domain-separated signature binds the lightweight
+revision poll response. PostgreSQL revision rows remain the system of record.
 
 ## Identifier canonicalization
 
@@ -2885,8 +2896,17 @@ A total Redis flush must be recoverable from PostgreSQL/Kafka.
 
 M7 stores one hash per environment at
 `launchforge:config:snapshot:<environment-uuid>` with `revision`, `schemaVersion`, `checksum`, and
-the canonical `snapshot`. A Lua compare-and-set writes and notifies only when the incoming revision
-is strictly newer, preventing stale consumers and PostgreSQL fallbacks from regressing state.
+the canonical `snapshot`. P15-01 adds `provenanceVersion`, `provenanceKeyId`, `snapshotSignature`,
+and `revisionSignature`. The Event Worker validates PostgreSQL content and signs both the full
+snapshot envelope and the lightweight revision tuple with an Ed25519 private key. Config Edge is
+configured only with one or more trusted public keys so it cannot mint materializations. A Lua
+compare-and-set writes and notifies only when the incoming revision is strictly newer.
+
+Redis access is process-scoped. Event Worker may read/write only snapshot materialization keys and
+publish the bounded hint; Config Edge may read those keys and use its separate ephemeral security
+namespace but cannot write materializations; Management has its own rate-limit namespace. Edge no
+longer backfills snapshot keys. The worker's authoritative reconciliation scan is the only rebuild
+path. These ACLs prevent a compromised reader from replacing a signed value.
 
 ## 7. Projection consumer
 
@@ -2937,10 +2957,11 @@ and reads the current published revision directly from PostgreSQL on a bounded e
 Each bounded SSE connection periodically revalidates key/scope lifecycle and checks the current
 environment revision; only strictly newer revision notices are emitted. M7 preserves that public
 contract while adding a Redis-first snapshot/revision path and a single global Pub/Sub hint
-subscription. Redis misses, malformed values, and connection failures use a semaphore-bounded
-PostgreSQL fallback with a bounded acquire timeout. A successful fallback backfills Redis only when
-its revision is newer. Periodic revision checks remain active, so a lost Pub/Sub hint cannot prevent
-convergence.
+subscription. Before a cache hit is served, Edge verifies the trusted signing key, versioned
+signature, and an in-process monotonic revision watermark. Redis misses, unsigned/unknown/forged or
+regressed values, and connection failures use a semaphore-bounded PostgreSQL fallback with a bounded
+acquire timeout. Edge never writes the snapshot namespace. Periodic signed revision checks remain
+active, so a lost Pub/Sub hint cannot prevent convergence.
 
 M8 adds analytics as a separate, conditional route/controller/policy. It validates bounded
 context-free event batches, derives tenant scope from the authenticated server/browser key, and
@@ -2959,6 +2980,7 @@ Fast path:
 SDK request
    -> authenticate key
    -> resolve environment
+   -> verify Redis materialization provenance and monotonic watermark
    -> Redis current snapshot
    -> response
 ```
@@ -2968,11 +2990,16 @@ Fallback path:
 ```text
 Redis miss/unavailable
    -> PostgreSQL published revision
-   -> validate/materialize
+   -> validate authoritative snapshot
    -> response
 ```
 
 Redis failure should increase latency before it causes unavailability.
+
+If PostgreSQL is also unavailable, a valid signed Redis materialization may continue to be served.
+An invalid or regressed value fails closed; SDKs retain their last-known-good snapshot or use the
+caller default. A newly started Edge relies on the Redis write ACL to prevent replay of an older
+signed hash; a running Edge additionally rejects revisions below its bounded observed watermark.
 
 ## 10. ETag contract
 
@@ -3707,7 +3734,12 @@ Each immutable revision has:
 - author/reason;
 - created timestamp.
 
-Edge materialization verifies expected revision/checksum before serving.
+Event Worker authenticates Redis materializations with a versioned Ed25519 signature after loading
+and validating immutable PostgreSQL content. Config Edge holds public verification keys only and
+checks the environment/revision/schema/checksum/canonical-snapshot binding plus monotonic revision
+watermarks before serving. Process-specific Redis ACL credentials prevent Management and Edge from
+writing runtime snapshot keys. Invalid provenance falls back to PostgreSQL or, if it is unavailable,
+to SDK last-known-good/default behavior.
 
 SDKs validate schema/checksum before activation.
 
@@ -4999,7 +5031,9 @@ publishing by default. Exact startup, shutdown, and destructive local-volume res
 `deploy/README.md`.
 
 `deploy/helm/launchforge/` assumes external PostgreSQL, Kafka, Redis, OIDC, and optional ClickHouse.
-Values hold only endpoints and Secret references. The pre-install/pre-upgrade migration Job blocks
+Values hold endpoints, distinct Redis usernames, a non-secret materialization signing key ID, and
+Secret key references. The runtime Secret supplies per-process Redis passwords, the worker-only
+Ed25519 private key, and the Edge verification-key set. The pre-install/pre-upgrade migration Job blocks
 workloads; application pods never run Flyway. Management, Edge, worker, web, and migration each use
 dedicated service accounts with token automount disabled. The chart supplies startup/readiness/
 liveness probes, resources, rolling strategies, ingress, optional NetworkPolicies, management/Edge
@@ -7102,7 +7136,7 @@ Every runbook begins with diagnosis, protects data/config history, and avoids de
 3. avoid connection storm to PostgreSQL;
 4. restore Redis;
 5. rebuild current snapshots;
-6. verify cache checksums/revisions;
+6. verify cache signatures, key IDs, checksums, and revisions;
 7. clear alert after stable hit rate.
 
 ---
@@ -7110,11 +7144,13 @@ Every runbook begins with diagnosis, protects data/config history, and avoids de
 ## Runbook E - Redis flushed/stale
 
 1. stop any process writing known-bad materialization if required;
-2. rebuild from latest immutable published revisions;
-3. projector can replay/current-load;
-4. compare revision/checksum against PostgreSQL;
-5. verify edges;
-6. never reconstruct revision history from Redis.
+2. revoke the affected Redis credential and materialization signing key if compromise is suspected;
+3. deploy Edge trust containing the replacement public key before worker signing-key cutover;
+4. rebuild from latest immutable published revisions;
+5. the Event Worker reconciliation scan can replay/current-load;
+6. compare revision/signature/checksum against PostgreSQL;
+7. verify Edge rejects a forged value and a replay below its observed watermark;
+8. never reconstruct revision history from Redis.
 
 ---
 
@@ -7134,13 +7170,16 @@ Every runbook begins with diagnosis, protects data/config history, and avoids de
 
 ### Impact
 
-Management writes/publishes unavailable. Edge may serve Redis materialized snapshots temporarily. SDK local evaluation continues.
+Management writes/publishes unavailable. Edge may serve valid signed Redis materialized snapshots
+temporarily. Invalid or regressed Redis values fail closed and SDK local evaluation continues from
+last-known-good/default behavior.
 
 ### Actions
 
 1. stop repeated migration/write retries from causing overload;
 2. verify managed DB status;
-3. protect Redis current materialization from accidental clearing;
+3. protect Redis ACL credentials, current signed materialization, and worker signing key from
+   accidental rotation/clearing;
 4. restore DB/service;
 5. verify revision pointers/outbox integrity;
 6. resume writes;
@@ -7377,7 +7416,33 @@ measurements. No configuration/revision loss was observed. No LF-1006 correctnes
 production chaos duration, paging thresholds, and multi-host capacity remain future
 environment-specific work.
 
-## 5. Destructive action warning
+## 5. P15-01 materialization provenance drill - 2026-08-21
+
+**Environment:** Local Testcontainers on Docker Desktop; PostgreSQL 18.4, Apache Kafka 4.3.1, and
+Redis 8.2.8 with separate Management, Config Edge, and Event Worker ACL users.
+
+**Command:**
+
+```powershell
+.\mvnw.cmd --batch-mode --no-transfer-progress -pl tests/integration-tests -am verify -Pintegration "-Dit.test=DistributionPipelineIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
+```
+
+**Expected and observed:**
+
+| Scenario | Expected | Observed |
+|---|---|---|
+| Process ACL boundaries | Only the Event Worker can write snapshot materialization keys | Management and Config Edge write attempts were denied; Event Worker could materialize signed revisions |
+| Forged self-consistent Redis snapshot | Edge rejects a payload even when the attacker recomputes its plain checksum | Both Edge instances rejected the forged revision and returned authoritative PostgreSQL revision 3 |
+| Older authentic signed snapshot replay | Edge does not regress below a revision already verified by that process | Both Edge instances rejected signed revision 2 after observing revision 3 and returned revision 3 |
+| Redis flush | Only the Event Worker rebuilds materialization from PostgreSQL | Worker reconciliation restored the current signed revision; Edge performed no backfill write |
+| PostgreSQL unavailable with valid Redis | Edge may continue serving a correctly signed current materialization | The signed Redis path remained independently verifiable; the existing outage fallback assertions remained green |
+
+The focused reactor completed with `BUILD SUCCESS`: one drill test, zero failures/errors. The drill
+proves the local trust and recovery boundaries, not production key-management strength, multi-host
+availability, or transport encryption. Those remaining hosted-environment concerns retain their
+separate review findings.
+
+## 6. Destructive action warning
 
 Never:
 
@@ -8157,7 +8222,7 @@ external audit.
 | 6 | Invalid Unicode/serialization | Mitigated by I-JSON validation, strict duplicate handling, canonical snapshot encoding, checksum verification, and cross-SDK golden vectors. | `JacksonSnapshotCodecTest`; `GoldenVectorCorpusTest`; snapshot integrity tests |
 | 7 | Forged stream request | Mitigated by exact credential-class filters before admission, environment scope from stored key, lifecycle revalidation, and revision-only payload. | `RevisionStreamControllerTest`; `SdkAuthenticationServiceTest` |
 | 8 | SSE connection exhaustion | Mitigated by stream-start rate limits, local global/per-key bounds, Redis atomic global/per-key leases, renew/expiry/release behavior, and polling/LKG fallback. | `StreamConnectionLimiterTest`; `EdgeRateLimiterTest`; `EdgeWebSecurityContractTest.trustedKeyRateLimitReturnsStable429AndRetryAfter` |
-| 9 | Redis poisoning/stale projection | Mitigated by revision monotonicity, checksum verification, PostgreSQL authority/fallback, and reconciliation rebuild. | `RedisBackedEdgeRepositoryTest`; `DistributionPipelineIT` |
+| 9 | Redis poisoning/stale projection | Mitigated by worker-only Ed25519 signing, Edge public-key verification, process-scoped Redis ACLs, monotonic observed watermarks, PostgreSQL fallback, and worker-only reconciliation. | `RedisMaterializationProvenanceTest`; `RedisMaterializationVerifierTest`; `RedisBackedEdgeRepositoryTest`; `DistributionPipelineIT` forged/replay/ACL cases |
 | 10 | Kafka duplicate/replay | Mitigated by versioned keyed events, idempotent consumers, and revision ordering authority. | `DistributionPipelineIT` duplicate/stale-event cases |
 | 11 | Operator stale-write conflict | Mitigated by required preconditions, optimistic version checks, `409` contract, and preserved local UI edits. | `ControlPlanePostgresIT`; M6 console Playwright stale-write coverage |
 | 12 | Compromised browser retrieves server-only key/snapshot | Mitigated by same-origin OIDC management auth, distinct public key class, exact-origin non-credentialed CORS, and pre-checksum client-visible projection. | `BrowserConfigEdgeHttpContractTest.exactAllowedOriginReceivesOnlyClientVisibleFlagsAndProjectionChecksum`; `ConfigEdgePostgresIT.browserProjectionNeverReturnsServerOnlyFlags` |
@@ -8178,6 +8243,11 @@ stable `429` plus `Retry-After` responses.
 No code fix outside LF-0901 through LF-0906 was introduced for these residual items. The M10 links
 above identify existing explicit issue boundaries; remaining product expansions are not implied
 backlog commitments.
+
+The Prompt 15 review later found that the original Threat 9 disposition relied on an unkeyed
+checksum. P15-01 superseded that incomplete mitigation on 2026-08-21 with the authenticated
+provenance and ACL evidence recorded above; the rest of this document remains the historical M9
+review.
 
 ## Release decision checklist
 
@@ -8914,7 +8984,8 @@ bounded anonymized statement.
 
 **Prompt:** 15 — final architecture, security, compatibility, failure-mode, test, claim, and toolchain review
 
-**Disposition:** Review complete. Findings are documented only; no finding was corrected as part of this prompt.
+**Disposition:** Review complete. P15-01 was corrected in a separately approved follow-up on
+2026-08-21; the remaining findings retain their original review ranking.
 
 ## Executive decision
 
@@ -8923,49 +8994,48 @@ tenant-scoped management paths, immutable publication model, outbox ordering mod
 last-known-good behavior, and module boundaries have substantial automated evidence. It is suitable
 for its current local portfolio/demo purpose.
 
-It is **not ready for a hosted production pilot or release** until the four High findings are
-corrected and revalidated. The most important code risks are that a self-consistent Redis value can
-be served without authoritative provenance and that optional analytics can block the same default
-scheduled-execution lane used by configuration distribution. The Helm chart also lacks a usable
-production authentication/TLS model for Kafka and Redis, and the repository currently has no active
-GitHub branch rules or deployment environments.
+It is **not ready for a hosted production pilot or release** until the three unresolved High
+findings are corrected and revalidated. Optional analytics can still block the same default
+scheduled-execution lane used by configuration distribution. The Helm chart still lacks a complete
+production Kafka/Redis TLS and Kafka authentication model, and the repository currently has no
+active GitHub branch rules or deployment environments. P15-01 no longer contributes to that count.
 
 | Severity | Count | Meaning in this review |
 |---|---:|---|
 | Critical | 0 | No demonstrated unauthenticated compromise, cross-tenant API access, secret disclosure, or deterministic-evaluation corruption was found. |
-| High | 4 | Release blocker with a credible runtime integrity, availability, transport-security, or change-control consequence. |
+| High | 3 | Unresolved release blocker with a credible availability, transport-security, or change-control consequence. |
 | Medium | 6 | Contract, tenant-integrity, resilience, or product-completeness gap that must be scheduled before broad use. |
 | Low | 3 | Documentation or forward-toolchain debt with limited current runtime impact. |
 
-## Ranked findings
-
-### High
+## Resolved since review
 
 #### P15-01 — Redis materialization can become the runtime author without authoritative provenance
 
-`RedisBackedEdgeRepository.findCurrentSnapshot` accepts a complete Redis hash and does not consult
-PostgreSQL on that path. `SnapshotIntegrityVerifier` proves canonical JSON and a plain SHA-256
-checksum are internally consistent, but that checksum is unkeyed: an actor able to write Redis can
-create a different canonical snapshot and its matching checksum for an environment. The repository
-test `servesACompleteRedisSnapshotWithoutUsingPostgres` explicitly verifies that the database is not
-called. Server and browser SDK checksum validation cannot distinguish such a forged, self-consistent
-snapshot from an authoritative publication.
+**Resolved 2026-08-21.** Event Worker now signs a domain-separated, versioned Ed25519 envelope that
+binds environment ID, revision, schema version, checksum, and canonical snapshot; a separate
+signature protects lightweight revision polling. Config Edge receives only a bounded set of trusted
+public keys, verifies provenance before treating Redis as a hit, and rejects revisions below its
+bounded observed watermark. Invalid cache content falls back to PostgreSQL and otherwise fails
+closed so SDK last-known-good/default behavior remains intact.
 
-This violates the stated boundary that PostgreSQL is authoritative and Redis is rebuildable
-materialization. It also makes the Redis-poisoning mitigation claimed in
-`docs/22_SECURITY_HARDENING_REVIEW.md` incomplete.
+Local Compose and Helm now provide distinct Management, Config Edge, and Event Worker Redis users
+and secret-backed passwords. Redis ACLs permit only Event Worker to write runtime snapshot keys, and
+Edge no longer backfills them. Worker reconciliation remains the authoritative rebuild path.
 
-Evidence:
+Correction evidence:
 
-- `backend/launchforge-config-edge/src/main/java/dev/launchforge/configedge/persistence/RedisBackedEdgeRepository.java` — `findCurrentSnapshot` and `findCurrentRevision`
-- `backend/launchforge-config-edge/src/main/java/dev/launchforge/configedge/snapshot/SnapshotIntegrityVerifier.java` — plain checksum verification
-- `backend/launchforge-config-edge/src/test/java/dev/launchforge/configedge/persistence/RedisBackedEdgeRepositoryTest.java` — Redis fast-path test and database `never()` assertion
-- `docs/07_REALTIME_AND_EVENTING.md`, `docs/09_SECURITY_PRIVACY.md`, and `docs/22_SECURITY_HARDENING_REVIEW.md` — authority and poisoning expectations
+- `RedisMaterializationProvenanceTest` and `RedisMaterializationVerifierTest` cover field binding,
+  untrusted signers, tampering, key rotation, and malformed trust configuration.
+- `RedisBackedEdgeRepositoryTest` proves a forged self-consistent value is not served when
+  PostgreSQL is unavailable and an older signed value is rejected after a newer observation.
+- `DistributionPipelineIT` uses real Redis ACL identities and proves forbidden writes, forged and
+  replayed materializations returning the authoritative revision, rebuild, and outage fallback.
+- `compose.yaml`, `deploy/local/redis/launchforge-redis-entrypoint.sh`, and the Helm chart render the
+  separated credentials and worker-only private signing key.
 
-Required correction evidence: authenticate materialization provenance with a design that remains
-safe during PostgreSQL outages, separate least-privilege Redis credentials/ACLs by process, and add
-a test proving a forged self-consistent Redis payload and a replayed older revision are never served
-as current.
+## Ranked unresolved findings
+
+### High
 
 #### P15-02 — Analytics can block configuration distribution on the shared scheduler
 
@@ -8989,14 +9059,13 @@ Required correction evidence: use distinct bounded execution resources for analy
 configuration work, retain bounded ClickHouse I/O, and add an integration test in which ClickHouse
 does not respond while outbox publication and reconciliation continue within their SLO.
 
-#### P15-03 — The Helm production path does not model Kafka or Redis authentication/TLS
+#### P15-03 — The Helm production path does not completely model Kafka or Redis transport security
 
-The chart calls Kafka and Redis external managed dependencies, but its values and templates expose
-only Kafka bootstrap servers/topic and Redis host/port. There are no secret references or explicit
-TLS/SASL/ACL settings for either service and no bounded `extraEnv` escape hatch. The application
-configuration likewise supplies only those basic settings. A typical authenticated managed Kafka
-or Redis service cannot be configured through the documented chart contract without modifying the
-chart.
+P15-01 added secret-backed, process-specific Redis ACL usernames/passwords to the chart and
+application configuration. The chart still exposes no Redis TLS settings and no Kafka TLS/SASL
+settings or bounded `extraEnv` escape hatch. A typical TLS-only Redis service or authenticated
+managed Kafka service therefore still cannot be configured through the documented chart contract
+without modifying the chart.
 
 Evidence:
 
@@ -9007,9 +9076,9 @@ Evidence:
 - the three deployable `application.yml` files under `backend/`
 - `docs/09_SECURITY_PRIVACY.md` and `docs/12_DEVOPS_CICD.md` — production transport and secret expectations
 
-Required correction evidence: define explicit secret-backed Kafka SASL/TLS and Redis TLS/ACL
-configuration, render it without secret values, validate it in Helm/Compose tests, and demonstrate
-connections to authenticated TLS-enabled test services.
+Required correction evidence: retain the new Redis ACL identities, define explicit secret-backed
+Kafka SASL/TLS and Redis TLS configuration, render it without secret values, validate it in
+Helm/Compose tests, and demonstrate connections to authenticated TLS-enabled test services.
 
 #### P15-04 — Required GitHub change and deployment controls are not active
 
@@ -9126,8 +9195,9 @@ is predictable toolchain debt. The separately documented Temurin runtime-image p
 
 ## Security and tenant-isolation review
 
-P15-01, P15-03, P15-08, and P15-11 are the security/tenant findings. No cross-organization API
-access was reproduced. Server-derived organization scope, role checks, compound ownership on core
+P15-03, P15-08, and P15-11 are the unresolved security/tenant findings; P15-01 is resolved as
+recorded above. No cross-organization API access was reproduced. Server-derived organization
+scope, role checks, compound ownership on core
 entities, SDK credential-class separation, hash-only server-key verification, CSRF/OIDC/session
 boundaries, and privacy-safe request logging were traced in code and exercised by the 25-test
 container integration suite. Direct-resource cross-tenant access, Viewer denial, final-Owner
@@ -9159,14 +9229,13 @@ revision. The full distribution integration test passed PostgreSQL → outbox �
 → SDK convergence and stale/duplicate/rebuild behavior.
 
 Outstanding compatibility findings are P15-05 (UTF-8 value sizing) and P15-06 (5 MiB versus 8 MiB
-configuration). P15-01 is a provenance defect after a snapshot leaves the authoritative pipeline.
+configuration). The former P15-01 provenance defect is resolved as recorded above.
 
 ## Failure-mode gaps
 
 - P15-02: analytics outage can delay configuration scheduled work.
 - P15-07: a never-resolving browser analytics request has no timeout.
 - P15-10: a poison authoritative row can starve later reconciliation.
-- P15-01: cache compromise is not distinguished from authoritative materialization.
 
 Existing failure evidence remains strong for SDK last-known-good/default behavior, stream-to-poll
 fallback, Redis loss/rebuild, duplicate/stale events, key revocation, atomic publication failure,
@@ -9180,7 +9249,6 @@ Each P15 finding needs the focused regression evidence stated with it. In additi
 - controlled load evidence is local and bounded, not production capacity proof;
 - the release/promotion/restore workflows have not run against configured hosted environments;
 - no chaos test holds ClickHouse indefinitely while asserting distribution progress;
-- no test forges a valid-checksum Redis snapshot from outside the projector;
 - no multibyte boundary corpus tests management publication and both SDKs at 64 KiB;
 - no browser test uses a never-resolving analytics fetch;
 - no database test attempts cross-tenant audit or key-rotation lineage;
@@ -9213,7 +9281,8 @@ configuration changes begin.
 
 ### Stage 0 — hosted-release blockers
 
-1. **P15-01:** establish authenticated Redis materialization provenance and least-privilege ACLs.
+1. **P15-01 (resolved 2026-08-21):** authenticated Redis materialization provenance and
+   least-privilege ACLs established and regression-tested.
 2. **P15-02:** isolate analytics and configuration schedulers; prove ClickHouse failure isolation.
 3. **P15-03:** add secret-backed Kafka/Redis authentication and TLS to deployment contracts.
 4. **P15-04:** configure and verify live GitHub rulesets, environments, and first staged promotion.
@@ -9254,6 +9323,19 @@ configuration changes begin.
 
 The live GitHub Actions results for the published commit are separate evidence and are recorded in
 the completion report. A green build does not resolve the documented architectural findings.
+
+### P15-01 correction validation - 2026-08-21
+
+- `./mvnw.cmd --batch-mode --no-transfer-progress -pl backend/launchforge-contracts,backend/launchforge-config-edge,backend/launchforge-event-worker,tests/integration-tests -am test -DskipITs`
+  — passed the affected contract, Config Edge, Event Worker, and supporting reactor unit tests.
+- `./mvnw.cmd --batch-mode --no-transfer-progress -pl tests/integration-tests -am verify -Pintegration "-Dit.test=DistributionPipelineIT" "-Dfailsafe.failIfNoSpecifiedTests=false"`
+  — passed the Docker-backed signed materialization, forged snapshot, signed replay, process ACL,
+  reconciliation, multi-edge, and fallback drill with one test and zero failures/errors.
+- Compose rendering, strict Helm lint/default and Kind rendering, PowerShell parsing, and generated
+  specification synchronization passed with the new credentials and signing configuration.
+
+The full repository validation and live GitHub Actions result for the correction are separate
+evidence recorded in its completion report.
 
 ---
 

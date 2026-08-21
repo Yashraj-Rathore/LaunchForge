@@ -25,7 +25,7 @@ external audit.
 | 6 | Invalid Unicode/serialization | Mitigated by I-JSON validation, strict duplicate handling, canonical snapshot encoding, checksum verification, and cross-SDK golden vectors. | `JacksonSnapshotCodecTest`; `GoldenVectorCorpusTest`; snapshot integrity tests |
 | 7 | Forged stream request | Mitigated by exact credential-class filters before admission, environment scope from stored key, lifecycle revalidation, and revision-only payload. | `RevisionStreamControllerTest`; `SdkAuthenticationServiceTest` |
 | 8 | SSE connection exhaustion | Mitigated by stream-start rate limits, local global/per-key bounds, Redis atomic global/per-key leases, renew/expiry/release behavior, and polling/LKG fallback. | `StreamConnectionLimiterTest`; `EdgeRateLimiterTest`; `EdgeWebSecurityContractTest.trustedKeyRateLimitReturnsStable429AndRetryAfter` |
-| 9 | Redis poisoning/stale projection | Mitigated by revision monotonicity, checksum verification, PostgreSQL authority/fallback, and reconciliation rebuild. | `RedisBackedEdgeRepositoryTest`; `DistributionPipelineIT` |
+| 9 | Redis poisoning/stale projection | Mitigated by worker-only Ed25519 signing, Edge public-key verification, process-scoped Redis ACLs, monotonic observed watermarks, PostgreSQL fallback, and worker-only reconciliation. | `RedisMaterializationProvenanceTest`; `RedisMaterializationVerifierTest`; `RedisBackedEdgeRepositoryTest`; `DistributionPipelineIT` forged/replay/ACL cases |
 | 10 | Kafka duplicate/replay | Mitigated by versioned keyed events, idempotent consumers, and revision ordering authority. | `DistributionPipelineIT` duplicate/stale-event cases |
 | 11 | Operator stale-write conflict | Mitigated by required preconditions, optimistic version checks, `409` contract, and preserved local UI edits. | `ControlPlanePostgresIT`; M6 console Playwright stale-write coverage |
 | 12 | Compromised browser retrieves server-only key/snapshot | Mitigated by same-origin OIDC management auth, distinct public key class, exact-origin non-credentialed CORS, and pre-checksum client-visible projection. | `BrowserConfigEdgeHttpContractTest.exactAllowedOriginReceivesOnlyClientVisibleFlagsAndProjectionChecksum`; `ConfigEdgePostgresIT.browserProjectionNeverReturnsServerOnlyFlags` |
@@ -46,6 +46,11 @@ stable `429` plus `Retry-After` responses.
 No code fix outside LF-0901 through LF-0906 was introduced for these residual items. The M10 links
 above identify existing explicit issue boundaries; remaining product expansions are not implied
 backlog commitments.
+
+The Prompt 15 review later found that the original Threat 9 disposition relied on an unkeyed
+checksum. P15-01 superseded that incomplete mitigation on 2026-08-21 with the authenticated
+provenance and ACL evidence recorded above; the rest of this document remains the historical M9
+review.
 
 ## Release decision checklist
 

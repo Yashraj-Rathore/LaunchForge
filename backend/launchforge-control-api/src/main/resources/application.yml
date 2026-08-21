@@ -26,6 +26,8 @@ spring:
     redis:
       host: ${LAUNCHFORGE_REDIS_HOST:localhost}
       port: ${LAUNCHFORGE_REDIS_PORT:56379}
+      username: ${LAUNCHFORGE_REDIS_USERNAME:}
+      password: ${LAUNCHFORGE_REDIS_PASSWORD:}
       connect-timeout: 500ms
       timeout: 500ms
   security:

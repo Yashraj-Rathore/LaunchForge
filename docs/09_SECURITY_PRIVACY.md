@@ -211,7 +211,12 @@ Each immutable revision has:
 - author/reason;
 - created timestamp.
 
-Edge materialization verifies expected revision/checksum before serving.
+Event Worker authenticates Redis materializations with a versioned Ed25519 signature after loading
+and validating immutable PostgreSQL content. Config Edge holds public verification keys only and
+checks the environment/revision/schema/checksum/canonical-snapshot binding plus monotonic revision
+watermarks before serving. Process-specific Redis ACL credentials prevent Management and Edge from
+writing runtime snapshot keys. Invalid provenance falls back to PostgreSQL or, if it is unavailable,
+to SDK last-known-good/default behavior.
 
 SDKs validate schema/checksum before activation.
 

@@ -93,7 +93,7 @@ Every runbook begins with diagnosis, protects data/config history, and avoids de
 3. avoid connection storm to PostgreSQL;
 4. restore Redis;
 5. rebuild current snapshots;
-6. verify cache checksums/revisions;
+6. verify cache signatures, key IDs, checksums, and revisions;
 7. clear alert after stable hit rate.
 
 ---
@@ -101,11 +101,13 @@ Every runbook begins with diagnosis, protects data/config history, and avoids de
 ## Runbook E - Redis flushed/stale
 
 1. stop any process writing known-bad materialization if required;
-2. rebuild from latest immutable published revisions;
-3. projector can replay/current-load;
-4. compare revision/checksum against PostgreSQL;
-5. verify edges;
-6. never reconstruct revision history from Redis.
+2. revoke the affected Redis credential and materialization signing key if compromise is suspected;
+3. deploy Edge trust containing the replacement public key before worker signing-key cutover;
+4. rebuild from latest immutable published revisions;
+5. the Event Worker reconciliation scan can replay/current-load;
+6. compare revision/signature/checksum against PostgreSQL;
+7. verify Edge rejects a forged value and a replay below its observed watermark;
+8. never reconstruct revision history from Redis.
 
 ---
 
@@ -125,13 +127,16 @@ Every runbook begins with diagnosis, protects data/config history, and avoids de
 
 ### Impact
 
-Management writes/publishes unavailable. Edge may serve Redis materialized snapshots temporarily. SDK local evaluation continues.
+Management writes/publishes unavailable. Edge may serve valid signed Redis materialized snapshots
+temporarily. Invalid or regressed Redis values fail closed and SDK local evaluation continues from
+last-known-good/default behavior.
 
 ### Actions
 
 1. stop repeated migration/write retries from causing overload;
 2. verify managed DB status;
-3. protect Redis current materialization from accidental clearing;
+3. protect Redis ACL credentials, current signed materialization, and worker signing key from
+   accidental rotation/clearing;
 4. restore DB/service;
 5. verify revision pointers/outbox integrity;
 6. resume writes;
@@ -368,7 +373,33 @@ measurements. No configuration/revision loss was observed. No LF-1006 correctnes
 production chaos duration, paging thresholds, and multi-host capacity remain future
 environment-specific work.
 
-## 5. Destructive action warning
+## 5. P15-01 materialization provenance drill - 2026-08-21
+
+**Environment:** Local Testcontainers on Docker Desktop; PostgreSQL 18.4, Apache Kafka 4.3.1, and
+Redis 8.2.8 with separate Management, Config Edge, and Event Worker ACL users.
+
+**Command:**
+
+```powershell
+.\mvnw.cmd --batch-mode --no-transfer-progress -pl tests/integration-tests -am verify -Pintegration "-Dit.test=DistributionPipelineIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
+```
+
+**Expected and observed:**
+
+| Scenario | Expected | Observed |
+|---|---|---|
+| Process ACL boundaries | Only the Event Worker can write snapshot materialization keys | Management and Config Edge write attempts were denied; Event Worker could materialize signed revisions |
+| Forged self-consistent Redis snapshot | Edge rejects a payload even when the attacker recomputes its plain checksum | Both Edge instances rejected the forged revision and returned authoritative PostgreSQL revision 3 |
+| Older authentic signed snapshot replay | Edge does not regress below a revision already verified by that process | Both Edge instances rejected signed revision 2 after observing revision 3 and returned revision 3 |
+| Redis flush | Only the Event Worker rebuilds materialization from PostgreSQL | Worker reconciliation restored the current signed revision; Edge performed no backfill write |
+| PostgreSQL unavailable with valid Redis | Edge may continue serving a correctly signed current materialization | The signed Redis path remained independently verifiable; the existing outage fallback assertions remained green |
+
+The focused reactor completed with `BUILD SUCCESS`: one drill test, zero failures/errors. The drill
+proves the local trust and recovery boundaries, not production key-management strength, multi-host
+availability, or transport encryption. Those remaining hosted-environment concerns retain their
+separate review findings.
+
+## 6. Destructive action warning
 
 Never:
 

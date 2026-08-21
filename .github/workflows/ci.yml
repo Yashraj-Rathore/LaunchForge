@@ -149,6 +149,12 @@ jobs:
       LAUNCHFORGE_CLICKHOUSE_PASSWORD: ci-clickhouse-only
       LAUNCHFORGE_GRAFANA_ADMIN_PASSWORD: ci-grafana-only
       LAUNCHFORGE_SDK_KEY_PEPPER: ci-sdk-key-pepper-at-least-32-bytes
+      LAUNCHFORGE_REDIS_MANAGEMENT_PASSWORD: ci-management-redis-password-only
+      LAUNCHFORGE_REDIS_CONFIG_EDGE_PASSWORD: ci-config-edge-redis-password-only
+      LAUNCHFORGE_REDIS_EVENT_WORKER_PASSWORD: ci-event-worker-redis-password-only
+      LAUNCHFORGE_MATERIALIZATION_SIGNING_KEY_ID: ci-v1
+      LAUNCHFORGE_MATERIALIZATION_SIGNING_PRIVATE_KEY: ci-compose-validation-private-key-only
+      LAUNCHFORGE_MATERIALIZATION_VERIFICATION_KEYS: ci-v1:ci-compose-validation-public-key-only
       LAUNCHFORGE_DB_URL: jdbc:postgresql://localhost:55432/launchforge
       LAUNCHFORGE_DB_USER: launchforge
       LAUNCHFORGE_DB_PASSWORD: ci-postgres-only
@@ -216,6 +222,12 @@ jobs:
       LAUNCHFORGE_CLICKHOUSE_PASSWORD: ci-validation-only
       LAUNCHFORGE_GRAFANA_ADMIN_PASSWORD: ci-validation-only
       LAUNCHFORGE_SDK_KEY_PEPPER: ci-sdk-key-pepper-at-least-32-bytes
+      LAUNCHFORGE_REDIS_MANAGEMENT_PASSWORD: ci-management-redis-password-only
+      LAUNCHFORGE_REDIS_CONFIG_EDGE_PASSWORD: ci-config-edge-redis-password-only
+      LAUNCHFORGE_REDIS_EVENT_WORKER_PASSWORD: ci-event-worker-redis-password-only
+      LAUNCHFORGE_MATERIALIZATION_SIGNING_KEY_ID: ci-v1
+      LAUNCHFORGE_MATERIALIZATION_SIGNING_PRIVATE_KEY: ci-compose-validation-private-key-only
+      LAUNCHFORGE_MATERIALIZATION_VERIFICATION_KEYS: ci-v1:ci-compose-validation-public-key-only
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

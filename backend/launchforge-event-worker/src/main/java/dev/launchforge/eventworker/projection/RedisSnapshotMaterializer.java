@@ -1,5 +1,6 @@
 package dev.launchforge.eventworker.projection;
 
+import dev.launchforge.contracts.snapshots.RedisMaterializationProvenance;
 import dev.launchforge.eventworker.configuration.DistributionProperties;
 import java.util.List;
 import java.util.UUID;
@@ -15,19 +16,23 @@ public class RedisSnapshotMaterializer {
   private static final DefaultRedisScript<Long> APPLY_SCRIPT = script();
   private final StringRedisTemplate redisTemplate;
   private final ObjectMapper objectMapper;
+  private final RedisMaterializationSigner signer;
   private final String invalidationChannel;
 
   public RedisSnapshotMaterializer(
       StringRedisTemplate redisTemplate,
       ObjectMapper objectMapper,
+      RedisMaterializationSigner signer,
       DistributionProperties properties) {
     this.redisTemplate = redisTemplate;
     this.objectMapper = objectMapper;
+    this.signer = signer;
     this.invalidationChannel = properties.invalidationChannel();
   }
 
   public boolean materialize(AuthoritativeSnapshot snapshot) {
     String hint = revisionHint(snapshot.environmentId(), snapshot.revision());
+    RedisMaterializationSigner.SignedMaterialization provenance = signer.sign(snapshot);
     Long result =
         redisTemplate.execute(
             APPLY_SCRIPT,
@@ -36,6 +41,10 @@ public class RedisSnapshotMaterializer {
             Integer.toString(snapshot.schemaVersion()),
             snapshot.checksum(),
             snapshot.canonicalSnapshot(),
+            Integer.toString(RedisMaterializationProvenance.VERSION),
+            provenance.keyId(),
+            provenance.snapshotSignature(),
+            provenance.revisionSignature(),
             invalidationChannel,
             hint);
     if (result == null) {
@@ -68,8 +77,12 @@ public class RedisSnapshotMaterializer {
           'revision', ARGV[1],
           'schemaVersion', ARGV[2],
           'checksum', ARGV[3],
-          'snapshot', ARGV[4])
-        redis.call('PUBLISH', ARGV[5], ARGV[6])
+          'snapshot', ARGV[4],
+          'provenanceVersion', ARGV[5],
+          'provenanceKeyId', ARGV[6],
+          'snapshotSignature', ARGV[7],
+          'revisionSignature', ARGV[8])
+        redis.call('PUBLISH', ARGV[9], ARGV[10])
         return 1
         """;
     DefaultRedisScript<Long> script = new DefaultRedisScript<>();

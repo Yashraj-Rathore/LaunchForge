@@ -49,6 +49,11 @@ external:
   redis:
     host: redis.example.invalid
     port: 6379
+    usernames:
+      management: launchforge-management
+      configEdge: launchforge-config-edge
+      eventWorker: launchforge-event-worker
+    materializationSigningKeyId: production-v1
   oidc:
     issuerUri: https://identity.example.invalid/realms/launchforge
     clientId: launchforge-control
@@ -71,6 +76,11 @@ secrets:
   sdkKeyPepperKey: sdk-key-pepper
   sdkKeyPepperVersion: v1
   clickHousePasswordKey: clickhouse-password
+  redisManagementPasswordKey: redis-management-password
+  redisConfigEdgePasswordKey: redis-config-edge-password
+  redisEventWorkerPasswordKey: redis-event-worker-password
+  materializationSigningPrivateKeyKey: materialization-signing-private-key
+  materializationVerificationKeysKey: materialization-verification-keys
 
 management:
   replicas: 2

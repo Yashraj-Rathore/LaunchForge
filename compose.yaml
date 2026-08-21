@@ -77,11 +77,21 @@ services:
   redis:
     profiles: [distribution]
     image: redis:8.2.8-bookworm@sha256:2f7462b9e93e0a7ae2edf3a0a0babc8a4d29f8bfc50849b906b7caaef925edc1
-    command: [redis-server, --save, '', --appendonly, 'no']
+    entrypoint: [/bin/sh, /usr/local/bin/launchforge-redis-entrypoint.sh]
+    environment:
+      LAUNCHFORGE_REDIS_MANAGEMENT_PASSWORD: ${LAUNCHFORGE_REDIS_MANAGEMENT_PASSWORD:?Set the local management Redis password in .env}
+      LAUNCHFORGE_REDIS_CONFIG_EDGE_PASSWORD: ${LAUNCHFORGE_REDIS_CONFIG_EDGE_PASSWORD:?Set the local Config Edge Redis password in .env}
+      LAUNCHFORGE_REDIS_EVENT_WORKER_PASSWORD: ${LAUNCHFORGE_REDIS_EVENT_WORKER_PASSWORD:?Set the local Event Worker Redis password in .env}
     ports:
       - '${LAUNCHFORGE_BIND_ADDRESS:-127.0.0.1}:${LAUNCHFORGE_REDIS_PORT:-56379}:6379'
+    volumes:
+      - ./deploy/local/redis/launchforge-redis-entrypoint.sh:/usr/local/bin/launchforge-redis-entrypoint.sh:ro
     healthcheck:
-      test: [CMD, redis-cli, ping]
+      test:
+        - CMD-SHELL
+        - >-
+          REDISCLI_AUTH="$${LAUNCHFORGE_REDIS_EVENT_WORKER_PASSWORD}"
+          redis-cli --user launchforge-event-worker ping
       interval: 5s
       timeout: 3s
       retries: 12
@@ -248,6 +258,8 @@ services:
       LAUNCHFORGE_DB_PASSWORD: ${LAUNCHFORGE_POSTGRES_PASSWORD:?Set a local-only PostgreSQL password in .env}
       LAUNCHFORGE_REDIS_HOST: redis
       LAUNCHFORGE_REDIS_PORT: 6379
+      LAUNCHFORGE_REDIS_USERNAME: launchforge-management
+      LAUNCHFORGE_REDIS_PASSWORD: ${LAUNCHFORGE_REDIS_MANAGEMENT_PASSWORD:?Set the local management Redis password in .env}
       LAUNCHFORGE_OIDC_ISSUER_URI: ${LAUNCHFORGE_CONTAINER_OIDC_ISSUER_URI:-http://host.docker.internal:8081/realms/launchforge}
       LAUNCHFORGE_OIDC_CLIENT_ID: ${LAUNCHFORGE_OIDC_CLIENT_ID:-launchforge-control}
       LAUNCHFORGE_SDK_KEY_PEPPER: ${LAUNCHFORGE_SDK_KEY_PEPPER:?Set a random local-only SDK key pepper in .env}
@@ -298,6 +310,9 @@ services:
       LAUNCHFORGE_DB_PASSWORD: ${LAUNCHFORGE_POSTGRES_PASSWORD:?Set a local-only PostgreSQL password in .env}
       LAUNCHFORGE_REDIS_HOST: redis
       LAUNCHFORGE_REDIS_PORT: 6379
+      LAUNCHFORGE_REDIS_USERNAME: launchforge-config-edge
+      LAUNCHFORGE_REDIS_PASSWORD: ${LAUNCHFORGE_REDIS_CONFIG_EDGE_PASSWORD:?Set the local Config Edge Redis password in .env}
+      LAUNCHFORGE_MATERIALIZATION_VERIFICATION_KEYS: ${LAUNCHFORGE_MATERIALIZATION_VERIFICATION_KEYS:?Set the trusted local materialization verification key in .env}
       LAUNCHFORGE_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       LAUNCHFORGE_SDK_KEY_PEPPER: ${LAUNCHFORGE_SDK_KEY_PEPPER:?Set a random local-only SDK key pepper in .env}
       LAUNCHFORGE_ANALYTICS_ENABLED: ${LAUNCHFORGE_ANALYTICS_ENABLED:-false}
@@ -340,6 +355,10 @@ services:
       LAUNCHFORGE_DB_PASSWORD: ${LAUNCHFORGE_POSTGRES_PASSWORD:?Set a local-only PostgreSQL password in .env}
       LAUNCHFORGE_REDIS_HOST: redis
       LAUNCHFORGE_REDIS_PORT: 6379
+      LAUNCHFORGE_REDIS_USERNAME: launchforge-event-worker
+      LAUNCHFORGE_REDIS_PASSWORD: ${LAUNCHFORGE_REDIS_EVENT_WORKER_PASSWORD:?Set the local Event Worker Redis password in .env}
+      LAUNCHFORGE_MATERIALIZATION_SIGNING_KEY_ID: ${LAUNCHFORGE_MATERIALIZATION_SIGNING_KEY_ID:-local-v1}
+      LAUNCHFORGE_MATERIALIZATION_SIGNING_PRIVATE_KEY: ${LAUNCHFORGE_MATERIALIZATION_SIGNING_PRIVATE_KEY:?Set the local materialization signing key in .env}
       LAUNCHFORGE_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       LAUNCHFORGE_ANALYTICS_ENABLED: ${LAUNCHFORGE_ANALYTICS_ENABLED:-false}
       LAUNCHFORGE_KAFKA_ANALYTICS_TOPIC: ${LAUNCHFORGE_KAFKA_ANALYTICS_TOPIC:-launchforge.analytics.evaluations.v1}
