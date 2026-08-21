@@ -28,5 +28,6 @@
 | `24_RELEASE_SUPPLY_CHAIN.md` | M12 PR gates, scanning, immutable release evidence, protected promotion, and rollback |
 | `25_INTEGRATION_QUICKSTARTS.md` | clean demo start plus tested Java, Spring, JavaScript, and React integration paths |
 | `26_PILOT_PACKAGE.md` | narrow pilot profile, checklists, pricing hypotheses, feedback, and operating boundaries |
+| `27_FINAL_ARCHITECTURE_REVIEW.md` | Prompt 15 ranked findings, evidence, release decision, and staged correction queue |
 
 ADRs under `docs/decisions/` explain choices that must not be casually reversed.

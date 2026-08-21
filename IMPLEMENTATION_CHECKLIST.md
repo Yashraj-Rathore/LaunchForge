@@ -137,7 +137,7 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 
 ## Final review
 
-- [ ] Run Prompt 15
+- [x] Run Prompt 15
 - [ ] Create issues for findings
 - [ ] Correct findings one issue at a time
 - [ ] Clean-clone demo validation

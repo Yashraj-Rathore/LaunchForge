@@ -32,6 +32,9 @@
   operational flag discovery, accessibility, and the 390 x 844 browser acceptance viewport.
 - Finalized the M13 deterministic fictional demo, integration quick starts, reproducible real-system
   media route, measured case-study claims, and explicitly provisional pilot/commercial hypotheses.
+- Completed the Prompt 15 review-only architecture audit with ranked security, compatibility,
+  failure-mode, test, claim, deployment, and toolchain findings plus an approval-gated staged
+  correction queue; no review finding was automatically changed.
 
 ### Implementation
 

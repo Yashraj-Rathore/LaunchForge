@@ -1,8 +1,8 @@
 # Project Status
 
-**Status:** Prompt 14 demo, portfolio, integration-guide, and pilot-readiness implementation complete.
+**Status:** Prompt 15 final architecture review complete; documented corrections await explicit approval.
 
-**Current milestone:** M13 demo/pilot (LF-1301–LF-1305) complete; stop point before Prompt 15 final review.
+**Current milestone:** M13 demo/pilot (LF-1301–LF-1305) complete; Prompt 15 review recorded in `docs/27_FINAL_ARCHITECTURE_REVIEW.md`.
 
 **Admin console refresh:** The M6 console received a responsive visual-system and usability refresh on 2026-08-20, including adaptive navigation, mobile-safe content, flag discovery, and responsive analytics/audit presentation. This does not advance the M13 milestone.
 
@@ -37,3 +37,10 @@ The repository-side M12 controls and local evidence pass. A real GHCR publicatio
 attestation, staging smoke, and production approval require the repository owner to configure the
 documented protected branch/tag rules and `staging`/`production` GitHub Environments, then create the
 first annotated release tag. Those external executions have not been claimed as local evidence.
+
+The final review found no Critical issue and four High hosted-release blockers: Redis materialization
+provenance, analytics/configuration scheduler isolation, production Kafka/Redis authentication and
+TLS modeling, and absent live GitHub change/deployment controls. Six Medium and three Low findings
+are also staged. Prompt 15 is review-only, so no finding has been corrected and the project is not
+claimed ready for a hosted production pilot. Corrections must be approved and implemented one issue
+at a time.
