@@ -12,9 +12,12 @@ external:
   kafka:
     bootstrapServers: host.docker.internal:59092
     configTopic: launchforge.config.revision-published.v1
+    securityProtocol: PLAINTEXT
   redis:
     host: host.docker.internal
     port: 56379
+    tls:
+      enabled: false
     usernames:
       management: launchforge-management
       configEdge: launchforge-config-edge

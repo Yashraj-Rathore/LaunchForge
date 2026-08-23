@@ -89,6 +89,20 @@ docker compose --profile identity --profile distribution --profile analytics --p
 The second command permanently removes LaunchForge's local PostgreSQL, ClickHouse, Prometheus, and
 Grafana named volumes. It does not represent an application or database rollback.
 
+For a local transport-security exercise, generate an untracked CA, a Kafka PKCS12 server keystore
+whose certificate SANs include `kafka` and `localhost`, and Redis PEM server material whose SANs
+include `redis` and `localhost`. Set the file/password variables documented in `.env.example`, then
+merge the opt-in overlay:
+
+```powershell
+docker compose -f compose.yaml -f deploy/local/compose.transport-security.yaml --profile identity --profile distribution --profile platform config --quiet
+docker compose -f compose.yaml -f deploy/local/compose.transport-security.yaml --profile identity --profile distribution --profile platform up -d --build --wait
+```
+
+The overlay changes the application-facing Kafka listener to SASL/TLS, makes Redis TLS-only, mounts
+CA certificates read-only into workloads, and preserves the process-specific Redis ACL users. The
+base Compose and kind paths remain deliberate plaintext loopback-only development fixtures.
+
 ## Helm
 
 The chart is `deploy/helm/launchforge`. It renders management, Config Edge, Event Worker/projector,
@@ -98,10 +112,11 @@ must observe its successful completion before creating or replacing application 
 Create a values file outside the repository containing production endpoints and immutable image
 digests. Create the referenced Kubernetes Secret through an approved secret manager or
 external-secrets controller. It must contain the configured database password and SDK-key pepper;
-the three configured Redis-user passwords; the Event Worker materialization-signing private key;
-and the Config Edge `key-id:public-key` verification set. When analytics is enabled it must also
-contain the ClickHouse password. Keep the signing private key out of Management and Edge. Do not put
-secret values in Helm values or `--set` history.
+the three configured Redis-user passwords; Kafka SASL username/password; the Redis and Kafka CA
+certificates; the Event Worker materialization-signing private key; and the Config Edge
+`key-id:public-key` verification set. When analytics is enabled it must also contain the ClickHouse
+password. Keep the signing private key out of Management and Edge. Do not put secret values in Helm
+values or `--set` history.
 
 ```powershell
 helm lint deploy/helm/launchforge --strict
@@ -113,7 +128,9 @@ Default values deliberately use `.invalid` external endpoints and example image 
 an operator must supply PostgreSQL, Kafka, Redis, OIDC, ingress, and image settings. Production
 defaults include two management/edge/web replicas, zero-unavailable rolling updates, Config Edge
 HPA, management/edge PDBs, dedicated token-free service accounts, probes, resources, ingress, and
-NetworkPolicy examples. Enable analytics only after supplying its ClickHouse endpoint and secret.
+NetworkPolicy examples. They also enable Redis TLS and Kafka `SASL_SSL` with secret-backed
+credentials and CA trust mounts. Enable analytics only after supplying its ClickHouse endpoint and
+secret.
 
 Application rollback selects a previously proven compatible image digest and reruns Helm. It does
 not reverse Flyway migrations. Product configuration rollback is separate and publishes a newer

@@ -61,6 +61,89 @@ capabilities:
       key: {{ .Values.secrets.databasePasswordKey | quote }}
 {{- end }}
 
+{{- define "launchforge.redisTlsEnv" -}}
+- name: LAUNCHFORGE_REDIS_SSL_ENABLED
+  value: {{ .Values.external.redis.tls.enabled | quote }}
+{{- if .Values.external.redis.tls.enabled }}
+- name: SPRING_DATA_REDIS_SSL_BUNDLE
+  value: redis
+- name: SPRING_SSL_BUNDLE_PEM_REDIS_TRUSTSTORE_CERTIFICATE
+  value: file:/var/run/secrets/launchforge/redis/ca.crt
+{{- end }}
+{{- end }}
+
+{{- define "launchforge.kafkaSecurityEnv" -}}
+{{- $protocol := .Values.external.kafka.securityProtocol -}}
+{{- $sasl := or (eq $protocol "SASL_PLAINTEXT") (eq $protocol "SASL_SSL") -}}
+{{- $tls := or (eq $protocol "SSL") (eq $protocol "SASL_SSL") -}}
+- name: LAUNCHFORGE_KAFKA_SECURITY_PROTOCOL
+  value: {{ $protocol | quote }}
+- name: LAUNCHFORGE_KAFKA_SASL_ENABLED
+  value: {{ $sasl | quote }}
+{{- if $sasl }}
+- name: LAUNCHFORGE_KAFKA_SASL_MECHANISM
+  value: {{ .Values.external.kafka.saslMechanism | quote }}
+- name: LAUNCHFORGE_KAFKA_SASL_LOGIN_MODULE
+  value: {{ .Values.external.kafka.saslLoginModule | quote }}
+- name: LAUNCHFORGE_KAFKA_SASL_USERNAME
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.secrets.existingSecret | quote }}
+      key: {{ .Values.secrets.kafkaSaslUsernameKey | quote }}
+- name: LAUNCHFORGE_KAFKA_SASL_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.secrets.existingSecret | quote }}
+      key: {{ .Values.secrets.kafkaSaslPasswordKey | quote }}
+{{- end }}
+{{- if $tls }}
+- name: SPRING_KAFKA_SSL_BUNDLE
+  value: kafka
+- name: SPRING_SSL_BUNDLE_PEM_KAFKA_TRUSTSTORE_CERTIFICATE
+  value: file:/var/run/secrets/launchforge/kafka/ca.crt
+{{- end }}
+{{- end }}
+
+{{- define "launchforge.redisTlsVolumeMount" -}}
+{{- if .Values.external.redis.tls.enabled }}
+- name: redis-tls-trust
+  mountPath: /var/run/secrets/launchforge/redis
+  readOnly: true
+{{- end }}
+{{- end }}
+
+{{- define "launchforge.redisTlsVolume" -}}
+{{- if .Values.external.redis.tls.enabled }}
+- name: redis-tls-trust
+  secret:
+    secretName: {{ .Values.secrets.existingSecret | quote }}
+    defaultMode: 0440
+    items:
+      - key: {{ .Values.secrets.redisTlsTrustCertificateKey | quote }}
+        path: ca.crt
+{{- end }}
+{{- end }}
+
+{{- define "launchforge.kafkaTlsVolumeMount" -}}
+{{- if or (eq .Values.external.kafka.securityProtocol "SSL") (eq .Values.external.kafka.securityProtocol "SASL_SSL") }}
+- name: kafka-tls-trust
+  mountPath: /var/run/secrets/launchforge/kafka
+  readOnly: true
+{{- end }}
+{{- end }}
+
+{{- define "launchforge.kafkaTlsVolume" -}}
+{{- if or (eq .Values.external.kafka.securityProtocol "SSL") (eq .Values.external.kafka.securityProtocol "SASL_SSL") }}
+- name: kafka-tls-trust
+  secret:
+    secretName: {{ .Values.secrets.existingSecret | quote }}
+    defaultMode: 0440
+    items:
+      - key: {{ .Values.secrets.kafkaTlsTrustCertificateKey | quote }}
+        path: ca.crt
+{{- end }}
+{{- end }}
+
 {{- define "launchforge.commonJavaEnv" -}}
 - name: LAUNCHFORGE_OTEL_ENABLED
   value: {{ .Values.external.observability.otelEnabled | quote }}

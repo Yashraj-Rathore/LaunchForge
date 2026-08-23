@@ -10,6 +10,9 @@
 - Added distinct Management, Config Edge, and Event Worker Redis ACL identities to Compose and Helm,
   local key generation, and forged self-consistent snapshot, signed replay, ACL, PostgreSQL fallback,
   and rebuild integration coverage.
+- Corrected P15-03 with production-default Kafka `SASL_SSL` and Redis TLS, secret-backed Kafka
+  identity and CA trust mounts, an opt-in secure local Compose overlay, rendered deployment-contract
+  validation, and live authenticated TLS boundary coverage.
 
 ### Reliability
 

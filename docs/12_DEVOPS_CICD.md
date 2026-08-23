@@ -334,9 +334,12 @@ publishing by default. Exact startup, shutdown, and destructive local-volume res
 `deploy/README.md`.
 
 `deploy/helm/launchforge/` assumes external PostgreSQL, Kafka, Redis, OIDC, and optional ClickHouse.
-Values hold endpoints, distinct Redis usernames, a non-secret materialization signing key ID, and
-Secret key references. The runtime Secret supplies per-process Redis passwords, the worker-only
-Ed25519 private key, and the Edge verification-key set. The pre-install/pre-upgrade migration Job blocks
+Values hold endpoints, distinct Redis usernames, Kafka security protocol/SASL mechanism, Redis TLS
+selection, a non-secret materialization signing key ID, and Secret key references. Production
+defaults require Kafka `SASL_SSL` and Redis TLS. The runtime Secret supplies per-process Redis
+passwords, Kafka SASL username/password, Redis and Kafka CA certificates, the worker-only Ed25519
+private key, and the Edge verification-key set. Named Spring PEM SSL bundles consume the mounted CA
+files without putting secret values in rendered manifests. The pre-install/pre-upgrade migration Job blocks
 workloads; application pods never run Flyway. Management, Edge, worker, web, and migration each use
 dedicated service accounts with token automount disabled. The chart supplies startup/readiness/
 liveness probes, resources, rolling strategies, ingress, optional NetworkPolicies, management/Edge
@@ -352,9 +355,12 @@ helm template launchforge deploy/helm/launchforge --namespace launchforge
 helm template prompt12 deploy/helm/launchforge --namespace launchforge --values deploy/local/kind/values.yaml
 ```
 
-The repository CI performs the same lint and two renders using a digest-pinned Helm image. M12 is
-still responsible for image publishing, SBOM/provenance, immutable environment promotion, and
-release gates.
+The production render is checked by `eng/validate_transport_security.py` for secret-backed Kafka
+identity, Kafka/Redis trust mounts, and TLS activation. The kind render must remain an explicit
+plaintext local exception and must not mount production transport credentials. The repository CI
+performs the same lint and two contract-checked renders using a digest-pinned Helm image. It also
+validates the TLS/SASL Compose overlay. M12 is still responsible for image publishing,
+SBOM/provenance, immutable environment promotion, and release gates.
 
 The reproducible local proof is:
 

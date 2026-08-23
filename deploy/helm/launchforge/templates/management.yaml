@@ -56,6 +56,7 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.existingSecret | quote }}
                   key: {{ .Values.secrets.redisManagementPasswordKey | quote }}
+            {{- include "launchforge.redisTlsEnv" . | nindent 12 }}
             - {name: LAUNCHFORGE_OIDC_ISSUER_URI, value: {{ .Values.external.oidc.issuerUri | quote }}}
             - {name: LAUNCHFORGE_OIDC_CLIENT_ID, value: {{ .Values.external.oidc.clientId | quote }}}
             - {name: LAUNCHFORGE_SDK_KEY_PEPPER_VERSION, value: {{ .Values.secrets.sdkKeyPepperVersion | quote }}}
@@ -96,9 +97,11 @@ spec:
             {{- toYaml .Values.management.resources | nindent 12 }}
           volumeMounts:
             - {name: tmp, mountPath: /tmp}
+            {{- include "launchforge.redisTlsVolumeMount" . | nindent 12 }}
       volumes:
         - name: tmp
           emptyDir: {sizeLimit: 128Mi}
+        {{- include "launchforge.redisTlsVolume" . | nindent 8 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

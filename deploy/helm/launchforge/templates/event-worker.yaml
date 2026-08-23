@@ -55,6 +55,7 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.existingSecret | quote }}
                   key: {{ .Values.secrets.redisEventWorkerPasswordKey | quote }}
+            {{- include "launchforge.redisTlsEnv" . | nindent 12 }}
             - name: LAUNCHFORGE_MATERIALIZATION_SIGNING_KEY_ID
               value: {{ .Values.external.redis.materializationSigningKeyId | quote }}
             - name: LAUNCHFORGE_MATERIALIZATION_SIGNING_PRIVATE_KEY
@@ -63,6 +64,7 @@ spec:
                   name: {{ .Values.secrets.existingSecret | quote }}
                   key: {{ .Values.secrets.materializationSigningPrivateKeyKey | quote }}
             - {name: LAUNCHFORGE_KAFKA_BOOTSTRAP_SERVERS, value: {{ .Values.external.kafka.bootstrapServers | quote }}}
+            {{- include "launchforge.kafkaSecurityEnv" . | nindent 12 }}
             - {name: LAUNCHFORGE_KAFKA_CONFIG_TOPIC, value: {{ .Values.external.kafka.configTopic | quote }}}
             - name: LAUNCHFORGE_ANALYTICS_ENABLED
               value: {{ .Values.external.analytics.enabled | quote }}
@@ -100,9 +102,13 @@ spec:
             {{- toYaml .Values.eventWorker.resources | nindent 12 }}
           volumeMounts:
             - {name: tmp, mountPath: /tmp}
+            {{- include "launchforge.redisTlsVolumeMount" . | nindent 12 }}
+            {{- include "launchforge.kafkaTlsVolumeMount" . | nindent 12 }}
       volumes:
         - name: tmp
           emptyDir: {sizeLimit: 128Mi}
+        {{- include "launchforge.redisTlsVolume" . | nindent 8 }}
+        {{- include "launchforge.kafkaTlsVolume" . | nindent 8 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

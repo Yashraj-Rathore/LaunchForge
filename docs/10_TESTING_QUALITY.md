@@ -140,6 +140,10 @@ errors. `AnalyticsClickHouseIT` starts the digest-pinned real image and proves b
 `DistributionPipelineIT` also holds a ClickHouse HTTP connection without responding, stops Kafka
 projection, and requires scheduled outbox publication plus PostgreSQL reconciliation to complete
 within five seconds while analytics remains blocked.
+`TransportSecurityIT` starts TLS-only Redis with ACL authentication and a Kafka broker whose client
+listener accepts only SASL over TLS. It proves that the real Spring Redis/Kafka clients connect
+with trusted certificates and valid credentials, and that invalid credentials are rejected at both
+service boundaries.
 
 ### Performance
 

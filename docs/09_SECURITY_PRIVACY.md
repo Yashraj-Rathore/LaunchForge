@@ -220,6 +220,21 @@ to SDK last-known-good/default behavior.
 
 SDKs validate schema/checksum before activation.
 
+### Transport protection
+
+Production traffic to Redis and Kafka is encrypted and authenticated. The Helm contract defaults
+Redis to TLS and Kafka to `SASL_SSL`; Config Edge and Event Worker obtain the Kafka SASL username
+and password from Kubernetes Secret key references, and all three Redis clients retain their
+process-specific ACL credentials. Trust anchors are mounted from the runtime Secret and selected
+through named Spring PEM SSL bundles. Secret values never belong in Helm values, rendered
+manifests, container images, or workflow source.
+
+Plaintext Kafka/Redis is limited to explicit local-development contracts such as
+`deploy/local/kind/values.yaml` and the base Compose topology. The optional
+`deploy/local/compose.transport-security.yaml` overlay exercises TLS-only Redis plus Kafka
+SASL/TLS with local, untracked certificates. Disabling transport protection in a hosted environment
+is not a supported production configuration.
+
 ## 9. Input validation
 
 Validate:

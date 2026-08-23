@@ -46,9 +46,14 @@ external:
   kafka:
     bootstrapServers: kafka.example.invalid:9092
     configTopic: launchforge.config.revision-published.v1
+    securityProtocol: SASL_SSL
+    saslMechanism: SCRAM-SHA-512
+    saslLoginModule: org.apache.kafka.common.security.scram.ScramLoginModule
   redis:
     host: redis.example.invalid
     port: 6379
+    tls:
+      enabled: true
     usernames:
       management: launchforge-management
       configEdge: launchforge-config-edge
@@ -79,6 +84,10 @@ secrets:
   redisManagementPasswordKey: redis-management-password
   redisConfigEdgePasswordKey: redis-config-edge-password
   redisEventWorkerPasswordKey: redis-event-worker-password
+  redisTlsTrustCertificateKey: redis-tls-ca.crt
+  kafkaSaslUsernameKey: kafka-sasl-username
+  kafkaSaslPasswordKey: kafka-sasl-password
+  kafkaTlsTrustCertificateKey: kafka-tls-ca.crt
   materializationSigningPrivateKeyKey: materialization-signing-private-key
   materializationVerificationKeysKey: materialization-verification-keys
 

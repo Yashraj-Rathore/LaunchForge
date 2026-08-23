@@ -30,6 +30,8 @@ spring:
       password: ${LAUNCHFORGE_REDIS_PASSWORD:}
       connect-timeout: 500ms
       timeout: 500ms
+      ssl:
+        enabled: ${LAUNCHFORGE_REDIS_SSL_ENABLED:false}
   security:
     oauth2:
       client:

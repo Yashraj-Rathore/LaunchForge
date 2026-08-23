@@ -11,6 +11,16 @@ spring:
       maximum-pool-size: 8
   kafka:
     bootstrap-servers: ${LAUNCHFORGE_KAFKA_BOOTSTRAP_SERVERS:localhost:59092}
+    security:
+      protocol: ${LAUNCHFORGE_KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+    properties:
+      '[sasl.mechanism]': ${LAUNCHFORGE_KAFKA_SASL_MECHANISM:PLAIN}
+    jaas:
+      enabled: ${LAUNCHFORGE_KAFKA_SASL_ENABLED:false}
+      login-module: ${LAUNCHFORGE_KAFKA_SASL_LOGIN_MODULE:org.apache.kafka.common.security.plain.PlainLoginModule}
+      options:
+        username: ${LAUNCHFORGE_KAFKA_SASL_USERNAME:}
+        password: ${LAUNCHFORGE_KAFKA_SASL_PASSWORD:}
     producer:
       acks: all
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -40,6 +50,8 @@ spring:
       password: ${LAUNCHFORGE_REDIS_PASSWORD:}
       connect-timeout: 2s
       timeout: 2s
+      ssl:
+        enabled: ${LAUNCHFORGE_REDIS_SSL_ENABLED:false}
 
 launchforge:
   distribution:

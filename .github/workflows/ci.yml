@@ -152,6 +152,10 @@ jobs:
       LAUNCHFORGE_REDIS_MANAGEMENT_PASSWORD: ci-management-redis-password-only
       LAUNCHFORGE_REDIS_CONFIG_EDGE_PASSWORD: ci-config-edge-redis-password-only
       LAUNCHFORGE_REDIS_EVENT_WORKER_PASSWORD: ci-event-worker-redis-password-only
+      LAUNCHFORGE_KAFKA_SASL_USERNAME: launchforge-platform
+      LAUNCHFORGE_KAFKA_SASL_PASSWORD: ci-kafka-sasl-password-only
+      LAUNCHFORGE_KAFKA_BROKER_PASSWORD: ci-kafka-broker-password-only
+      LAUNCHFORGE_KAFKA_KEYSTORE_PASSWORD: ci-kafka-keystore-password-only
       LAUNCHFORGE_MATERIALIZATION_SIGNING_KEY_ID: ci-v1
       LAUNCHFORGE_MATERIALIZATION_SIGNING_PRIVATE_KEY: ci-compose-validation-private-key-only
       LAUNCHFORGE_MATERIALIZATION_VERIFICATION_KEYS: ci-v1:ci-compose-validation-public-key-only
@@ -232,9 +236,13 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Validate Compose
-        run: >-
-          docker compose --profile identity --profile distribution --profile analytics
-          --profile observability --profile platform --profile demo config --quiet
+        run: |
+          docker compose --profile identity --profile distribution --profile analytics \
+            --profile observability --profile platform --profile demo config --quiet
+          docker compose -f compose.yaml -f deploy/local/compose.transport-security.yaml \
+            --profile identity --profile distribution --profile analytics \
+            --profile observability --profile platform --profile demo config \
+            | python eng/validate_transport_security.py compose-secure
       - name: Lint and render Helm chart
         run: |
           docker run --rm --volume "$PWD:/workspace" --workdir /workspace \
@@ -242,11 +250,13 @@ jobs:
             lint deploy/helm/launchforge --strict
           docker run --rm --volume "$PWD:/workspace" --workdir /workspace \
             alpine/helm:4.2.4@sha256:76c375eed56144c68d6197c55bc5a4552fb42002190b796729901cbab3ae6e51 \
-            template launchforge deploy/helm/launchforge --namespace launchforge > /dev/null
+            template launchforge deploy/helm/launchforge --namespace launchforge \
+            | python eng/validate_transport_security.py helm-secure
           docker run --rm --volume "$PWD:/workspace" --workdir /workspace \
             alpine/helm:4.2.4@sha256:76c375eed56144c68d6197c55bc5a4552fb42002190b796729901cbab3ae6e51 \
             template prompt12 deploy/helm/launchforge --namespace launchforge \
-            --values deploy/local/kind/values.yaml > /dev/null
+            --values deploy/local/kind/values.yaml \
+            | python eng/validate_transport_security.py helm-local
       - name: Validate documentation
         run: python eng/validate_docs.py
       - name: Validate workflows and supply-chain contracts

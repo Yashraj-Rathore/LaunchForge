@@ -28,4 +28,23 @@ user launchforge-config-edge on >$LAUNCHFORGE_REDIS_CONFIG_EDGE_PASSWORD %RW~lau
 user launchforge-event-worker on >$LAUNCHFORGE_REDIS_EVENT_WORKER_PASSWORD %RW~launchforge:config:snapshot:* &launchforge:config:revision-hints:v1 +@connection +@read +@write +publish +eval +evalsha
 EOF
 
-exec redis-server --save '' --appendonly no --aclfile /tmp/launchforge-users.acl
+if [ "${LAUNCHFORGE_REDIS_TLS_ENABLED:-false}" = "true" ]; then
+  tls_certificate="${LAUNCHFORGE_REDIS_TLS_CERTIFICATE:-/run/launchforge/redis/server.crt}"
+  tls_key="${LAUNCHFORGE_REDIS_TLS_PRIVATE_KEY:-/run/launchforge/redis/server.key}"
+  tls_ca="${LAUNCHFORGE_REDIS_TLS_CA_CERTIFICATE:-/run/launchforge/redis/ca.crt}"
+  for tls_file in "$tls_certificate" "$tls_key" "$tls_ca"; do
+    if [ ! -r "$tls_file" ]; then
+      echo "Redis TLS file is not readable: $tls_file" >&2
+      exit 1
+    fi
+  done
+  set -- \
+    --port 0 \
+    --tls-port 6379 \
+    --tls-cert-file "$tls_certificate" \
+    --tls-key-file "$tls_key" \
+    --tls-ca-cert-file "$tls_ca" \
+    --tls-auth-clients no
+fi
+
+exec redis-server --save '' --appendonly no --aclfile /tmp/launchforge-users.acl "$@"

@@ -4,8 +4,8 @@
 
 **Prompt:** 15 — final architecture, security, compatibility, failure-mode, test, claim, and toolchain review
 
-**Disposition:** Review complete. P15-01 and P15-02 were corrected in separately approved
-follow-ups on 2026-08-21 and 2026-08-23; the remaining findings retain their original review
+**Disposition:** Review complete. P15-01 through P15-03 were corrected in separately approved
+follow-ups between 2026-08-21 and 2026-08-23; the remaining findings retain their original review
 ranking.
 
 ## Executive decision
@@ -15,15 +15,14 @@ tenant-scoped management paths, immutable publication model, outbox ordering mod
 last-known-good behavior, and module boundaries have substantial automated evidence. It is suitable
 for its current local portfolio/demo purpose.
 
-It is **not ready for a hosted production pilot or release** until the two unresolved High findings
-are corrected and revalidated. The Helm chart still lacks a complete production Kafka/Redis TLS
-and Kafka authentication model, and the repository currently has no active GitHub branch rules or
-deployment environments. P15-01 and P15-02 no longer contribute to that count.
+It is **not ready for a hosted production pilot or release** until the one unresolved High finding
+is corrected and revalidated. The repository currently has no active GitHub branch rules or
+deployment environments. P15-01 through P15-03 no longer contribute to that count.
 
 | Severity | Count | Meaning in this review |
 |---|---:|---|
 | Critical | 0 | No demonstrated unauthenticated compromise, cross-tenant API access, secret disclosure, or deterministic-evaluation corruption was found. |
-| High | 2 | Unresolved release blocker with a credible transport-security or change-control consequence. |
+| High | 1 | Unresolved release blocker with a credible change-control consequence. |
 | Medium | 6 | Contract, tenant-integrity, resilience, or product-completeness gap that must be scheduled before broad use. |
 | Low | 3 | Documentation or forward-toolchain debt with limited current runtime impact. |
 
@@ -73,30 +72,31 @@ Correction evidence:
 - Existing `AnalyticsEventBufferTest` and `AnalyticsWorkerProperties` coverage retains the finite
   queue/batch drop behavior and bounded ClickHouse transport-timeout contract.
 
+#### P15-03 — The Helm production path did not completely model Kafka or Redis transport security
+
+**Resolved 2026-08-23.** Production Helm defaults now require Kafka `SASL_SSL` and Redis TLS while
+retaining the three process-specific Redis ACL users. Config Edge and Event Worker receive Kafka
+SASL credentials only through Kubernetes Secret key references; all transport trust anchors are
+mounted from the runtime Secret and selected through named Spring PEM SSL bundles. The explicit
+kind override and base Compose topology remain plaintext local-development exceptions.
+
+An optional Compose overlay provides a reproducible TLS-only Redis and SASL/TLS Kafka topology
+without committing certificate or password values. Repository contract validation inspects the
+effective secure Helm, local-kind Helm, and merged secure Compose renders so a future change cannot
+silently drop TLS, authentication, trust mounts, or secret references.
+
+Correction evidence:
+
+- `TransportSecurityIT` starts real TLS-only Redis and Kafka services, proves the Spring clients
+  connect with trusted certificates and valid credentials, and proves bad credentials are denied.
+- The three application configurations expose Redis SSL and Kafka security/SASL settings without
+  changing local defaults.
+- `deploy/helm/launchforge`, `deploy/local/compose.transport-security.yaml`, and
+  `eng/validate_transport_security.py` model and enforce the production and local exceptions.
+
 ## Ranked unresolved findings
 
 ### High
-
-#### P15-03 — The Helm production path does not completely model Kafka or Redis transport security
-
-P15-01 added secret-backed, process-specific Redis ACL usernames/passwords to the chart and
-application configuration. The chart still exposes no Redis TLS settings and no Kafka TLS/SASL
-settings or bounded `extraEnv` escape hatch. A typical TLS-only Redis service or authenticated
-managed Kafka service therefore still cannot be configured through the documented chart contract
-without modifying the chart.
-
-Evidence:
-
-- `deploy/helm/launchforge/values.yaml` — `external.kafka`, `external.redis`, and secret model
-- `deploy/helm/launchforge/templates/management.yaml`
-- `deploy/helm/launchforge/templates/config-edge.yaml`
-- `deploy/helm/launchforge/templates/event-worker.yaml`
-- the three deployable `application.yml` files under `backend/`
-- `docs/09_SECURITY_PRIVACY.md` and `docs/12_DEVOPS_CICD.md` — production transport and secret expectations
-
-Required correction evidence: retain the new Redis ACL identities, define explicit secret-backed
-Kafka SASL/TLS and Redis TLS configuration, render it without secret values, validate it in
-Helm/Compose tests, and demonstrate connections to authenticated TLS-enabled test services.
 
 #### P15-04 — Required GitHub change and deployment controls are not active
 
@@ -213,11 +213,11 @@ is predictable toolchain debt. The separately documented Temurin runtime-image p
 
 ## Security and tenant-isolation review
 
-P15-03, P15-08, and P15-11 are the unresolved security/tenant findings; P15-01 is resolved as
+P15-08 and P15-11 are the unresolved security/tenant findings; P15-01 and P15-03 are resolved as
 recorded above. No cross-organization API access was reproduced. Server-derived organization
 scope, role checks, compound ownership on core
 entities, SDK credential-class separation, hash-only server-key verification, CSRF/OIDC/session
-boundaries, and privacy-safe request logging were traced in code and exercised by the 25-test
+boundaries, and privacy-safe request logging were traced in code and exercised by the 26-test
 container integration suite. Direct-resource cross-tenant access, Viewer denial, final-Owner
 concurrency, revoked key denial, CORS separation, and tenant-scoped analytics are covered.
 
@@ -302,7 +302,8 @@ configuration changes begin.
    least-privilege ACLs established and regression-tested.
 2. **P15-02 (resolved 2026-08-23):** analytics and configuration schedulers are isolated and the
    ClickHouse non-response drill proves distribution progress.
-3. **P15-03:** add secret-backed Kafka/Redis authentication and TLS to deployment contracts.
+3. **P15-03 (resolved 2026-08-23):** Kafka/Redis TLS, secret-backed Kafka SASL, rendered-contract
+   validation, and authenticated TLS integration evidence are established.
 4. **P15-04:** configure and verify live GitHub rulesets, environments, and first staged promotion.
 
 ### Stage 1 — compatibility and tenant integrity
@@ -370,3 +371,19 @@ evidence recorded in its completion report.
 
 The full repository validation and live GitHub Actions result for the correction are separate
 evidence recorded in its completion report.
+
+### P15-03 correction validation - 2026-08-23
+
+- `./mvnw.cmd --batch-mode --no-transfer-progress verify`
+  — passed all 14 reactor modules and 140 unit, contract, architecture, and demo tests.
+- `./mvnw.cmd --batch-mode --no-transfer-progress -pl tests/integration-tests -am verify -Pintegration`
+  — passed all 26 Docker-backed PostgreSQL, Kafka, Redis, and ClickHouse tests with zero
+  failures/errors, including the TLS-only Redis and Kafka SASL/TLS boundary proof.
+- Strict Helm lint plus production and kind rendering passed; `eng/validate_transport_security.py`
+  accepted the production TLS/secret contract, the explicit local plaintext exception, and the
+  merged secure Compose contract.
+- The 11 engineering unit tests, documentation and supply-chain validators, generated-spec sync,
+  JSON parsing, base/secure Compose validation, and digest-pinned `actionlint` all passed.
+
+The live GitHub Actions result is separate evidence and is not claimed until these changes are
+published at the user's request.

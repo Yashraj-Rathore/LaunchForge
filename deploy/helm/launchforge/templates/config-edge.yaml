@@ -55,12 +55,14 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secrets.existingSecret | quote }}
                   key: {{ .Values.secrets.redisConfigEdgePasswordKey | quote }}
+            {{- include "launchforge.redisTlsEnv" . | nindent 12 }}
             - name: LAUNCHFORGE_MATERIALIZATION_VERIFICATION_KEYS
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.secrets.existingSecret | quote }}
                   key: {{ .Values.secrets.materializationVerificationKeysKey | quote }}
             - {name: LAUNCHFORGE_KAFKA_BOOTSTRAP_SERVERS, value: {{ .Values.external.kafka.bootstrapServers | quote }}}
+            {{- include "launchforge.kafkaSecurityEnv" . | nindent 12 }}
             - name: LAUNCHFORGE_SDK_KEY_PEPPER
               valueFrom:
                 secretKeyRef:
@@ -93,9 +95,13 @@ spec:
             {{- toYaml .Values.configEdge.resources | nindent 12 }}
           volumeMounts:
             - {name: tmp, mountPath: /tmp}
+            {{- include "launchforge.redisTlsVolumeMount" . | nindent 12 }}
+            {{- include "launchforge.kafkaTlsVolumeMount" . | nindent 12 }}
       volumes:
         - name: tmp
           emptyDir: {sizeLimit: 128Mi}
+        {{- include "launchforge.redisTlsVolume" . | nindent 8 }}
+        {{- include "launchforge.kafkaTlsVolume" . | nindent 8 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
