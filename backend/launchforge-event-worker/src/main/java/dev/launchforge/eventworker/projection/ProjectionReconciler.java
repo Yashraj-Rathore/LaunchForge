@@ -1,6 +1,7 @@
 package dev.launchforge.eventworker.projection;
 
 import dev.launchforge.eventworker.configuration.DistributionProperties;
+import dev.launchforge.eventworker.configuration.WorkerSchedulingConfiguration;
 import dev.launchforge.eventworker.observability.DistributionMetrics;
 import java.util.List;
 import java.util.UUID;
@@ -29,7 +30,9 @@ public class ProjectionReconciler {
     this.metrics = metrics;
   }
 
-  @Scheduled(fixedDelayString = "${launchforge.distribution.reconciliation-interval:5s}")
+  @Scheduled(
+      fixedDelayString = "${launchforge.distribution.reconciliation-interval:5s}",
+      scheduler = WorkerSchedulingConfiguration.CONFIGURATION_SCHEDULER)
   public void reconcile() {
     List<AuthoritativeSnapshot> page = repository.findCurrentPage(cursor, batchSize);
     if (page.isEmpty()) {

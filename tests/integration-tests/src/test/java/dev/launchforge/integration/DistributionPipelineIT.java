@@ -18,6 +18,9 @@ import dev.launchforge.eventworker.projection.ProjectionReconciler;
 import dev.launchforge.eventworker.projection.RedisSnapshotMaterializer;
 import dev.launchforge.sdk.EvaluationContext;
 import dev.launchforge.sdk.LaunchForgeClient;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
@@ -33,6 +36,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import javax.sql.DataSource;
@@ -115,6 +121,7 @@ class DistributionPipelineIT {
   private ConfigurableApplicationContext worker;
   private ConfigurableApplicationContext edgeOne;
   private ConfigurableApplicationContext edgeTwo;
+  private NonResponsiveClickHouse nonResponsiveClickHouse;
 
   @BeforeAll
   static void migrateAndSeed() {
@@ -133,19 +140,31 @@ class DistributionPipelineIT {
     close(edgeOne);
     close(edgeTwo);
     close(worker);
+    close(nonResponsiveClickHouse);
   }
 
   @Test
   @SuppressWarnings("unchecked")
   void durableDistributionConvergesAcrossFailuresAndMultipleEdges() throws Exception {
     proveLeaseRecovery();
-    worker = startWorker();
+    nonResponsiveClickHouse = new NonResponsiveClickHouse();
+    worker =
+        startWorker(
+            "launchforge.distribution.reconciliation-interval=100ms",
+            "launchforge.analytics.worker.enabled=true",
+            "launchforge.analytics.worker.flush-interval=100ms",
+            "launchforge.analytics.worker.click-house-url=" + nonResponsiveClickHouse.endpoint(),
+            "launchforge.analytics.worker.connect-timeout=500ms",
+            "launchforge.analytics.worker.request-timeout=8s");
     proveRedisAclIsolation();
     provePermanentOutboxFailure();
 
-    Revision revisionOne = publishRevision(1, true);
-    await(() -> outboxStatus(revisionOne.eventId()).equals("PUBLISHED"), Duration.ofSeconds(20));
-    await(() -> redisRevision() == 1, Duration.ofSeconds(20));
+    Revision revisionOne = proveAnalyticsSchedulingIsolation();
+    close(worker);
+    worker = null;
+    close(nonResponsiveClickHouse);
+    nonResponsiveClickHouse = null;
+    worker = startWorker("launchforge.distribution.reconciliation-interval=1h");
 
     KafkaTemplate<String, String> kafkaTemplate = worker.getBean(KafkaTemplate.class);
     kafkaTemplate
@@ -279,31 +298,61 @@ class DistributionPipelineIT {
     jdbc.update("DELETE FROM outbox_events WHERE id = ?", eventId);
   }
 
-  private static ConfigurableApplicationContext startWorker() {
+  @SuppressWarnings("unchecked")
+  private Revision proveAnalyticsSchedulingIsolation() throws Exception {
+    KafkaTemplate<String, String> kafkaTemplate = worker.getBean(KafkaTemplate.class);
+    kafkaTemplate
+        .send(
+            "launchforge.analytics.evaluations.v1", ENVIRONMENT_ID.toString(), analyticsEventJson())
+        .get(10, TimeUnit.SECONDS);
+    assertTrue(nonResponsiveClickHouse.awaitRequest(Duration.ofSeconds(10)));
+
+    KafkaListenerEndpointRegistry listeners = worker.getBean(KafkaListenerEndpointRegistry.class);
+    listeners.stop();
+    await(
+        () ->
+            listeners.getListenerContainers().stream()
+                .noneMatch(container -> container.isRunning()),
+        Duration.ofSeconds(5));
+
+    long started = System.nanoTime();
+    Revision revision = publishRevision(1, true);
+    await(() -> outboxStatus(revision.eventId()).equals("PUBLISHED"), Duration.ofSeconds(5));
+    await(() -> redisRevision() == 1, Duration.ofSeconds(5));
+    assertTrue(Duration.ofNanos(System.nanoTime() - started).compareTo(Duration.ofSeconds(5)) < 0);
+    assertTrue(nonResponsiveClickHouse.requestIsStillBlocked());
+
+    listeners.start();
+    return revision;
+  }
+
+  private static ConfigurableApplicationContext startWorker(String... overrides) {
+    java.util.ArrayList<String> workerArguments = new java.util.ArrayList<>();
+    workerArguments.add("spring.flyway.enabled=false");
+    workerArguments.add(
+        "spring.autoconfigure.exclude="
+            + "org.springframework.boot.security.oauth2.client.autoconfigure."
+            + "OAuth2ClientAutoConfiguration,"
+            + "org.springframework.boot.security.oauth2.client.autoconfigure.reactive."
+            + "ReactiveOAuth2ClientAutoConfiguration,"
+            + "org.springframework.boot.security.oauth2.client.autoconfigure.reactive."
+            + "ReactiveOAuth2ClientWebSecurityAutoConfiguration");
+    workerArguments.add("launchforge.distribution.outbox-poll-interval=100ms");
+    workerArguments.add("launchforge.distribution.outbox-lease=2s");
+    workerArguments.add("launchforge.distribution.publish-timeout=500ms");
+    workerArguments.add("launchforge.distribution.retry-initial-backoff=100ms");
+    workerArguments.add("launchforge.distribution.retry-maximum-backoff=1s");
+    workerArguments.add("spring.data.redis.username=launchforge-event-worker");
+    workerArguments.add("spring.data.redis.password=" + REDIS_WORKER_PASSWORD);
+    workerArguments.add(
+        "launchforge.distribution.materialization-signing-key-id=" + MATERIALIZATION_KEY_ID);
+    workerArguments.add(
+        "launchforge.distribution.materialization-signing-private-key="
+            + MATERIALIZATION_PRIVATE_KEY);
+    workerArguments.addAll(List.of(overrides));
     return new SpringApplicationBuilder(LaunchForgeEventWorkerApplication.class)
         .web(WebApplicationType.NONE)
-        .run(
-            arguments(
-                "spring.flyway.enabled=false",
-                "spring.autoconfigure.exclude="
-                    + "org.springframework.boot.security.oauth2.client.autoconfigure."
-                    + "OAuth2ClientAutoConfiguration,"
-                    + "org.springframework.boot.security.oauth2.client.autoconfigure.reactive."
-                    + "ReactiveOAuth2ClientAutoConfiguration,"
-                    + "org.springframework.boot.security.oauth2.client.autoconfigure.reactive."
-                    + "ReactiveOAuth2ClientWebSecurityAutoConfiguration",
-                "spring.task.scheduling.pool.size=4",
-                "launchforge.distribution.outbox-poll-interval=100ms",
-                "launchforge.distribution.outbox-lease=2s",
-                "launchforge.distribution.publish-timeout=500ms",
-                "launchforge.distribution.retry-initial-backoff=100ms",
-                "launchforge.distribution.retry-maximum-backoff=1s",
-                "launchforge.distribution.reconciliation-interval=1h",
-                "spring.data.redis.username=launchforge-event-worker",
-                "spring.data.redis.password=" + REDIS_WORKER_PASSWORD,
-                "launchforge.distribution.materialization-signing-key-id=" + MATERIALIZATION_KEY_ID,
-                "launchforge.distribution.materialization-signing-private-key="
-                    + MATERIALIZATION_PRIVATE_KEY));
+        .run(arguments(workerArguments.toArray(String[]::new)));
   }
 
   private static ConfigurableApplicationContext startEdge() {
@@ -486,6 +535,30 @@ class DistributionPipelineIT {
     event.put("snapshotChecksum", checksum);
     event.put("traceId", UUID.randomUUID().toString());
     return OBJECT_MAPPER.writeValueAsString(event);
+  }
+
+  private static String analyticsEventJson() throws Exception {
+    Map<String, Object> event = new LinkedHashMap<>();
+    event.put("eventId", UUID.randomUUID().toString());
+    event.put("occurredAt", NOW.toString());
+    event.put("flagKey", "release");
+    event.put("variationId", "on");
+    event.put("reason", "RULE_MATCH");
+    event.put("revision", 1);
+
+    Map<String, Object> batch = new LinkedHashMap<>();
+    batch.put("batchId", UUID.randomUUID().toString());
+    batch.put("eventType", "analytics.evaluation-batch-ingested.v1");
+    batch.put("schemaVersion", 1);
+    batch.put("receivedAt", NOW.plusSeconds(1).toString());
+    batch.put("organizationId", ORGANIZATION_ID.toString());
+    batch.put("projectId", PROJECT_ID.toString());
+    batch.put("environmentId", ENVIRONMENT_ID.toString());
+    batch.put("projectKey", "storefront");
+    batch.put("environmentKey", "production");
+    batch.put("source", "SERVER");
+    batch.put("events", List.of(event));
+    return OBJECT_MAPPER.writeValueAsString(batch);
   }
 
   private static void proveSdkLastKnownGood(ConfigurableApplicationContext edge) throws Exception {
@@ -748,6 +821,68 @@ class DistributionPipelineIT {
   private static void close(ConfigurableApplicationContext context) {
     if (context != null) {
       context.close();
+    }
+  }
+
+  private static void close(AutoCloseable closeable) {
+    if (closeable != null) {
+      try {
+        closeable.close();
+      } catch (Exception exception) {
+        throw new IllegalStateException("Unable to close test fixture", exception);
+      }
+    }
+  }
+
+  private static final class NonResponsiveClickHouse implements AutoCloseable {
+    private final CountDownLatch requestStarted = new CountDownLatch(1);
+    private final CountDownLatch releaseRequest = new CountDownLatch(1);
+    private final CountDownLatch requestFinished = new CountDownLatch(1);
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final ServerSocket server;
+
+    private NonResponsiveClickHouse() throws java.io.IOException {
+      server = new ServerSocket();
+      server.bind(new InetSocketAddress("127.0.0.1", 0));
+      executor.execute(
+          () -> {
+            try (Socket connection = server.accept()) {
+              requestStarted.countDown();
+              releaseRequest.await();
+            } catch (java.io.IOException exception) {
+              if (!server.isClosed()) {
+                throw new java.io.UncheckedIOException("ClickHouse test socket failed", exception);
+              }
+            } catch (InterruptedException exception) {
+              Thread.currentThread().interrupt();
+              throw new IllegalStateException("ClickHouse test socket was interrupted", exception);
+            } finally {
+              requestFinished.countDown();
+            }
+          });
+    }
+
+    private URI endpoint() {
+      return URI.create("http://127.0.0.1:" + server.getLocalPort());
+    }
+
+    private boolean awaitRequest(Duration timeout) throws InterruptedException {
+      return requestStarted.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    private boolean requestIsStillBlocked() {
+      return requestStarted.getCount() == 0 && requestFinished.getCount() == 1;
+    }
+
+    @Override
+    public void close() {
+      releaseRequest.countDown();
+      try {
+        server.close();
+      } catch (java.io.IOException exception) {
+        throw new IllegalStateException("Unable to close ClickHouse test socket", exception);
+      }
+      executor.shutdownNow();
     }
   }
 

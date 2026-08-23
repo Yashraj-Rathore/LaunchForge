@@ -3,6 +3,7 @@ package dev.launchforge.eventworker.analytics;
 import dev.launchforge.contracts.events.EvaluationEvent;
 import dev.launchforge.contracts.events.IngestedEvaluationBatch;
 import dev.launchforge.eventworker.configuration.AnalyticsWorkerProperties;
+import dev.launchforge.eventworker.configuration.WorkerSchedulingConfiguration;
 import io.micrometer.core.instrument.Timer;
 import java.util.ArrayList;
 import java.util.List;
@@ -59,7 +60,9 @@ final class AnalyticsEventBuffer {
     }
   }
 
-  @Scheduled(fixedDelayString = "${launchforge.analytics.worker.flush-interval:1s}")
+  @Scheduled(
+      fixedDelayString = "${launchforge.analytics.worker.flush-interval:1s}",
+      scheduler = WorkerSchedulingConfiguration.ANALYTICS_SCHEDULER)
   void flush() {
     List<AnalyticsEventRow> rows = new ArrayList<>(properties.insertBatchSize());
     queue.drainTo(rows, properties.insertBatchSize());

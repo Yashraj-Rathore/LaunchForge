@@ -785,7 +785,7 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 
 # Project Status
 
-**Status:** Prompt 15 final architecture review complete; P15-01 corrected and remaining findings await explicit approval.
+**Status:** Prompt 15 final architecture review complete; P15-01 and P15-02 corrected and remaining findings await explicit approval.
 
 **Current milestone:** M13 demo/pilot (LF-1301–LF-1305) complete; Prompt 15 review recorded in `docs/27_FINAL_ARCHITECTURE_REVIEW.md`.
 
@@ -826,10 +826,11 @@ first annotated release tag. Those external executions have not been claimed as 
 The final review found no Critical issue and four initial High hosted-release blockers. P15-01 was
 corrected on 2026-08-21 with worker-only Ed25519 materialization signing, Edge public-key
 verification and monotonic replay rejection, process-scoped Redis ACL credentials, and focused plus
-container integration evidence. Three High findings remain: analytics/configuration scheduler
-isolation, production Kafka/Redis transport-security modeling (Redis ACL credentials are now
-modeled, but TLS and Kafka SASL/TLS remain open), and absent live GitHub change/deployment controls.
-Six Medium and three Low findings are also staged, so the project is not claimed ready for a hosted
+container integration evidence. P15-02 was corrected on 2026-08-23 with separate finite analytics
+and configuration schedulers plus a ClickHouse non-response distribution drill. Two High findings
+remain: production Kafka/Redis transport-security modeling (Redis ACL credentials are now modeled,
+but TLS and Kafka SASL/TLS remain open), and absent live GitHub change/deployment controls. Six
+Medium and three Low findings are also staged, so the project is not claimed ready for a hosted
 production pilot. Corrections remain one explicitly approved issue at a time.
 
 ---
@@ -3162,7 +3163,12 @@ java -jar backend/launchforge-event-worker/target/launchforge-event-worker-0.1.0
 java -jar backend/launchforge-config-edge/target/launchforge-config-edge-0.1.0-SNAPSHOT-exec.jar
 ```
 
-The automated durability drill is:
+Event Worker assigns its two configuration jobs to a named two-thread scheduler and optional
+ClickHouse flushing to an independent named single-thread scheduler. The finite set of fixed-delay
+jobs, bounded analytics queue/batch, and bounded ClickHouse connect/request timeouts prevent a
+non-responsive analytics store from consuming configuration scheduling capacity.
+
+The automated durability and analytics-isolation drill is:
 
 ```powershell
 .\mvnw.cmd -pl tests/integration-tests -am verify -Pintegration "-Dit.test=DistributionPipelineIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
@@ -4128,6 +4134,10 @@ Worker tests force ClickHouse failure and verify bounded drop behavior. Control 
 tenant-scoped typed ClickHouse parameters, duplicate-tolerant aggregation, and isolated outage
 errors. `AnalyticsClickHouseIT` starts the digest-pinned real image and proves batched writes,
 `uniqExact(event_id)`, the 90-day TTL, and the absence of subject/context columns.
+`WorkerSchedulingConfigurationTest` verifies the finite named scheduler topology.
+`DistributionPipelineIT` also holds a ClickHouse HTTP connection without responding, stops Kafka
+projection, and requires scheduled outbox publication plus PostgreSQL reconciliation to complete
+within five seconds while analytics remains blocked.
 
 ### Performance
 
@@ -7299,6 +7309,10 @@ The M8 worker unit test forces a ClickHouse insert failure and proves the batch 
 without escaping the scheduled flush. `AnalyticsClickHouseIT` starts the pinned real image and
 proves batched writes, duplicate-tolerant `uniqExact(event_id)` aggregation, the 90-day TTL, and the
 absence of subject/context columns.
+Event Worker runs analytics flushes on a separate single-thread scheduler from the two-thread
+configuration scheduler. `DistributionPipelineIT` holds a ClickHouse connection without responding,
+stops Kafka projection, and proves outbox publication plus PostgreSQL reconciliation finish within
+five seconds while the analytics request is still blocked.
 
 ---
 
@@ -8984,8 +8998,9 @@ bounded anonymized statement.
 
 **Prompt:** 15 — final architecture, security, compatibility, failure-mode, test, claim, and toolchain review
 
-**Disposition:** Review complete. P15-01 was corrected in a separately approved follow-up on
-2026-08-21; the remaining findings retain their original review ranking.
+**Disposition:** Review complete. P15-01 and P15-02 were corrected in separately approved
+follow-ups on 2026-08-21 and 2026-08-23; the remaining findings retain their original review
+ranking.
 
 ## Executive decision
 
@@ -8994,16 +9009,15 @@ tenant-scoped management paths, immutable publication model, outbox ordering mod
 last-known-good behavior, and module boundaries have substantial automated evidence. It is suitable
 for its current local portfolio/demo purpose.
 
-It is **not ready for a hosted production pilot or release** until the three unresolved High
-findings are corrected and revalidated. Optional analytics can still block the same default
-scheduled-execution lane used by configuration distribution. The Helm chart still lacks a complete
-production Kafka/Redis TLS and Kafka authentication model, and the repository currently has no
-active GitHub branch rules or deployment environments. P15-01 no longer contributes to that count.
+It is **not ready for a hosted production pilot or release** until the two unresolved High findings
+are corrected and revalidated. The Helm chart still lacks a complete production Kafka/Redis TLS
+and Kafka authentication model, and the repository currently has no active GitHub branch rules or
+deployment environments. P15-01 and P15-02 no longer contribute to that count.
 
 | Severity | Count | Meaning in this review |
 |---|---:|---|
 | Critical | 0 | No demonstrated unauthenticated compromise, cross-tenant API access, secret disclosure, or deterministic-evaluation corruption was found. |
-| High | 3 | Unresolved release blocker with a credible availability, transport-security, or change-control consequence. |
+| High | 2 | Unresolved release blocker with a credible transport-security or change-control consequence. |
 | Medium | 6 | Contract, tenant-integrity, resilience, or product-completeness gap that must be scheduled before broad use. |
 | Low | 3 | Documentation or forward-toolchain debt with limited current runtime impact. |
 
@@ -9033,31 +9047,29 @@ Correction evidence:
 - `compose.yaml`, `deploy/local/redis/launchforge-redis-entrypoint.sh`, and the Helm chart render the
   separated credentials and worker-only private signing key.
 
+#### P15-02 — Analytics can block configuration distribution on the shared scheduler
+
+**Resolved 2026-08-23.** Event Worker now owns two named, bounded scheduling resources. A
+two-thread configuration scheduler runs outbox publication and PostgreSQL-to-Redis reconciliation,
+while a separate single-thread analytics scheduler runs the optional synchronous ClickHouse flush.
+The fixed set of periodic jobs, finite analytics queue and insert batch, and bounded ClickHouse
+connect/request timeouts keep both resource lanes bounded. Analytics remains conditional and does
+not allocate its scheduler when disabled.
+
+Correction evidence:
+
+- `WorkerSchedulingConfigurationTest` proves finite independent pool sizes and verifies that all
+  three scheduled jobs select the intended named scheduler.
+- `DistributionPipelineIT` sends analytics to an endpoint that accepts the connection but never
+  returns an HTTP response, stops Kafka projectors, and proves the real outbox publisher and
+  PostgreSQL reconciler both publish/materialize the revision within the five-second configuration
+  SLO while the ClickHouse request remains blocked.
+- Existing `AnalyticsEventBufferTest` and `AnalyticsWorkerProperties` coverage retains the finite
+  queue/batch drop behavior and bounded ClickHouse transport-timeout contract.
+
 ## Ranked unresolved findings
 
 ### High
-
-#### P15-02 — Analytics can block configuration distribution on the shared scheduler
-
-`AnalyticsEventBuffer.flush`, `OutboxPublisher`, and `ProjectionReconciler` are all `@Scheduled` in
-the Event Worker. No dedicated `TaskScheduler`, task-specific executor, or scheduling pool is
-configured. The analytics flush performs synchronous `HttpClient.send` to ClickHouse and can occupy
-the default scheduling lane for its configured request timeout. With analytics enabled, a slow or
-hung ClickHouse request can therefore delay outbox publication and Redis reconciliation, contrary
-to the requirement that analytics never affect configuration delivery.
-
-Evidence:
-
-- `backend/launchforge-event-worker/src/main/java/dev/launchforge/eventworker/analytics/AnalyticsEventBuffer.java` — scheduled blocking flush
-- `backend/launchforge-event-worker/src/main/java/dev/launchforge/eventworker/analytics/ClickHouseAnalyticsStore.java` — synchronous HTTP insert
-- `backend/launchforge-event-worker/src/main/java/dev/launchforge/eventworker/outbox/OutboxPublisher.java` — scheduled distribution work
-- `backend/launchforge-event-worker/src/main/java/dev/launchforge/eventworker/projection/ProjectionReconciler.java` — scheduled reconciliation
-- `backend/launchforge-event-worker/src/main/java/dev/launchforge/eventworker/LaunchForgeEventWorkerApplication.java` and its `application.yml` — scheduling enabled without isolation
-- `docs/06_SDK_ARCHITECTURE.md`, `docs/07_REALTIME_AND_EVENTING.md`, and `docs/13_PERFORMANCE_CAPACITY.md` — analytics isolation requirement
-
-Required correction evidence: use distinct bounded execution resources for analytics and
-configuration work, retain bounded ClickHouse I/O, and add an integration test in which ClickHouse
-does not respond while outbox publication and reconciliation continue within their SLO.
 
 #### P15-03 — The Helm production path does not completely model Kafka or Redis transport security
 
@@ -9229,11 +9241,11 @@ revision. The full distribution integration test passed PostgreSQL → outbox �
 → SDK convergence and stale/duplicate/rebuild behavior.
 
 Outstanding compatibility findings are P15-05 (UTF-8 value sizing) and P15-06 (5 MiB versus 8 MiB
-configuration). The former P15-01 provenance defect is resolved as recorded above.
+configuration). The former P15-01 provenance and P15-02 scheduler-isolation defects are resolved as
+recorded above.
 
 ## Failure-mode gaps
 
-- P15-02: analytics outage can delay configuration scheduled work.
 - P15-07: a never-resolving browser analytics request has no timeout.
 - P15-10: a poison authoritative row can starve later reconciliation.
 
@@ -9248,7 +9260,6 @@ Each P15 finding needs the focused regression evidence stated with it. In additi
 - the final checklist's clean-clone four-minute demo run has not been executed after this review;
 - controlled load evidence is local and bounded, not production capacity proof;
 - the release/promotion/restore workflows have not run against configured hosted environments;
-- no chaos test holds ClickHouse indefinitely while asserting distribution progress;
 - no multibyte boundary corpus tests management publication and both SDKs at 64 KiB;
 - no browser test uses a never-resolving analytics fetch;
 - no database test attempts cross-tenant audit or key-rotation lineage;
@@ -9283,7 +9294,8 @@ configuration changes begin.
 
 1. **P15-01 (resolved 2026-08-21):** authenticated Redis materialization provenance and
    least-privilege ACLs established and regression-tested.
-2. **P15-02:** isolate analytics and configuration schedulers; prove ClickHouse failure isolation.
+2. **P15-02 (resolved 2026-08-23):** analytics and configuration schedulers are isolated and the
+   ClickHouse non-response drill proves distribution progress.
 3. **P15-03:** add secret-backed Kafka/Redis authentication and TLS to deployment contracts.
 4. **P15-04:** configure and verify live GitHub rulesets, environments, and first staged promotion.
 
@@ -9333,6 +9345,22 @@ the completion report. A green build does not resolve the documented architectur
   reconciliation, multi-edge, and fallback drill with one test and zero failures/errors.
 - Compose rendering, strict Helm lint/default and Kind rendering, PowerShell parsing, and generated
   specification synchronization passed with the new credentials and signing configuration.
+
+The full repository validation and live GitHub Actions result for the correction are separate
+evidence recorded in its completion report.
+
+### P15-02 correction validation - 2026-08-23
+
+- `./mvnw.cmd --batch-mode --no-transfer-progress verify`
+  — passed all 14 reactor modules and 140 unit, contract, architecture, and demo tests, including
+  the new scheduler topology coverage.
+- `./mvnw.cmd --batch-mode --no-transfer-progress -pl tests/integration-tests -am test-compile -DskipTests -DskipITs`
+  — passed affected Java formatting, static analysis, compilation, and test compilation across ten
+  supporting reactor modules.
+- `./mvnw.cmd --batch-mode --no-transfer-progress -pl tests/integration-tests -am verify -Pintegration "-Dit.test=DistributionPipelineIT" "-Dfailsafe.failIfNoSpecifiedTests=false"`
+  — passed the Docker-backed PostgreSQL/Kafka/Redis drill with one test and zero failures/errors,
+  including the non-responsive ClickHouse phase, isolated scheduled outbox publication and
+  reconciliation, and all prior durability/provenance scenarios.
 
 The full repository validation and live GitHub Actions result for the correction are separate
 evidence recorded in its completion report.

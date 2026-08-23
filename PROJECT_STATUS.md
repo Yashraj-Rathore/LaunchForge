@@ -1,6 +1,6 @@
 # Project Status
 
-**Status:** Prompt 15 final architecture review complete; P15-01 corrected and remaining findings await explicit approval.
+**Status:** Prompt 15 final architecture review complete; P15-01 and P15-02 corrected and remaining findings await explicit approval.
 
 **Current milestone:** M13 demo/pilot (LF-1301–LF-1305) complete; Prompt 15 review recorded in `docs/27_FINAL_ARCHITECTURE_REVIEW.md`.
 
@@ -41,8 +41,9 @@ first annotated release tag. Those external executions have not been claimed as 
 The final review found no Critical issue and four initial High hosted-release blockers. P15-01 was
 corrected on 2026-08-21 with worker-only Ed25519 materialization signing, Edge public-key
 verification and monotonic replay rejection, process-scoped Redis ACL credentials, and focused plus
-container integration evidence. Three High findings remain: analytics/configuration scheduler
-isolation, production Kafka/Redis transport-security modeling (Redis ACL credentials are now
-modeled, but TLS and Kafka SASL/TLS remain open), and absent live GitHub change/deployment controls.
-Six Medium and three Low findings are also staged, so the project is not claimed ready for a hosted
+container integration evidence. P15-02 was corrected on 2026-08-23 with separate finite analytics
+and configuration schedulers plus a ClickHouse non-response distribution drill. Two High findings
+remain: production Kafka/Redis transport-security modeling (Redis ACL credentials are now modeled,
+but TLS and Kafka SASL/TLS remain open), and absent live GitHub change/deployment controls. Six
+Medium and three Low findings are also staged, so the project is not claimed ready for a hosted
 production pilot. Corrections remain one explicitly approved issue at a time.

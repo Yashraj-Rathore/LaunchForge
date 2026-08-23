@@ -136,6 +136,10 @@ Worker tests force ClickHouse failure and verify bounded drop behavior. Control 
 tenant-scoped typed ClickHouse parameters, duplicate-tolerant aggregation, and isolated outage
 errors. `AnalyticsClickHouseIT` starts the digest-pinned real image and proves batched writes,
 `uniqExact(event_id)`, the 90-day TTL, and the absence of subject/context columns.
+`WorkerSchedulingConfigurationTest` verifies the finite named scheduler topology.
+`DistributionPipelineIT` also holds a ClickHouse HTTP connection without responding, stops Kafka
+projection, and requires scheduled outbox publication plus PostgreSQL reconciliation to complete
+within five seconds while analytics remains blocked.
 
 ### Performance
 

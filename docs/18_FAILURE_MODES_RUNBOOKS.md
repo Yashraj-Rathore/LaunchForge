@@ -256,6 +256,10 @@ The M8 worker unit test forces a ClickHouse insert failure and proves the batch 
 without escaping the scheduled flush. `AnalyticsClickHouseIT` starts the pinned real image and
 proves batched writes, duplicate-tolerant `uniqExact(event_id)` aggregation, the 90-day TTL, and the
 absence of subject/context columns.
+Event Worker runs analytics flushes on a separate single-thread scheduler from the two-thread
+configuration scheduler. `DistributionPipelineIT` holds a ClickHouse connection without responding,
+stops Kafka projection, and proves outbox publication plus PostgreSQL reconciliation finish within
+five seconds while the analytics request is still blocked.
 
 ---
 

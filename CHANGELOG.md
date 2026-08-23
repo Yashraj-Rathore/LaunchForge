@@ -11,6 +11,15 @@
   local key generation, and forged self-consistent snapshot, signed replay, ACL, PostgreSQL fallback,
   and rebuild integration coverage.
 
+### Reliability
+
+- Corrected P15-02 by routing scheduled outbox publication and reconciliation to a bounded
+  two-thread configuration scheduler and optional ClickHouse flushes to an independent bounded
+  single-thread analytics scheduler.
+- Extended `DistributionPipelineIT` with a non-responsive ClickHouse connection and proof that real
+  outbox publication plus PostgreSQL-to-Redis reconciliation complete inside the five-second
+  configuration SLO while analytics remains blocked.
+
 ### Documentation
 
 - Added complete LaunchForge architecture, product, SDK, evaluation, security, eventing, testing, operations, deployment, commercialization, and Codex implementation package.

@@ -2,6 +2,7 @@ package dev.launchforge.eventworker.outbox;
 
 import dev.launchforge.contracts.events.ConfigRevisionPublishedEvent;
 import dev.launchforge.eventworker.configuration.DistributionProperties;
+import dev.launchforge.eventworker.configuration.WorkerSchedulingConfiguration;
 import dev.launchforge.eventworker.observability.DistributionMetrics;
 import java.time.Duration;
 import java.util.UUID;
@@ -32,7 +33,9 @@ public class OutboxPublisher {
     this.metrics = metrics;
   }
 
-  @Scheduled(fixedDelayString = "${launchforge.distribution.outbox-poll-interval:500ms}")
+  @Scheduled(
+      fixedDelayString = "${launchforge.distribution.outbox-poll-interval:500ms}",
+      scheduler = WorkerSchedulingConfiguration.CONFIGURATION_SCHEDULER)
   public void publishAvailable() {
     for (OutboxEvent row :
         repository.lease(owner, properties.outboxBatchSize(), properties.outboxLease())) {

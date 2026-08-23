@@ -417,7 +417,12 @@ java -jar backend/launchforge-event-worker/target/launchforge-event-worker-0.1.0
 java -jar backend/launchforge-config-edge/target/launchforge-config-edge-0.1.0-SNAPSHOT-exec.jar
 ```
 
-The automated durability drill is:
+Event Worker assigns its two configuration jobs to a named two-thread scheduler and optional
+ClickHouse flushing to an independent named single-thread scheduler. The finite set of fixed-delay
+jobs, bounded analytics queue/batch, and bounded ClickHouse connect/request timeouts prevent a
+non-responsive analytics store from consuming configuration scheduling capacity.
+
+The automated durability and analytics-isolation drill is:
 
 ```powershell
 .\mvnw.cmd -pl tests/integration-tests -am verify -Pintegration "-Dit.test=DistributionPipelineIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
