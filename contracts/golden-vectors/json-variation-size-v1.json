@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "maximumCanonicalUtf8Bytes": 65536,
+  "codePoint": "é",
+  "accepted": {
+    "repeatCount": 32767,
+    "canonicalUtf8Bytes": 65536
+  },
+  "rejected": {
+    "repeatCount": 32768,
+    "canonicalUtf8Bytes": 65538
+  }
+}

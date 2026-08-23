@@ -143,6 +143,19 @@ class JacksonSnapshotCodecTest {
         () -> codec.canonicalizeJsonValue("{\"bad\":\"\\ud800\"}"));
   }
 
+  @Test
+  void canonicalJsonLimitUsesCanonicalUtf8Bytes() throws Exception {
+    String acceptedValue = "é".repeat(32_767);
+    String acceptedJson = objectMapper.writeValueAsString(acceptedValue);
+    String rejectedJson = objectMapper.writeValueAsString("é".repeat(32_768));
+
+    assertEquals(FlagValue.MAX_VALUE_BYTES, acceptedJson.getBytes(StandardCharsets.UTF_8).length);
+    assertEquals(acceptedJson, codec.canonicalizeJsonValue(acceptedJson));
+    assertThrows(
+        ControlPlaneRuleViolationException.class, () -> codec.canonicalizeJsonValue(rejectedJson));
+    assertEquals("{}", codec.canonicalizeJsonValue("{" + " ".repeat(65_536) + "}"));
+  }
+
   private static Fixture fixture() {
     ProjectId projectId = new ProjectId(UUID.fromString("11111111-1111-1111-1111-111111111111"));
     EnvironmentId environmentId =

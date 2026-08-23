@@ -137,6 +137,37 @@ class GoldenVectorCorpusTest {
     }
   }
 
+  @Test
+  void languageNeutralJsonVariationSizeBoundariesUseCanonicalUtf8Bytes() throws Exception {
+    JsonNode boundaries =
+        SnapshotTestData.MAPPER.readTree(
+            Files.readString(
+                repositoryRoot().resolve("contracts/golden-vectors/json-variation-size-v1.json"),
+                StandardCharsets.UTF_8));
+    int maximum = boundaries.path("maximumCanonicalUtf8Bytes").intValue();
+    String codePoint = boundaries.path("codePoint").stringValue();
+    String accepted = codePoint.repeat(boundaries.path("accepted").path("repeatCount").intValue());
+    String rejected = codePoint.repeat(boundaries.path("rejected").path("repeatCount").intValue());
+
+    assertEquals(
+        boundaries.path("accepted").path("canonicalUtf8Bytes").intValue(),
+        SnapshotTestData.MAPPER
+            .writeValueAsString(accepted)
+            .getBytes(StandardCharsets.UTF_8)
+            .length);
+    assertEquals(
+        boundaries.path("rejected").path("canonicalUtf8Bytes").intValue(),
+        SnapshotTestData.MAPPER
+            .writeValueAsString(rejected)
+            .getBytes(StandardCharsets.UTF_8)
+            .length);
+    assertEquals(maximum, SnapshotParser.MAX_JSON_VALUE_BYTES);
+    SnapshotParser.parse(jsonVariationSnapshot(accepted));
+    assertThrows(
+        SnapshotValidationException.class,
+        () -> SnapshotParser.parse(jsonVariationSnapshot(rejected)));
+  }
+
   private static EvaluationDetail<?> evaluate(
       CompiledSnapshot snapshot, JsonNode item, EvaluationContext context) {
     String flagKey = item.path("flagKey").stringValue();
@@ -193,6 +224,24 @@ class GoldenVectorCorpusTest {
         .formatHex(
             java.security.MessageDigest.getInstance("SHA-256")
                 .digest(value.getBytes(StandardCharsets.UTF_8)));
+  }
+
+  private static String jsonVariationSnapshot(String boundaryValue) {
+    ObjectNode root = SnapshotTestData.root(1);
+    ObjectNode flag = SnapshotTestData.MAPPER.createObjectNode();
+    flag.put("type", "json");
+    flag.put("enabled", true);
+    flag.put("clientVisible", true);
+    var variations = flag.putArray("variations");
+    variations.addObject().put("id", "boundary").put("value", boundaryValue);
+    ObjectNode fallback = variations.addObject();
+    fallback.put("id", "fallback");
+    fallback.set("value", SnapshotTestData.MAPPER.createObjectNode());
+    flag.put("offVariation", "fallback");
+    flag.put("defaultVariation", "boundary");
+    flag.putArray("rules");
+    root.withObject("flags").set("json-boundary", flag);
+    return SnapshotTestData.canonicalSnapshot(root);
   }
 
   private static Path repositoryRoot() throws IOException {

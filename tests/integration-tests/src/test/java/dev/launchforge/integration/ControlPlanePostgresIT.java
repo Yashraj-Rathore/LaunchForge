@@ -37,6 +37,9 @@ import dev.launchforge.domain.controlplane.Targeting.PercentageRollout;
 import dev.launchforge.domain.controlplane.Targeting.Rule;
 import dev.launchforge.domain.organization.OidcIdentity;
 import dev.launchforge.domain.organization.OrganizationId;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
@@ -56,6 +59,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 class ControlPlanePostgresIT extends AbstractControlApiIntegrationTest {
   private static final UUID ORGANIZATION_A =
@@ -403,6 +408,55 @@ class ControlPlanePostgresIT extends AbstractControlApiIntegrationTest {
                        {"key":"b","name":"B","value":2}
                      ]}
                     """))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  void managementPublishesOnlyJsonVariationsWithinCanonicalUtf8Boundary() throws Exception {
+    JsonNode boundaries = jsonVariationSizeBoundaries();
+    String codePoint = boundaries.path("codePoint").stringValue();
+    String accepted = codePoint.repeat(boundaries.path("accepted").path("repeatCount").intValue());
+    String rejected = codePoint.repeat(boundaries.path("rejected").path("repeatCount").intValue());
+    Project project =
+        service.createProject(
+            OWNER_A,
+            new OrganizationId(ORGANIZATION_A),
+            "project.json-boundary",
+            "JSON boundary project",
+            null);
+    Environment environment =
+        service.createEnvironment(
+            OWNER_A,
+            project.id(),
+            "development.json-boundary",
+            "JSON boundary development",
+            Environment.Kind.DEVELOPMENT);
+
+    assertEquals(
+        boundaries.path("accepted").path("canonicalUtf8Bytes").intValue(),
+        objectMapper.writeValueAsString(accepted).getBytes(StandardCharsets.UTF_8).length);
+    mockMvc
+        .perform(
+            post("/api/v1/projects/{projectId}/flags", project.id().value())
+                .with(operator(OWNER_A.subject()))
+                .with(csrf().asHeader())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsBytes(jsonFlagRequest("json.boundary", accepted))))
+        .andExpect(status().isCreated());
+
+    PublishedRevision revision = service.publish(OWNER_A, environment.id(), 0, null);
+    assertEquals(1, revision.revision());
+    assertTrue(revision.canonicalSnapshot().contains("\"json.boundary\""));
+
+    mockMvc
+        .perform(
+            post("/api/v1/projects/{projectId}/flags", project.id().value())
+                .with(operator(OWNER_A.subject()))
+                .with(csrf().asHeader())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsBytes(jsonFlagRequest("json.too-large", rejected))))
         .andExpect(status().isBadRequest());
   }
 
@@ -875,6 +929,33 @@ class ControlPlanePostgresIT extends AbstractControlApiIntegrationTest {
                 new VariationInput("off", "Off", FlagValue.bool(false)),
                 new VariationInput("on", "On", FlagValue.bool(true))));
     return new Fixture(project, environment, flag);
+  }
+
+  private ObjectNode jsonFlagRequest(String key, String value) {
+    ObjectNode request = objectMapper.createObjectNode();
+    request.put("key", key);
+    request.put("name", "JSON boundary");
+    request.put("type", "JSON");
+    request.put("clientVisible", true);
+    ArrayNode variations = request.putArray("variations");
+    variations.addObject().put("key", "boundary").put("name", "Boundary").put("value", value);
+    ObjectNode fallback = variations.addObject();
+    fallback.put("key", "fallback");
+    fallback.put("name", "Fallback");
+    fallback.set("value", objectMapper.createObjectNode());
+    return request;
+  }
+
+  private JsonNode jsonVariationSizeBoundaries() throws Exception {
+    Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath();
+    while (current != null) {
+      Path contract = current.resolve("contracts/golden-vectors/json-variation-size-v1.json");
+      if (Files.isRegularFile(contract)) {
+        return objectMapper.readTree(Files.readString(contract, StandardCharsets.UTF_8));
+      }
+      current = current.getParent();
+    }
+    throw new IllegalStateException("JSON variation size boundary contract is absent");
   }
 
   private EnvironmentDraft enabledDraft(Fixture fixture, long expectedVersion, String summary) {

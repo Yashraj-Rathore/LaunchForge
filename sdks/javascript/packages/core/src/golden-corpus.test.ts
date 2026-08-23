@@ -9,7 +9,7 @@ import { EVALUATION_REASONS } from './index.js';
 import { rolloutBucket } from './rollout.js';
 import { parseSemanticVersion } from './semver.js';
 import { sha256Hex } from './sha256.js';
-import { parseSnapshot } from './snapshot.js';
+import { parseSnapshot, snapshotChecksum } from './snapshot.js';
 import { parseStrictJson } from './strict-json.js';
 import type {
   AttributeType,
@@ -19,6 +19,7 @@ import type {
   JsonValue,
   Operator,
 } from './types.js';
+import { utf8Bytes } from './utf8.js';
 
 interface GoldenCorpus {
   readonly corpusChecksum: string;
@@ -62,11 +63,30 @@ interface EvaluationCase {
   readonly expected: Readonly<Record<string, JsonValue>>;
 }
 
+interface JsonVariationSizeCorpus {
+  readonly schemaVersion: 1;
+  readonly maximumCanonicalUtf8Bytes: number;
+  readonly codePoint: string;
+  readonly accepted: JsonVariationSizeBoundary;
+  readonly rejected: JsonVariationSizeBoundary;
+}
+
+interface JsonVariationSizeBoundary {
+  readonly repeatCount: number;
+  readonly canonicalUtf8Bytes: number;
+}
+
 const corpusPath = fileURLToPath(
   new URL('../../../../../contracts/golden-vectors/evaluator-v1.json', import.meta.url),
 );
 const corpusJson = readFileSync(corpusPath, 'utf8');
 const corpus = JSON.parse(corpusJson) as GoldenCorpus;
+const jsonVariationSizePath = fileURLToPath(
+  new URL('../../../../../contracts/golden-vectors/json-variation-size-v1.json', import.meta.url),
+);
+const jsonVariationSize = JSON.parse(
+  readFileSync(jsonVariationSizePath, 'utf8'),
+) as JsonVariationSizeCorpus;
 
 describe('algorithm-version-1 shared golden corpus', () => {
   it('verifies the frozen corpus checksum and reason identifiers', () => {
@@ -170,7 +190,51 @@ describe('algorithm-version-1 shared golden corpus', () => {
       expect(() => parseSnapshot(malformed.snapshot), malformed.name).toThrow();
     }
   });
+
+  it('enforces shared canonical UTF-8 JSON variation size boundaries', () => {
+    const accepted = jsonVariationSize.codePoint.repeat(jsonVariationSize.accepted.repeatCount);
+    const rejected = jsonVariationSize.codePoint.repeat(jsonVariationSize.rejected.repeatCount);
+
+    expect(utf8Bytes(canonicalize(accepted)).length).toBe(
+      jsonVariationSize.accepted.canonicalUtf8Bytes,
+    );
+    expect(utf8Bytes(canonicalize(rejected)).length).toBe(
+      jsonVariationSize.rejected.canonicalUtf8Bytes,
+    );
+    expect(jsonVariationSize.maximumCanonicalUtf8Bytes).toBe(64 * 1024);
+    expect(() => parseSnapshot(jsonVariationSnapshot(accepted))).not.toThrow();
+    expect(() => parseSnapshot(jsonVariationSnapshot(rejected))).toThrow(
+      'Canonical JSON value exceeds 64 KiB',
+    );
+  });
 });
+
+function jsonVariationSnapshot(boundaryValue: string): string {
+  const root: Record<string, JsonValue> = {
+    schemaVersion: 1,
+    algorithmVersion: 1,
+    projectKey: 'demo-project',
+    environmentKey: 'test',
+    revision: 1,
+    generatedAt: '2026-08-11T12:00:00Z',
+    flags: {
+      'json-boundary': {
+        type: 'json',
+        enabled: true,
+        clientVisible: true,
+        variations: [
+          { id: 'boundary', value: boundaryValue },
+          { id: 'fallback', value: {} },
+        ],
+        offVariation: 'fallback',
+        defaultVariation: 'boundary',
+        rules: [],
+      },
+    },
+  };
+  root.checksum = snapshotChecksum(root);
+  return JSON.stringify(root);
+}
 
 function toCorpusDetail(detail: EvaluationDetail<unknown>): Readonly<Record<string, JsonValue>> {
   return {

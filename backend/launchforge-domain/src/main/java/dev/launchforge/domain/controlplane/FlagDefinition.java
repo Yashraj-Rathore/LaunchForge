@@ -1,6 +1,7 @@
 package dev.launchforge.domain.controlplane;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
@@ -82,12 +83,12 @@ public record FlagDefinition(
 
   public record FlagValue(FlagType type, String canonicalValue) {
     private static final BigDecimal MAX_SAFE_INTEGER = new BigDecimal("9007199254740991");
-    public static final int MAX_VALUE_LENGTH = 65_536;
+    public static final int MAX_VALUE_BYTES = 65_536;
 
     public FlagValue {
       Objects.requireNonNull(type, "type");
       Objects.requireNonNull(canonicalValue, "canonicalValue");
-      if (canonicalValue.length() > MAX_VALUE_LENGTH) {
+      if (canonicalValue.getBytes(StandardCharsets.UTF_8).length > MAX_VALUE_BYTES) {
         throw new ControlPlaneRuleViolationException("Variation value is too large");
       }
       canonicalValue = normalize(type, canonicalValue);

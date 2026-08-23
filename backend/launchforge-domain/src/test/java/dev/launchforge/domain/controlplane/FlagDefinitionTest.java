@@ -8,6 +8,7 @@ import dev.launchforge.domain.controlplane.FlagDefinition.FlagValue;
 import dev.launchforge.domain.controlplane.FlagDefinition.Status;
 import dev.launchforge.domain.controlplane.FlagDefinition.Variation;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -60,6 +61,16 @@ class FlagDefinitionTest {
     assertThrows(
         ControlPlaneRuleViolationException.class,
         () -> flag(FlagType.BOOLEAN, List.of(variation("only", FlagValue.bool(true)))));
+  }
+
+  @Test
+  void measuresCanonicalVariationValuesInUtf8Bytes() {
+    String accepted = "\"" + "é".repeat(32_767) + "\"";
+    String rejected = "\"" + "é".repeat(32_768) + "\"";
+
+    assertEquals(FlagValue.MAX_VALUE_BYTES, accepted.getBytes(StandardCharsets.UTF_8).length);
+    assertEquals(accepted, FlagValue.json(accepted).canonicalValue());
+    assertThrows(ControlPlaneRuleViolationException.class, () -> FlagValue.json(rejected));
   }
 
   private static FlagDefinition flag(FlagType type, List<Variation> variations) {

@@ -44,6 +44,12 @@ These are validation limits for the first contract, measured on decoded/uncompre
 
 Exceeding a management/context limit returns a stable validation Problem Details code. A snapshot that exceeds runtime limits is rejected before publish; an SDK that receives one rejects it and retains last-known-good. Raising a version-1 hard limit requires a documented issue and Java/JavaScript boundary tests.
 
+For the JSON variation limit, Management first validates and RFC 8785-canonicalizes the submitted
+I-JSON value, then counts the canonical representation's UTF-8 bytes. The Java and TypeScript SDKs
+apply the same byte count before activating a snapshot. The language-neutral multibyte boundary
+contract is `contracts/golden-vectors/json-variation-size-v1.json`: exactly 65,536 bytes is accepted
+and any larger canonical representation is rejected.
+
 ## Browser/session
 
 M1 routes:

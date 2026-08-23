@@ -201,6 +201,11 @@ CI's `evaluator-compatibility` job runs the Java verification and TypeScript cor
 
 Do not manually invent expected cryptographic hash results.
 
+The separate `contracts/golden-vectors/json-variation-size-v1.json` contract defines a generated
+multibyte JSON string at and above the 64 KiB canonical UTF-8 boundary. Management publication, the
+Java SDK parser, and the TypeScript SDK parser execute those same parameters so UTF-16 character
+counts cannot silently diverge from the wire-byte contract.
+
 ## 5. Mutation/property testing
 
 Strong candidates:

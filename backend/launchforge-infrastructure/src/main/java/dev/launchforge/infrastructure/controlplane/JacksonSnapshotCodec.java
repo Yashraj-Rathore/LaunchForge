@@ -135,18 +135,23 @@ public final class JacksonSnapshotCodec implements SnapshotCodec {
 
   @Override
   public String canonicalizeJsonValue(String rawJson) {
-    if (rawJson == null || rawJson.length() > FlagDefinition.FlagValue.MAX_VALUE_LENGTH) {
-      throw new ControlPlaneRuleViolationException("JSON value is absent or too large");
+    if (rawJson == null) {
+      throw new ControlPlaneRuleViolationException("JSON value is absent");
     }
+    String canonical;
     try {
       JsonNode parsed =
           strictJsonMapper.reader(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).readTree(rawJson);
       validateJsonValue(parsed, 0);
       String wrapper = new JsonCanonicalizer("{\"value\":" + rawJson + '}').getEncodedString();
-      return wrapper.substring("{\"value\":".length(), wrapper.length() - 1);
+      canonical = wrapper.substring("{\"value\":".length(), wrapper.length() - 1);
     } catch (IOException | RuntimeException exception) {
       throw new ControlPlaneRuleViolationException("JSON value is not valid I-JSON");
     }
+    if (canonical.getBytes(StandardCharsets.UTF_8).length > FlagValue.MAX_VALUE_BYTES) {
+      throw new ControlPlaneRuleViolationException("Canonical JSON value exceeds 64 KiB");
+    }
+    return canonical;
   }
 
   private Map<String, Object> encodeFlag(FlagDefinition flag, EnvironmentDraft draft) {

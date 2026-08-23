@@ -27,6 +27,12 @@
   outbox publication plus PostgreSQL-to-Redis reconciliation complete inside the five-second
   configuration SLO while analytics remains blocked.
 
+### Compatibility
+
+- Corrected P15-05 by measuring canonical JSON variation values in UTF-8 bytes during management
+  validation and retaining the same enforcement in both SDK parsers. Added a shared multibyte
+  boundary contract executed by management publication, Java SDK, and TypeScript SDK tests.
+
 ### Documentation
 
 - Added complete LaunchForge architecture, product, SDK, evaluation, security, eventing, testing, operations, deployment, commercialization, and Codex implementation package.

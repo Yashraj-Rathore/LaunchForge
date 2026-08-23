@@ -785,7 +785,7 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 
 # Project Status
 
-**Status:** Prompt 15 final architecture review complete; P15-01 through P15-03 corrected and remaining findings await explicit approval.
+**Status:** Prompt 15 final architecture review complete; P15-01 through P15-03 and P15-05 corrected, P15-04 explicitly deferred, and remaining findings await explicit approval.
 
 **Current milestone:** M13 demo/pilot (LF-1301–LF-1305) complete; Prompt 15 review recorded in `docs/27_FINAL_ARCHITECTURE_REVIEW.md`.
 
@@ -826,7 +826,8 @@ live but intentionally disabled because the owner is the only collaborator and t
 no-bypass approval rule would otherwise lock the repository. The environments still lack real
 cluster/OIDC configuration and no tagged GHCR publication, staging smoke, attestation, or approved
 same-digest production promotion has run. Those external executions have not been claimed as local
-evidence.
+evidence. P15-04 is explicitly deferred until the final hosted-release review and remains a High
+release blocker.
 
 The final review found no Critical issue and four initial High hosted-release blockers. P15-01 was
 corrected on 2026-08-21 with worker-only Ed25519 materialization signing, Edge public-key
@@ -835,7 +836,9 @@ container integration evidence. P15-02 was corrected on 2026-08-23 with separate
 and configuration schedulers plus a ClickHouse non-response distribution drill. P15-03 was
 corrected the same day with production-default Kafka SASL/TLS and Redis TLS, secret-backed
 credentials/trust, rendered Helm/Compose contract gates, and authenticated TLS integration proof.
-One High finding remains: incomplete live GitHub change/deployment controls. Six
+P15-05 was corrected on 2026-08-23 by measuring canonical JSON variation values in UTF-8 bytes and
+executing one shared multibyte boundary contract through management publication and both SDK
+parsers. One High finding remains: incomplete live GitHub change/deployment controls. Five
 Medium and three Low findings are also staged, so the project is not claimed ready for a hosted
 production pilot. Corrections remain one explicitly approved issue at a time.
 
@@ -1834,6 +1837,12 @@ These are validation limits for the first contract, measured on decoded/uncompre
 | One JSON variation value | 64 KiB canonical UTF-8 |
 
 Exceeding a management/context limit returns a stable validation Problem Details code. A snapshot that exceeds runtime limits is rejected before publish; an SDK that receives one rejects it and retains last-known-good. Raising a version-1 hard limit requires a documented issue and Java/JavaScript boundary tests.
+
+For the JSON variation limit, Management first validates and RFC 8785-canonicalizes the submitted
+I-JSON value, then counts the canonical representation's UTF-8 bytes. The Java and TypeScript SDKs
+apply the same byte count before activating a snapshot. The language-neutral multibyte boundary
+contract is `contracts/golden-vectors/json-variation-size-v1.json`: exactly 65,536 bytes is accepted
+and any larger canonical representation is rejected.
 
 ## Browser/session
 
@@ -4219,6 +4228,11 @@ executes every Java case. The third runs the TypeScript evaluator directly again
 CI's `evaluator-compatibility` job runs the Java verification and TypeScript corpus gate together.
 
 Do not manually invent expected cryptographic hash results.
+
+The separate `contracts/golden-vectors/json-variation-size-v1.json` contract defines a generated
+multibyte JSON string at and above the 64 KiB canonical UTF-8 boundary. Management publication, the
+Java SDK parser, and the TypeScript SDK parser execute those same parameters so UTF-16 character
+counts cannot silently diverge from the wire-byte contract.
 
 ## 5. Mutation/property testing
 
@@ -9040,9 +9054,10 @@ bounded anonymized statement.
 
 **Prompt:** 15 — final architecture, security, compatibility, failure-mode, test, claim, and toolchain review
 
-**Disposition:** Review complete. P15-01 through P15-03 were corrected in separately approved
-follow-ups between 2026-08-21 and 2026-08-23; the remaining findings retain their original review
-ranking.
+**Disposition:** Review complete. P15-01 through P15-03 and P15-05 were corrected in separately
+approved follow-ups between 2026-08-21 and 2026-08-23; the remaining findings retain their original
+review ranking. P15-04 is explicitly deferred, not resolved, and must be resumed before the final
+hosted-release review.
 
 ## Executive decision
 
@@ -9052,14 +9067,15 @@ last-known-good behavior, and module boundaries have substantial automated evide
 for its current local portfolio/demo purpose.
 
 It is **not ready for a hosted production pilot or release** until the one unresolved High finding
-is corrected and revalidated. The repository currently has no active GitHub branch rules or
-deployment environments. P15-01 through P15-03 no longer contribute to that count.
+is corrected and revalidated. The desired `main` ruleset is installed but disabled, while the
+created deployment environments still lack real identity/infrastructure and promotion evidence.
+P15-01 through P15-03 and P15-05 no longer contribute to the unresolved counts.
 
 | Severity | Count | Meaning in this review |
 |---|---:|---|
 | Critical | 0 | No demonstrated unauthenticated compromise, cross-tenant API access, secret disclosure, or deterministic-evaluation corruption was found. |
 | High | 1 | Unresolved release blocker with a credible change-control consequence. |
-| Medium | 6 | Contract, tenant-integrity, resilience, or product-completeness gap that must be scheduled before broad use. |
+| Medium | 5 | Contract, tenant-integrity, resilience, or product-completeness gap that must be scheduled before broad use. |
 | Low | 3 | Documentation or forward-toolchain debt with limited current runtime impact. |
 
 ## Resolved since review
@@ -9130,6 +9146,24 @@ Correction evidence:
 - `deploy/helm/launchforge`, `deploy/local/compose.transport-security.yaml`, and
   `eng/validate_transport_security.py` model and enforce the production and local exceptions.
 
+#### P15-05 — The 64 KiB JSON variation limit was measured differently across publication and SDKs
+
+**Resolved 2026-08-23.** Management now validates I-JSON, canonicalizes it, and measures the
+canonical representation in UTF-8 bytes before accepting a variation. The domain guard also uses
+UTF-8 bytes, so persistence and publication cannot admit a multibyte value that either SDK would
+reject. Both SDK parsers retain their canonical UTF-8 enforcement.
+
+Correction evidence:
+
+- `contracts/golden-vectors/json-variation-size-v1.json` defines one language-neutral multibyte
+  value exactly at 65,536 bytes and one immediately above it.
+- `FlagDefinitionTest` and `JacksonSnapshotCodecTest` prove the domain/management byte boundary and
+  that raw whitespace is measured only after canonicalization.
+- `ControlPlanePostgresIT` creates and publishes the accepted value through the management API and
+  rejects the oversized value.
+- Java `GoldenVectorCorpusTest` and TypeScript `golden-corpus.test.ts` execute the same shared
+  boundary parameters through their production snapshot parsers.
+
 ## Ranked unresolved findings
 
 ### High
@@ -9152,6 +9186,9 @@ or secrets, and no tagged staging/promotion run exists. Direct pushes to `main` 
 possible and the production workflow cannot yet prove its intended approval and same-digest
 boundary.
 
+**Deferred by repository owner on 2026-08-23.** This finding remains High and must be resumed during
+the final hosted-release review; deferral does not authorize a production release or pilot.
+
 This is accurately disclosed in `PROJECT_STATUS.md`; the finding is an operational release blocker,
 not a misleading code claim.
 
@@ -9169,16 +9206,6 @@ configure the environments with real provider OIDC or the documented narrowly sc
 variables, and complete one approved same-digest staged promotion.
 
 ### Medium
-
-#### P15-05 — The 64 KiB JSON variation limit is measured differently across publication and SDKs
-
-The contract says 64 KiB of canonical UTF-8. Management checks Java `String.length()` in
-`FlagDefinition.FlagValue` and `JacksonSnapshotCodec`; the Java and TypeScript SDK parsers measure
-UTF-8 bytes. A multibyte JSON value can pass publication while being rejected by both SDKs, causing
-clients to retain last-known-good configuration or use defaults.
-
-Evidence: `docs/04_API_AND_CONTRACTS.md`; `FlagDefinition.java`; `JacksonSnapshotCodec.java`;
-Java `SnapshotParser.java`; TypeScript `packages/core/src/snapshot.ts`.
 
 #### P15-06 — Data-plane configuration permits snapshots above the normative 5 MiB ceiling
 
@@ -9266,7 +9293,7 @@ P15-08 and P15-11 are the unresolved security/tenant findings; P15-01 and P15-03
 recorded above. No cross-organization API access was reproduced. Server-derived organization
 scope, role checks, compound ownership on core
 entities, SDK credential-class separation, hash-only server-key verification, CSRF/OIDC/session
-boundaries, and privacy-safe request logging were traced in code and exercised by the 26-test
+boundaries, and privacy-safe request logging were traced in code and exercised by the 27-test
 container integration suite. Direct-resource cross-tenant access, Viewer denial, final-Owner
 concurrency, revoked key denial, CORS separation, and tenant-scoped analytics are covered.
 
@@ -9283,8 +9310,9 @@ semantics, exact SHA-256 rollout boundaries, malformed snapshots, and the determ
 subject sample. The Java reactor and pinned-Node frontend validation both passed that corpus during
 this review.
 
-P15-05 and P15-06 are pre-evaluation snapshot acceptance/size compatibility gaps, not a difference
-in rule evaluation meaning.
+P15-05 was a pre-evaluation snapshot acceptance/size compatibility gap, not a difference in rule
+evaluation meaning, and is resolved as recorded above. P15-06 remains a snapshot-size compatibility
+gap.
 
 ## Revision, event, and snapshot compatibility review
 
@@ -9295,8 +9323,8 @@ unsupported schemas, and are idempotent for duplicate/stale delivery. Rollback c
 revision. The full distribution integration test passed PostgreSQL → outbox → Kafka → Redis → Edge
 → SDK convergence and stale/duplicate/rebuild behavior.
 
-Outstanding compatibility findings are P15-05 (UTF-8 value sizing) and P15-06 (5 MiB versus 8 MiB
-configuration). The former P15-01 provenance and P15-02 scheduler-isolation defects are resolved as
+The outstanding compatibility finding is P15-06 (5 MiB versus 8 MiB configuration). The former
+P15-01 provenance, P15-02 scheduler-isolation, and P15-05 UTF-8 value-sizing defects are resolved as
 recorded above.
 
 ## Failure-mode gaps
@@ -9315,7 +9343,6 @@ Each P15 finding needs the focused regression evidence stated with it. In additi
 - the final checklist's clean-clone four-minute demo run has not been executed after this review;
 - controlled load evidence is local and bounded, not production capacity proof;
 - the release/promotion/restore workflows have not run against configured hosted environments;
-- no multibyte boundary corpus tests management publication and both SDKs at 64 KiB;
 - no browser test uses a never-resolving analytics fetch;
 - no database test attempts cross-tenant audit or key-rotation lineage;
 - no reconciliation test places a poison environment before healthy tenants in a page.
@@ -9342,8 +9369,8 @@ dependency changes.
 
 ## Staged correction issue list
 
-No item below was implemented by Prompt 15. Approval should name one or more IDs before code or
-configuration changes begin.
+Prompt 15 recorded these items without implementing them. The list below now records corrections
+approved and completed after that review alongside the remaining work.
 
 ### Stage 0 — hosted-release blockers
 
@@ -9353,12 +9380,14 @@ configuration changes begin.
    ClickHouse non-response drill proves distribution progress.
 3. **P15-03 (resolved 2026-08-23):** Kafka/Redis TLS, secret-backed Kafka SASL, rendered-contract
    validation, and authenticated TLS integration evidence are established.
-4. **P15-04 (partially hardened 2026-08-23):** add an independent reviewer, activate the installed
-   `main` ruleset, configure environment identity, and execute the first staged promotion.
+4. **P15-04 (deferred 2026-08-23; unresolved):** during the final hosted-release review, add an
+   independent reviewer, activate the installed `main` ruleset, configure environment identity,
+   and execute the first staged promotion.
 
 ### Stage 1 — compatibility and tenant integrity
 
-5. **P15-05:** enforce canonical UTF-8 bytes at management publication and add cross-SDK boundaries.
+5. **P15-05 (resolved 2026-08-23):** canonical UTF-8 management enforcement and shared management,
+   Java SDK, and TypeScript SDK multibyte boundaries are established.
 6. **P15-06:** share/cap the normative 5 MiB snapshot ceiling across all processes.
 7. **P15-07:** add bounded browser analytics request timeouts and hanging-fetch coverage.
 8. **P15-08:** add safe compound tenant/lineage constraints and migration tests.
