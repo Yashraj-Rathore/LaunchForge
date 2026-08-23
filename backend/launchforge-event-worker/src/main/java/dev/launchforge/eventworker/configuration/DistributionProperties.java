@@ -1,5 +1,6 @@
 package dev.launchforge.eventworker.configuration;
 
+import dev.launchforge.contracts.snapshots.SnapshotContract;
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
@@ -38,9 +39,7 @@ public record DistributionProperties(
     if (reconciliationBatchSize < 1 || reconciliationBatchSize > 10_000) {
       throw new IllegalArgumentException("reconciliationBatchSize is invalid");
     }
-    if (maximumSnapshotBytes < 1 || maximumSnapshotBytes > 8 * 1024 * 1024) {
-      throw new IllegalArgumentException("maximumSnapshotBytes is invalid");
-    }
+    SnapshotContract.requireValidMaximumSnapshotBytes(maximumSnapshotBytes);
   }
 
   private static void requireText(String value, String name) {

@@ -4,10 +4,10 @@
 
 **Prompt:** 15 — final architecture, security, compatibility, failure-mode, test, claim, and toolchain review
 
-**Disposition:** Review complete. P15-01 through P15-03 and P15-05 were corrected in separately
-approved follow-ups between 2026-08-21 and 2026-08-23; the remaining findings retain their original
-review ranking. P15-04 is explicitly deferred, not resolved, and must be resumed before the final
-hosted-release review.
+**Disposition:** Review complete. P15-01 through P15-03, P15-05, and P15-06 were corrected in
+separately approved follow-ups between 2026-08-21 and 2026-08-23; the remaining findings retain
+their original review ranking. P15-04 is explicitly deferred, not resolved, and must be resumed
+before the final hosted-release review.
 
 ## Executive decision
 
@@ -19,13 +19,13 @@ for its current local portfolio/demo purpose.
 It is **not ready for a hosted production pilot or release** until the one unresolved High finding
 is corrected and revalidated. The desired `main` ruleset is installed but disabled, while the
 created deployment environments still lack real identity/infrastructure and promotion evidence.
-P15-01 through P15-03 and P15-05 no longer contribute to the unresolved counts.
+P15-01 through P15-03, P15-05, and P15-06 no longer contribute to the unresolved counts.
 
 | Severity | Count | Meaning in this review |
 |---|---:|---|
 | Critical | 0 | No demonstrated unauthenticated compromise, cross-tenant API access, secret disclosure, or deterministic-evaluation corruption was found. |
 | High | 1 | Unresolved release blocker with a credible change-control consequence. |
-| Medium | 5 | Contract, tenant-integrity, resilience, or product-completeness gap that must be scheduled before broad use. |
+| Medium | 4 | Contract, tenant-integrity, resilience, or product-completeness gap that must be scheduled before broad use. |
 | Low | 3 | Documentation or forward-toolchain debt with limited current runtime impact. |
 
 ## Resolved since review
@@ -114,6 +114,24 @@ Correction evidence:
 - Java `GoldenVectorCorpusTest` and TypeScript `golden-corpus.test.ts` execute the same shared
   boundary parameters through their production snapshot parsers.
 
+#### P15-06 — Data-plane configuration permitted snapshots above the normative 5 MiB ceiling
+
+**Resolved 2026-08-23.** The Control API publisher, Config Edge, and Event Worker now use one
+backend `SnapshotContract` ceiling of 5,242,880 canonical UTF-8 bytes. Edge and Worker retain their
+lower configurable defaults and may be tightened by operators, but configuration above the
+version-1 ceiling fails validation instead of allowing materialization that either SDK would later
+reject. The standalone SDKs remain server-independent and verify their constants against the same
+language-neutral contract.
+
+Correction evidence:
+
+- `SnapshotContractTest`, `ConfigEdgePropertiesTest`, and `DistributionPropertiesTest` prove the
+  shared backend maximum accepts the exact ceiling and rejects the next byte.
+- `ControlPlaneService` uses the same backend constant for publication.
+- `contracts/golden-vectors/snapshot-size-v1.json` defines exact 5 MiB and one-byte-over boundaries.
+- Java `GoldenVectorCorpusTest` and TypeScript `golden-corpus.test.ts` generate a valid exact-limit
+  snapshot, activate it through their production parsers, and reject the next byte.
+
 ## Ranked unresolved findings
 
 ### High
@@ -156,17 +174,6 @@ configure the environments with real provider OIDC or the documented narrowly sc
 variables, and complete one approved same-digest staged promotion.
 
 ### Medium
-
-#### P15-06 — Data-plane configuration permits snapshots above the normative 5 MiB ceiling
-
-The Control API and both SDKs enforce 5 MiB, but `ConfigEdgeProperties` and
-`DistributionProperties` accept operator values through 8 MiB. Defaults are lower and the normal
-producer blocks oversized publications, so this is not a normal-path defect. It is still a contract
-split: imported, legacy, or compromised 5–8 MiB materialization can be projected/served and then
-rejected by SDKs. The contract permits deployments to configure lower limits, not higher ones.
-
-Evidence: `docs/04_API_AND_CONTRACTS.md`; `ControlPlaneService.java`; `ConfigEdgeProperties.java`;
-`DistributionProperties.java`; both SDK snapshot parsers.
 
 #### P15-07 — Browser analytics transport has no bounded request timeout
 
@@ -260,9 +267,8 @@ semantics, exact SHA-256 rollout boundaries, malformed snapshots, and the determ
 subject sample. The Java reactor and pinned-Node frontend validation both passed that corpus during
 this review.
 
-P15-05 was a pre-evaluation snapshot acceptance/size compatibility gap, not a difference in rule
-evaluation meaning, and is resolved as recorded above. P15-06 remains a snapshot-size compatibility
-gap.
+P15-05 and P15-06 were pre-evaluation snapshot acceptance/size compatibility gaps, not differences
+in rule evaluation meaning, and are resolved as recorded above.
 
 ## Revision, event, and snapshot compatibility review
 
@@ -273,9 +279,9 @@ unsupported schemas, and are idempotent for duplicate/stale delivery. Rollback c
 revision. The full distribution integration test passed PostgreSQL → outbox → Kafka → Redis → Edge
 → SDK convergence and stale/duplicate/rebuild behavior.
 
-The outstanding compatibility finding is P15-06 (5 MiB versus 8 MiB configuration). The former
-P15-01 provenance, P15-02 scheduler-isolation, and P15-05 UTF-8 value-sizing defects are resolved as
-recorded above.
+No snapshot or evaluator compatibility finding remains from this review. The former P15-01
+provenance, P15-02 scheduler-isolation, P15-05 UTF-8 value-sizing, and P15-06 snapshot-ceiling
+defects are resolved as recorded above.
 
 ## Failure-mode gaps
 
@@ -338,7 +344,8 @@ approved and completed after that review alongside the remaining work.
 
 5. **P15-05 (resolved 2026-08-23):** canonical UTF-8 management enforcement and shared management,
    Java SDK, and TypeScript SDK multibyte boundaries are established.
-6. **P15-06:** share/cap the normative 5 MiB snapshot ceiling across all processes.
+6. **P15-06 (resolved 2026-08-23):** the backend shares and caps the normative 5 MiB snapshot
+   ceiling, and both SDK parsers execute the same exact boundary contract.
 7. **P15-07:** add bounded browser analytics request timeouts and hanging-fetch coverage.
 8. **P15-08:** add safe compound tenant/lineage constraints and migration tests.
 9. **P15-11:** remove production-artifact database credential defaults.

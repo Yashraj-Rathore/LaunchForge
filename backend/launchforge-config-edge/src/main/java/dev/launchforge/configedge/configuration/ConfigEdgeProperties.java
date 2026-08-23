@@ -1,5 +1,6 @@
 package dev.launchforge.configedge.configuration;
 
+import dev.launchforge.contracts.snapshots.SnapshotContract;
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.ConstructorBinding;
@@ -34,9 +35,7 @@ public record ConfigEdgeProperties(
 
   @ConstructorBinding
   public ConfigEdgeProperties {
-    if (maximumSnapshotBytes < 1 || maximumSnapshotBytes > 8 * 1024 * 1024) {
-      throw new IllegalArgumentException("maximumSnapshotBytes is invalid");
-    }
+    SnapshotContract.requireValidMaximumSnapshotBytes(maximumSnapshotBytes);
     if (revisionPollInterval == null
         || revisionPollInterval.isNegative()
         || revisionPollInterval.isZero()

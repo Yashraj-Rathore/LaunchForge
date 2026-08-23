@@ -140,6 +140,11 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 - [x] Run Prompt 15
 - [x] Record staged finding IDs in the final review
 - [x] Correct P15-01 authenticated Redis materialization provenance and ACL isolation
-- [ ] Correct findings one issue at a time
+- [x] Correct P15-02 scheduler isolation
+- [x] Correct P15-03 Kafka and Redis transport security
+- [ ] Correct P15-04 hosted change and deployment controls — deferred to final hosted-release review
+- [x] Correct P15-05 canonical JSON variation byte sizing
+- [x] Correct P15-06 canonical snapshot size ceiling
+- [ ] Continue correcting remaining findings one issue at a time
 - [ ] Clean-clone demo validation
 - [ ] Verify every resume claim

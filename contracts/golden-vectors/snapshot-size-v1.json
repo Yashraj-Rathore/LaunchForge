@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "maximumCanonicalUtf8Bytes": 5242880,
+  "accepted": {
+    "canonicalUtf8Bytes": 5242880
+  },
+  "rejected": {
+    "canonicalUtf8Bytes": 5242881
+  }
+}

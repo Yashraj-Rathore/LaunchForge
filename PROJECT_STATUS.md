@@ -1,6 +1,6 @@
 # Project Status
 
-**Status:** Prompt 15 final architecture review complete; P15-01 through P15-03 and P15-05 corrected, P15-04 explicitly deferred, and remaining findings await explicit approval.
+**Status:** Prompt 15 final architecture review complete; P15-01 through P15-03, P15-05, and P15-06 corrected, P15-04 explicitly deferred, and remaining findings await explicit approval.
 
 **Current milestone:** M13 demo/pilot (LF-1301–LF-1305) complete; Prompt 15 review recorded in `docs/27_FINAL_ARCHITECTURE_REVIEW.md`.
 
@@ -53,6 +53,8 @@ corrected the same day with production-default Kafka SASL/TLS and Redis TLS, sec
 credentials/trust, rendered Helm/Compose contract gates, and authenticated TLS integration proof.
 P15-05 was corrected on 2026-08-23 by measuring canonical JSON variation values in UTF-8 bytes and
 executing one shared multibyte boundary contract through management publication and both SDK
-parsers. One High finding remains: incomplete live GitHub change/deployment controls. Five
+parsers. P15-06 was corrected the same day by centralizing the 5 MiB backend snapshot ceiling,
+rejecting higher Edge/Worker configuration, and executing the exact boundary through both SDK
+parsers. One High finding remains: incomplete live GitHub change/deployment controls. Four
 Medium and three Low findings are also staged, so the project is not claimed ready for a hosted
 production pilot. Corrections remain one explicitly approved issue at a time.

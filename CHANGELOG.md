@@ -32,6 +32,9 @@
 - Corrected P15-05 by measuring canonical JSON variation values in UTF-8 bytes during management
   validation and retaining the same enforcement in both SDK parsers. Added a shared multibyte
   boundary contract executed by management publication, Java SDK, and TypeScript SDK tests.
+- Corrected P15-06 by centralizing the backend's normative 5 MiB canonical snapshot ceiling,
+  rejecting higher Config Edge/Event Worker settings, and executing an exact-limit shared boundary
+  through both SDK parsers.
 
 ### Documentation
 

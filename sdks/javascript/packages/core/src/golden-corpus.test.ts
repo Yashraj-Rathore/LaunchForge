@@ -9,7 +9,7 @@ import { EVALUATION_REASONS } from './index.js';
 import { rolloutBucket } from './rollout.js';
 import { parseSemanticVersion } from './semver.js';
 import { sha256Hex } from './sha256.js';
-import { parseSnapshot, snapshotChecksum } from './snapshot.js';
+import { MAX_SNAPSHOT_BYTES, parseSnapshot, snapshotChecksum } from './snapshot.js';
 import { parseStrictJson } from './strict-json.js';
 import type {
   AttributeType,
@@ -76,6 +76,17 @@ interface JsonVariationSizeBoundary {
   readonly canonicalUtf8Bytes: number;
 }
 
+interface SnapshotSizeCorpus {
+  readonly schemaVersion: 1;
+  readonly maximumCanonicalUtf8Bytes: number;
+  readonly accepted: SnapshotSizeBoundary;
+  readonly rejected: SnapshotSizeBoundary;
+}
+
+interface SnapshotSizeBoundary {
+  readonly canonicalUtf8Bytes: number;
+}
+
 const corpusPath = fileURLToPath(
   new URL('../../../../../contracts/golden-vectors/evaluator-v1.json', import.meta.url),
 );
@@ -87,6 +98,10 @@ const jsonVariationSizePath = fileURLToPath(
 const jsonVariationSize = JSON.parse(
   readFileSync(jsonVariationSizePath, 'utf8'),
 ) as JsonVariationSizeCorpus;
+const snapshotSizePath = fileURLToPath(
+  new URL('../../../../../contracts/golden-vectors/snapshot-size-v1.json', import.meta.url),
+);
+const snapshotSize = JSON.parse(readFileSync(snapshotSizePath, 'utf8')) as SnapshotSizeCorpus;
 
 describe('algorithm-version-1 shared golden corpus', () => {
   it('verifies the frozen corpus checksum and reason identifiers', () => {
@@ -207,6 +222,17 @@ describe('algorithm-version-1 shared golden corpus', () => {
       'Canonical JSON value exceeds 64 KiB',
     );
   });
+
+  it('enforces the shared canonical UTF-8 snapshot size boundary', () => {
+    const accepted = snapshotWithExactSize(snapshotSize.accepted.canonicalUtf8Bytes);
+    const rejected = `${accepted} `;
+
+    expect(MAX_SNAPSHOT_BYTES).toBe(snapshotSize.maximumCanonicalUtf8Bytes);
+    expect(utf8Bytes(accepted).length).toBe(snapshotSize.accepted.canonicalUtf8Bytes);
+    expect(utf8Bytes(rejected).length).toBe(snapshotSize.rejected.canonicalUtf8Bytes);
+    expect(() => parseSnapshot(accepted)).not.toThrow();
+    expect(() => parseSnapshot(rejected)).toThrow('Snapshot is absent or exceeds 5 MiB');
+  });
 });
 
 function jsonVariationSnapshot(boundaryValue: string): string {
@@ -234,6 +260,31 @@ function jsonVariationSnapshot(boundaryValue: string): string {
   };
   root.checksum = snapshotChecksum(root);
   return JSON.stringify(root);
+}
+
+function snapshotWithExactSize(targetBytes: number): string {
+  const root: Record<string, JsonValue> = {
+    schemaVersion: 1,
+    algorithmVersion: 1,
+    projectKey: 'demo-project',
+    environmentKey: 'test',
+    revision: 1,
+    generatedAt: '2026-08-11T12:00:00Z',
+    flags: {},
+    padding: '',
+  };
+  root.checksum = snapshotChecksum(root);
+  const paddingBytes = targetBytes - utf8Bytes(canonicalize(root)).length;
+  if (paddingBytes < 0) {
+    throw new Error('Target snapshot size is too small');
+  }
+  root.padding = 'x'.repeat(paddingBytes);
+  root.checksum = snapshotChecksum(root);
+  const snapshot = canonicalize(root);
+  if (utf8Bytes(snapshot).length !== targetBytes) {
+    throw new Error('Snapshot boundary fixture has the wrong size');
+  }
+  return snapshot;
 }
 
 function toCorpusDetail(detail: EvaluationDetail<unknown>): Readonly<Record<string, JsonValue>> {

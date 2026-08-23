@@ -206,6 +206,11 @@ multibyte JSON string at and above the 64 KiB canonical UTF-8 boundary. Manageme
 Java SDK parser, and the TypeScript SDK parser execute those same parameters so UTF-16 character
 counts cannot silently diverge from the wire-byte contract.
 
+The `contracts/golden-vectors/snapshot-size-v1.json` contract fixes the version-1 canonical
+snapshot ceiling at 5,242,880 UTF-8 bytes. Backend contract/configuration tests ensure Management,
+Config Edge, and Event Worker cannot exceed it, while the Java and TypeScript golden-corpus suites
+generate an exact-limit valid snapshot and reject the next byte.
+
 ## 5. Mutation/property testing
 
 Strong candidates:

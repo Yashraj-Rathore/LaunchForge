@@ -168,6 +168,26 @@ class GoldenVectorCorpusTest {
         () -> SnapshotParser.parse(jsonVariationSnapshot(rejected)));
   }
 
+  @Test
+  void languageNeutralSnapshotSizeBoundaryUsesCanonicalUtf8Bytes() throws Exception {
+    JsonNode boundaries =
+        SnapshotTestData.MAPPER.readTree(
+            Files.readString(
+                repositoryRoot().resolve("contracts/golden-vectors/snapshot-size-v1.json"),
+                StandardCharsets.UTF_8));
+    int maximum = boundaries.path("maximumCanonicalUtf8Bytes").intValue();
+    int acceptedBytes = boundaries.path("accepted").path("canonicalUtf8Bytes").intValue();
+    int rejectedBytes = boundaries.path("rejected").path("canonicalUtf8Bytes").intValue();
+    String accepted = snapshotWithExactSize(acceptedBytes);
+    String rejected = accepted + ' ';
+
+    assertEquals(maximum, SnapshotParser.MAX_SNAPSHOT_BYTES);
+    assertEquals(acceptedBytes, accepted.getBytes(StandardCharsets.UTF_8).length);
+    assertEquals(rejectedBytes, rejected.getBytes(StandardCharsets.UTF_8).length);
+    SnapshotParser.parse(accepted);
+    assertThrows(SnapshotValidationException.class, () -> SnapshotParser.parse(rejected));
+  }
+
   private static EvaluationDetail<?> evaluate(
       CompiledSnapshot snapshot, JsonNode item, EvaluationContext context) {
     String flagKey = item.path("flagKey").stringValue();
@@ -242,6 +262,22 @@ class GoldenVectorCorpusTest {
     flag.putArray("rules");
     root.withObject("flags").set("json-boundary", flag);
     return SnapshotTestData.canonicalSnapshot(root);
+  }
+
+  private static String snapshotWithExactSize(int targetBytes) {
+    ObjectNode root = SnapshotTestData.root(1);
+    root.put("padding", "");
+    String empty = SnapshotTestData.canonicalSnapshot(root);
+    int paddingBytes = targetBytes - empty.getBytes(StandardCharsets.UTF_8).length;
+    if (paddingBytes < 0) {
+      throw new IllegalArgumentException("Target snapshot size is too small");
+    }
+    root.put("padding", "x".repeat(paddingBytes));
+    String snapshot = SnapshotTestData.canonicalSnapshot(root);
+    if (snapshot.getBytes(StandardCharsets.UTF_8).length != targetBytes) {
+      throw new IllegalStateException("Snapshot boundary fixture has the wrong size");
+    }
+    return snapshot;
   }
 
   private static Path repositoryRoot() throws IOException {

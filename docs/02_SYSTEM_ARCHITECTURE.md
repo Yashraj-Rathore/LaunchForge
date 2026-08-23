@@ -147,7 +147,7 @@ demos/
 ## 5. Dependency rules
 
 - Domain references no Spring/JPA/transport/infrastructure.
-- Application references Domain.
+- Application references Domain and framework-free Contracts.
 - Contracts references neither Domain nor Infrastructure.
 - Infrastructure references Domain/Application.
 - Control API references Application/Infrastructure/Contracts. The M6

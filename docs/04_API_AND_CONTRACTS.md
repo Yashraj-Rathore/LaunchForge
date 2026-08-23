@@ -50,6 +50,12 @@ apply the same byte count before activating a snapshot. The language-neutral mul
 contract is `contracts/golden-vectors/json-variation-size-v1.json`: exactly 65,536 bytes is accepted
 and any larger canonical representation is rejected.
 
+For the snapshot limit, backend producers and consumers use the shared
+`SnapshotContract.MAXIMUM_CANONICAL_SNAPSHOT_BYTES` ceiling. Edge and Event Worker configuration
+may select a lower limit but fail startup validation above 5,242,880 bytes. The independent Java
+and TypeScript SDK parsers execute `contracts/golden-vectors/snapshot-size-v1.json`, accepting an
+exactly 5 MiB canonical UTF-8 snapshot and rejecting the next byte.
+
 ## Browser/session
 
 M1 routes:

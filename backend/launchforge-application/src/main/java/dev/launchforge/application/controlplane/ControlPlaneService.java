@@ -8,6 +8,7 @@ import dev.launchforge.application.organization.OrganizationAccess;
 import dev.launchforge.application.organization.OrganizationAccessRepository;
 import dev.launchforge.application.organization.OrganizationNotFoundException;
 import dev.launchforge.application.organization.UnitOfWork;
+import dev.launchforge.contracts.snapshots.SnapshotContract;
 import dev.launchforge.domain.controlplane.Environment;
 import dev.launchforge.domain.controlplane.EnvironmentDraft;
 import dev.launchforge.domain.controlplane.EnvironmentId;
@@ -32,7 +33,6 @@ import java.util.Objects;
 import java.util.UUID;
 
 public final class ControlPlaneService {
-  private static final int MAX_SNAPSHOT_BYTES = 5 * 1024 * 1024;
   private static final int MAX_FLAGS_PER_ENVIRONMENT = 2_000;
 
   private final OrganizationAccessRepository accessRepository;
@@ -641,7 +641,7 @@ public final class ControlPlaneService {
     SnapshotCodec.EncodedSnapshot encoded =
         snapshotCodec.encode(
             scoped.project(), scoped.environment(), flags, activeDrafts, revision, generatedAt);
-    if (encoded.utf8Bytes() > MAX_SNAPSHOT_BYTES) {
+    if (encoded.utf8Bytes() > SnapshotContract.MAXIMUM_CANONICAL_SNAPSHOT_BYTES) {
       throw new ControlPlaneConflictException("Snapshot exceeds the 5 MiB publication limit");
     }
     return encoded;
