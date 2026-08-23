@@ -17,6 +17,9 @@
   staging/production GitHub Environments with fail-closed production review. Added machine-validated
   desired ruleset payloads; `main` remains disabled until an independent reviewer exists, and no
   deployment/promotion claim is made without real environment identity and evidence.
+- Corrected P15-08 with V7 compound foreign keys that enforce tenant-consistent audit
+  project/environment references and same-environment SDK-key rotation lineage, plus direct
+  PostgreSQL rejection coverage.
 
 ### Reliability
 
@@ -26,6 +29,10 @@
 - Extended `DistributionPipelineIT` with a non-responsive ClickHouse connection and proof that real
   outbox publication plus PostgreSQL-to-Redis reconciliation complete inside the five-second
   configuration SLO while analytics remains blocked.
+- Corrected P15-07 with bounded, abortable browser analytics requests, close-time cancellation, and
+  a hanging-fetch regression proving later batches can flush.
+- Corrected P15-10 by isolating invalid authoritative snapshots per environment during
+  reconciliation while continuing healthy pages and retrying the invalid row on later scans.
 
 ### Compatibility
 
@@ -38,6 +45,8 @@
 
 ### Documentation
 
+- Corrected P15-09 by narrowing the README organization capability claim to provisioned
+  organizations and explicitly documenting the absent self-service organization lifecycle.
 - Added complete LaunchForge architecture, product, SDK, evaluation, security, eventing, testing, operations, deployment, commercialization, and Codex implementation package.
 - Normalized the canonical repository/module layout around `launchforge-control-api`, the bounded Java SDK, and the JavaScript core/browser/React workspace.
 - Established one normative snapshot representation, RFC 8785 checksum procedure, identifier policy, browser-projection checksum behavior, and algorithm-version-1 evaluator/reason-code contract.

@@ -5,11 +5,14 @@ import dev.launchforge.eventworker.configuration.WorkerSchedulingConfiguration;
 import dev.launchforge.eventworker.observability.DistributionMetrics;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Component
 public class ProjectionReconciler {
+  private static final Logger LOGGER = LoggerFactory.getLogger(ProjectionReconciler.class);
   private final AuthoritativeSnapshotRepository repository;
   private final SnapshotValidator validator;
   private final RedisSnapshotMaterializer materializer;
@@ -53,7 +56,11 @@ public class ProjectionReconciler {
         }
       } catch (RuntimeException exception) {
         metrics.projectionError();
-        throw exception;
+        LOGGER.error(
+            "Authoritative reconciliation rejected environment {} revision {} with {}; continuing the bounded page",
+            snapshot.environmentId(),
+            snapshot.revision(),
+            exception.getClass().getSimpleName());
       } finally {
         metrics.recordProjectionDuration("reconcile", outcome, System.nanoTime() - started);
       }

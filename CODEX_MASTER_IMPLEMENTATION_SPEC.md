@@ -158,9 +158,9 @@ The central engineering problem is not CRUD. It is **safe, deterministic, low-la
 
 ## Core product
 
-A software team can:
+A software team working in a provisioned organization can:
 
-- create organizations, projects, and Development/Staging/Production environments;
+- create projects and Development/Staging/Production environments;
 - create typed flags and remote configuration values;
 - define ordered targeting rules;
 - roll a feature out deterministically to a percentage of subjects;
@@ -173,6 +173,10 @@ A software team can:
 - rotate SDK keys;
 - audit who changed what and why;
 - optionally collect privacy-minimized evaluation analytics.
+
+Organization creation, renaming, suspension, and closure are deployment-provisioning operations in
+the current release. The management API lists provisioned organizations and manages their
+memberships but does not yet provide self-service organization lifecycle or billing.
 
 ## Final target architecture
 
@@ -785,7 +789,7 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 
 # Project Status
 
-**Status:** Prompt 15 final architecture review complete; P15-01 through P15-03, P15-05, and P15-06 corrected, P15-04 explicitly deferred, and remaining findings await explicit approval.
+**Status:** Prompt 15 final architecture review complete; P15-01 through P15-03 and P15-05 through P15-10 corrected, P15-04 explicitly deferred, and P15-11 through P15-13 await explicit approval.
 
 **Current milestone:** M13 demo/pilot (LF-1301–LF-1305) complete; Prompt 15 review recorded in `docs/27_FINAL_ARCHITECTURE_REVIEW.md`.
 
@@ -840,9 +844,12 @@ P15-05 was corrected on 2026-08-23 by measuring canonical JSON variation values 
 executing one shared multibyte boundary contract through management publication and both SDK
 parsers. P15-06 was corrected the same day by centralizing the 5 MiB backend snapshot ceiling,
 rejecting higher Edge/Worker configuration, and executing the exact boundary through both SDK
-parsers. One High finding remains: incomplete live GitHub change/deployment controls. Four
-Medium and three Low findings are also staged, so the project is not claimed ready for a hosted
-production pilot. Corrections remain one explicitly approved issue at a time.
+parsers. P15-07 through P15-10 were corrected on 2026-08-23 with abortable browser analytics
+requests, database-enforced audit/key-lineage tenant integrity, an accurate provisioned-organization
+README claim, and poison-row reconciliation isolation with healthy-page recovery evidence. One High
+finding remains: incomplete live GitHub change/deployment controls. No Medium finding remains;
+three Low findings are staged, so the project is not claimed ready for a hosted production pilot.
+Corrections remain one explicitly approved issue at a time.
 
 ---
 
@@ -995,6 +1002,13 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 - [ ] Correct P15-04 hosted change and deployment controls — deferred to final hosted-release review
 - [x] Correct P15-05 canonical JSON variation byte sizing
 - [x] Correct P15-06 canonical snapshot size ceiling
+- [x] Correct P15-07 browser analytics request timeout
+- [x] Correct P15-08 compound tenant and key-lineage integrity
+- [x] Correct P15-09 organization capability claim
+- [x] Correct P15-10 poison-row reconciliation isolation
+- [ ] Correct P15-11 Event Worker production database defaults
+- [ ] Correct P15-12 stale package manifest
+- [ ] Correct P15-13 forward-JDK Mockito instrumentation
 - [ ] Continue correcting remaining findings one issue at a time
 - [ ] Clean-clone demo validation
 - [ ] Verify every resume claim
@@ -1729,6 +1743,16 @@ owner may publish, release, or permanently fail that claim. `PUBLISHED` means Ka
 the send. `FAILED` is reserved for an invalid permanent envelope and retains only a bounded safe
 error code. Kafka/Redis introduce no new system-of-record tables: immutable
 `environment_revisions`, the current environment pointer, and the outbox remain authoritative.
+
+### P15-08 tenant-relationship hardening
+
+Flyway migration `V7__tenant_relationship_integrity.sql` closes the remaining duplicated-tenant
+relationship gaps. Nullable audit project references must match `(organization_id, project_id)`,
+and audit environment references require a project and must match
+`(organization_id, project_id, environment_id)`. SDK-key rotation lineage now references the
+predecessor through `(organization_id, project_id, environment_id, id)`, so a key cannot name a
+predecessor from another tenant or environment even when written outside the application path.
+The migration is additive and advances the supported schema range to V6-V7.
 
 Rule trees may initially be validated `jsonb` inside `flag_environment_configs` if domain validation remains explicit. Normalize only if query requirements justify it. Published snapshots remain immutable `jsonb`.
 
@@ -2695,6 +2719,11 @@ a periodic flush, and a bounded request timeout. Queue saturation or transport f
 local `queued`/`sent`/`dropped`/`failedBatches` diagnostics and may discard optional events. It never
 blocks, retries on, or changes the already computed evaluation result.
 
+The browser analytics request timeout defaults to two seconds and is configurable from 100
+milliseconds through 30 seconds. Each batch owns an `AbortController`; timeout aborts the fetch,
+records the batch as failed/dropped, clears the in-flight flush, and permits a later batch to run.
+Closing the browser client also aborts an in-flight analytics request.
+
 Events carry a random event ID, evaluation timestamp, flag key, selected variation ID when known,
 bounded reason code, and active snapshot revision. They do not carry the subject key, a subject
 hash, or any evaluation-context attribute. Consequently every attribute is effectively private and
@@ -2956,6 +2985,13 @@ The projector validates the Kafka key, event envelope, PostgreSQL organization/p
 snapshot checksum before materialization. A bounded scheduled reconciliation scan loads current
 immutable revisions directly from PostgreSQL, so Redis can be rebuilt even when retained Kafka
 history is insufficient.
+
+Reconciliation isolates an invalid authoritative row at the environment boundary. It increments a
+safe error metric, logs only the environment ID/revision plus the bounded failure, and continues
+through the current page and later pages. The page cursor still advances; the invalid current row
+is retried on the next complete scan rather than accepted, deleted, or permanently skipped. This
+prevents one corrupt environment from starving recovery for healthy tenants while preserving
+visible failure and PostgreSQL authority.
 
 ## 8. Config Edge service
 
@@ -7222,9 +7258,13 @@ Every runbook begins with diagnosis, protects data/config history, and avoids de
 3. deploy Edge trust containing the replacement public key before worker signing-key cutover;
 4. rebuild from latest immutable published revisions;
 5. the Event Worker reconciliation scan can replay/current-load;
-6. compare revision/signature/checksum against PostgreSQL;
-7. verify Edge rejects a forged value and a replay below its observed watermark;
-8. never reconstruct revision history from Redis.
+6. inspect projection-error metrics and safe worker logs for isolated invalid environment
+   revisions; repair the authoritative row through a reviewed migration or restore procedure;
+7. confirm healthy environments continue rebuilding while the invalid row is retried on the next
+   complete scan;
+8. compare revision/signature/checksum against PostgreSQL;
+9. verify Edge rejects a forged value and a replay below its observed watermark;
+10. never reconstruct revision history from Redis or silently skip/delete a poison row.
 
 ---
 
@@ -7520,7 +7560,24 @@ proves the local trust and recovery boundaries, not production key-management st
 availability, or transport encryption. Those remaining hosted-environment concerns retain their
 separate review findings.
 
-## 6. Destructive action warning
+## 6. P15-10 poison reconciliation isolation drill - 2026-08-23
+
+**Environment:** Local Testcontainers on Docker Desktop; PostgreSQL 18.4, Apache Kafka 4.3.1, and
+Redis 8.2.8.
+
+**Command:**
+
+```powershell
+.\mvnw.cmd --batch-mode --no-transfer-progress -pl tests/integration-tests -am verify -Pintegration "-Dit.test=DistributionPipelineIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
+```
+
+The drill inserts an invalid current snapshot ordered before a healthy environment, removes the
+healthy Redis materialization, and runs the real reconciliation scan. The invalid row increments
+the projection error count without being materialized, while the healthy environment is rebuilt
+at its authoritative signed revision. The focused reactor completed with `BUILD SUCCESS`: one
+drill test, zero failures/errors.
+
+## 7. Destructive action warning
 
 Never:
 
@@ -9072,10 +9129,10 @@ bounded anonymized statement.
 
 **Prompt:** 15 — final architecture, security, compatibility, failure-mode, test, claim, and toolchain review
 
-**Disposition:** Review complete. P15-01 through P15-03, P15-05, and P15-06 were corrected in
-separately approved follow-ups between 2026-08-21 and 2026-08-23; the remaining findings retain
-their original review ranking. P15-04 is explicitly deferred, not resolved, and must be resumed
-before the final hosted-release review.
+**Disposition:** Review complete. P15-01 through P15-03 and P15-05 through P15-10 were corrected in
+separately approved follow-ups between 2026-08-21 and 2026-08-23. P15-04 is explicitly deferred,
+not resolved, and must be resumed before the final hosted-release review. P15-11 through P15-13
+retain their original Low ranking.
 
 ## Executive decision
 
@@ -9087,13 +9144,13 @@ for its current local portfolio/demo purpose.
 It is **not ready for a hosted production pilot or release** until the one unresolved High finding
 is corrected and revalidated. The desired `main` ruleset is installed but disabled, while the
 created deployment environments still lack real identity/infrastructure and promotion evidence.
-P15-01 through P15-03, P15-05, and P15-06 no longer contribute to the unresolved counts.
+P15-01 through P15-03 and P15-05 through P15-10 no longer contribute to the unresolved counts.
 
 | Severity | Count | Meaning in this review |
 |---|---:|---|
 | Critical | 0 | No demonstrated unauthenticated compromise, cross-tenant API access, secret disclosure, or deterministic-evaluation corruption was found. |
 | High | 1 | Unresolved release blocker with a credible change-control consequence. |
-| Medium | 4 | Contract, tenant-integrity, resilience, or product-completeness gap that must be scheduled before broad use. |
+| Medium | 0 | All four original Medium findings were corrected and regression-tested. |
 | Low | 3 | Documentation or forward-toolchain debt with limited current runtime impact. |
 
 ## Resolved since review
@@ -9200,6 +9257,62 @@ Correction evidence:
 - Java `GoldenVectorCorpusTest` and TypeScript `golden-corpus.test.ts` generate a valid exact-limit
   snapshot, activate it through their production parsers, and reject the next byte.
 
+#### P15-07 — Browser analytics transport had no bounded request timeout
+
+**Resolved 2026-08-23.** Browser analytics batches now own an `AbortController` and a configurable
+request timeout that defaults to two seconds and is bounded from 100 milliseconds through 30
+seconds. A timeout aborts the fetch, accounts for the failed/dropped optional batch, clears the
+in-flight promise, and permits the next batch to flush. Client close also aborts any in-flight
+analytics request without changing local evaluation behavior.
+
+Correction evidence:
+
+- `LaunchForgeBrowserClient` applies the cancellation signal and clears timeout/controller state
+  in `finally`.
+- `client.test.ts` uses a never-resolving fetch, advances a fake clock to the timeout, verifies the
+  abort/failure accounting, and proves a later batch succeeds.
+- The pinned Node 24 validation target passed formatting, lint, typecheck, all tests, and builds.
+
+#### P15-08 — Tenant-owned audit and SDK-key lineage chains lacked compound foreign keys
+
+**Resolved 2026-08-23.** Flyway V7 enforces nullable audit project ownership through
+`(organization_id, project_id)` and audit environment ownership through
+`(organization_id, project_id, environment_id)`. It also replaces global-ID-only SDK-key rotation
+lineage with a same-organization/project/environment compound relationship. The supported release
+schema range advances additively from V6 to V6-V7.
+
+Correction evidence:
+
+- `V7__tenant_relationship_integrity.sql` adds the ownership constraints and required scoped SDK
+  key uniqueness.
+- `ControlPlanePostgresIT` proves raw cross-organization audit references, cross-project audit
+  environments, and cross-environment SDK-key predecessor references are rejected by PostgreSQL.
+
+#### P15-09 — The README overstated organization onboarding
+
+**Resolved 2026-08-23.** The public capability statement now says operators work within a
+provisioned organization and can create projects/environments. The README explicitly states that
+self-service organization creation, rename, suspension, closure, and billing lifecycle are not
+implemented. This selects the approved truthful-claim correction without inventing a new product
+surface.
+
+Correction evidence: the README capability and current-limits sections now match the implemented
+organization controller and the MVP product/API scope.
+
+#### P15-10 — One invalid authoritative snapshot could starve reconciliation after its cursor
+
+**Resolved 2026-08-23.** Reconciliation now catches validation/materialization failure per
+environment, increments the existing error signal, emits a bounded safe environment/revision log,
+and continues through later rows and pages. The cursor advances, but the poison row is neither
+accepted nor permanently skipped: the next complete scan retries it from the beginning.
+
+Correction evidence:
+
+- `ProjectionReconcilerTest` proves a poison row does not block a healthy later page, the cursor
+  advances, and error/advanced metrics are both recorded.
+- `DistributionPipelineIT` inserts an invalid lower-ordered current snapshot and proves the real
+  PostgreSQL-to-Redis reconciler still restores a healthy environment's signed current revision.
+
 ## Ranked unresolved findings
 
 ### High
@@ -9241,54 +9354,6 @@ ruleset with the six documented required checks plus review/CODEOWNERS/history p
 configure the environments with real provider OIDC or the documented narrowly scoped secrets and
 variables, and complete one approved same-digest staged promotion.
 
-### Medium
-
-#### P15-07 — Browser analytics transport has no bounded request timeout
-
-Browser bootstrap and stream requests use `AbortController`, but `sendAnalyticsBatch` supplies no
-abort signal and `BrowserAnalyticsOptions` exposes no timeout. A fetch that never resolves keeps
-`analyticsFlush` pending, makes explicit `flushAnalytics()` hang, and prevents later batches from
-being flushed through that promise. The evaluation hot path remains local and the queue remains
-bounded, which limits severity.
-
-Evidence: `sdks/javascript/packages/browser/src/client.ts`, its tests, and the bounded analytics
-transport requirement in `docs/06_SDK_ARCHITECTURE.md`.
-
-#### P15-08 — Two tenant-owned relationship chains are not enforced by compound foreign keys
-
-`audit_events.project_id` and `environment_id` are nullable additions without compound foreign keys
-to the duplicated `organization_id`. `sdk_keys.rotated_from_id` references only global key ID and
-does not prove that the predecessor belongs to the same organization/project/environment. Reviewed
-application queries are tenant-scoped and integration tests deny cross-tenant direct-ID access, so
-no API exploit was demonstrated; the database nevertheless permits invalid tenant lineage through
-defects, migrations, or privileged/manual writes.
-
-Evidence: Flyway `V1__tenancy_identity.sql`, `V2__flag_control_plane.sql`, and
-`V3__server_sdk_keys.sql`; `docs/03_DOMAIN_AND_DATABASE.md` compound-ownership rule.
-
-#### P15-09 — Organization onboarding is absent while the README says teams can create organizations
-
-The README says teams can create organizations, projects, and environments. The implemented
-organization controller lists organizations and manages members but has no organization create or
-rename endpoint; local organizations come from deterministic seed/provisioning. Project and
-environment creation are implemented. This is a product/API gap and a misleading capability claim,
-not a tenancy defect.
-
-Evidence: `README.md` capability list; `OrganizationController.java`; `docs/04_API_AND_CONTRACTS.md`;
-MVP organization-management scope in `docs/01_PRODUCT_REQUIREMENTS.md` and
-`docs/15_BACKLOG_AND_ACCEPTANCE.md`.
-
-#### P15-10 — One invalid authoritative snapshot can starve reconciliation after its cursor
-
-`ProjectionReconciler.reconcile` rethrows validation/materialization errors and advances the cursor
-only after the whole page succeeds. A persistent corrupt current snapshot therefore prevents later
-environments on that page and subsequent pages from being rebuilt. Failing visibly is preferable to
-silently accepting poison, but the current behavior has an unbounded multi-tenant recovery blast
-radius and no focused test.
-
-Evidence: `ProjectionReconciler.java`, its repository ordering contract, and Redis-rebuild/failure
-requirements in `docs/07_REALTIME_AND_EVENTING.md` and `docs/18_FAILURE_MODES_RUNBOOKS.md`.
-
 ### Low
 
 #### P15-11 — Event Worker database defaults are unsafe for a production artifact
@@ -9314,11 +9379,11 @@ is predictable toolchain debt. The separately documented Temurin runtime-image p
 
 ## Security and tenant-isolation review
 
-P15-08 and P15-11 are the unresolved security/tenant findings; P15-01 and P15-03 are resolved as
+P15-11 is the only unresolved security-adjacent finding; P15-01, P15-03, and P15-08 are resolved as
 recorded above. No cross-organization API access was reproduced. Server-derived organization
-scope, role checks, compound ownership on core
-entities, SDK credential-class separation, hash-only server-key verification, CSRF/OIDC/session
-boundaries, and privacy-safe request logging were traced in code and exercised by the 27-test
+scope, role checks, database-enforced compound ownership on tenant relationship chains, SDK
+credential-class separation, hash-only server-key verification, CSRF/OIDC/session
+boundaries, and privacy-safe request logging were traced in code and exercised by the 28-test
 container integration suite. Direct-resource cross-tenant access, Viewer denial, final-Owner
 concurrency, revoked key denial, CORS separation, and tenant-scoped analytics are covered.
 
@@ -9353,12 +9418,11 @@ defects are resolved as recorded above.
 
 ## Failure-mode gaps
 
-- P15-07: a never-resolving browser analytics request has no timeout.
-- P15-10: a poison authoritative row can starve later reconciliation.
-
-Existing failure evidence remains strong for SDK last-known-good/default behavior, stream-to-poll
+No unresolved Medium failure-mode gap remains. P15-07 adds a bounded abortable browser analytics
+request, and P15-10 isolates poison reconciliation rows while allowing healthy environments to
+recover. Existing evidence also covers SDK last-known-good/default behavior, stream-to-poll
 fallback, Redis loss/rebuild, duplicate/stale events, key revocation, atomic publication failure,
-edge restart, rollback, and disabled analytics. Those tests do not close the gaps above.
+edge restart, rollback, and disabled analytics.
 
 ## Test and operational-evidence gaps
 
@@ -9367,17 +9431,17 @@ Each P15 finding needs the focused regression evidence stated with it. In additi
 - the final checklist's clean-clone four-minute demo run has not been executed after this review;
 - controlled load evidence is local and bounded, not production capacity proof;
 - the release/promotion/restore workflows have not run against configured hosted environments;
-- no browser test uses a never-resolving analytics fetch;
-- no database test attempts cross-tenant audit or key-rotation lineage;
-- no reconciliation test places a poison environment before healthy tenants in a page.
+- the remaining P15-11 through P15-13 items need their focused regression/documentation evidence.
 
 ## README, resume, demo, and commercial-claim review
 
-P15-09 is the material README overclaim. P15-12 is stale package metadata. The case-study throughput
-and propagation numbers are correctly labeled as local controlled measurements, the demo/customer
-names are fictional, pilot pricing is explicitly a hypothesis, and no customers, revenue,
-production capacity, multi-region deployment, or completed hosted release are claimed. The
-four-minute demo pauses are presentation pacing rather than artificial configuration latency.
+P15-09 is resolved by narrowing the organization claim to the implemented provisioned-organization
+workflow and explicitly stating the absent self-service lifecycle. P15-12 remains stale package
+metadata. The case-study throughput and propagation numbers are correctly labeled as local
+controlled measurements, the demo/customer names are fictional, pilot pricing is explicitly a
+hypothesis, and no customers, revenue, production capacity, multi-region deployment, or completed
+hosted release are claimed. The four-minute demo pauses are presentation pacing rather than
+artificial configuration latency.
 
 ## Dependency and toolchain review
 
@@ -9414,14 +9478,18 @@ approved and completed after that review alongside the remaining work.
    Java SDK, and TypeScript SDK multibyte boundaries are established.
 6. **P15-06 (resolved 2026-08-23):** the backend shares and caps the normative 5 MiB snapshot
    ceiling, and both SDK parsers execute the same exact boundary contract.
-7. **P15-07:** add bounded browser analytics request timeouts and hanging-fetch coverage.
-8. **P15-08:** add safe compound tenant/lineage constraints and migration tests.
+7. **P15-07 (resolved 2026-08-23):** bounded abortable browser analytics requests and
+   hanging-fetch/later-batch coverage are established.
+8. **P15-08 (resolved 2026-08-23):** V7 compound tenant/lineage constraints and direct database
+   rejection tests are established.
 9. **P15-11:** remove production-artifact database credential defaults.
 
 ### Stage 2 — resilience, product truth, and documentation
 
-10. **P15-10:** isolate poison reconciliation records without silently accepting or losing them.
-11. **P15-09:** implement organization onboarding/lifecycle or narrow the public capability claim.
+10. **P15-10 (resolved 2026-08-23):** poison reconciliation rows are isolated, retried on later
+    scans, and cannot starve healthy pages.
+11. **P15-09 (resolved 2026-08-23):** the public capability claim now accurately describes
+    provisioned organizations and the absent self-service lifecycle.
 12. **P15-12:** regenerate the package manifest from the completed repository inventory.
 13. **P15-13:** configure explicit Mockito instrumentation and close the runtime image patch exception.
 
@@ -9488,6 +9556,24 @@ evidence recorded in its completion report.
   merged secure Compose contract.
 - The 11 engineering unit tests, documentation and supply-chain validators, generated-spec sync,
   JSON parsing, base/secure Compose validation, and digest-pinned `actionlint` all passed.
+
+The live GitHub Actions result is separate evidence and is not claimed until these changes are
+published at the user's request.
+
+### P15-07 through P15-10 correction validation - 2026-08-23
+
+- `./mvnw.cmd --batch-mode --no-transfer-progress verify` — passed all 14 reactor modules,
+  including the new poison-row unit regression, formatting, Checkstyle, architecture rules, and
+  package builds.
+- `./mvnw.cmd --batch-mode --no-transfer-progress -pl tests/integration-tests -am verify -Pintegration`
+  — passed all 28 Docker-backed PostgreSQL, Kafka, Redis, ClickHouse, and TLS tests with zero
+  failures/errors. The 14-test control-plane class includes direct V7 tenant/lineage rejection;
+  the distribution drill includes healthy signed recovery after an earlier poison row.
+- `docker build --target validation --file deploy/docker/Dockerfile.web --tag launchforge-web-p15-07-10-validation .`
+  — passed pinned Node 24.19.0/pnpm 11.21.0 formatting, lint, typecheck, all frontend/SDK tests, and
+  builds; the browser SDK's six tests include the hanging analytics request regression.
+- Documentation and supply-chain validators, all 14 engineering unit tests, generated master-spec
+  synchronization, release compatibility parsing, and Git diff checks passed.
 
 The live GitHub Actions result is separate evidence and is not claimed until these changes are
 published at the user's request.

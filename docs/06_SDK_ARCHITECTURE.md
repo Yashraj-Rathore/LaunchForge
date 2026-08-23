@@ -303,6 +303,11 @@ a periodic flush, and a bounded request timeout. Queue saturation or transport f
 local `queued`/`sent`/`dropped`/`failedBatches` diagnostics and may discard optional events. It never
 blocks, retries on, or changes the already computed evaluation result.
 
+The browser analytics request timeout defaults to two seconds and is configurable from 100
+milliseconds through 30 seconds. Each batch owns an `AbortController`; timeout aborts the fetch,
+records the batch as failed/dropped, clears the in-flight flush, and permits a later batch to run.
+Closing the browser client also aborts an in-flight analytics request.
+
 Events carry a random event ID, evaluation timestamp, flag key, selected variation ID when known,
 bounded reason code, and active snapshot revision. They do not carry the subject key, a subject
 hash, or any evaluation-context attribute. Consequently every attribute is effectively private and

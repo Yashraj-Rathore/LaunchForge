@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "database": {
-    "migrationVersion": 6,
+    "migrationVersion": 7,
     "applicationMinimum": 6,
-    "applicationMaximum": 6
+    "applicationMaximum": 7
   },
   "snapshotSchemaVersions": [1],
   "evaluationAlgorithmVersions": [1]

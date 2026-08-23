@@ -241,6 +241,8 @@ class DistributionPipelineIT {
     worker.getBean(ProjectionReconciler.class).reconcile();
     await(() -> redisRevision() == 3, Duration.ofSeconds(10));
 
+    provePoisonReconciliationIsolation();
+
     REDIS.getDockerClient().pauseContainerCmd(REDIS.getContainerId()).exec();
     try {
       assertEquals(3, currentSnapshotRevision(edgeOne));
@@ -273,6 +275,43 @@ class DistributionPipelineIT {
         eventId);
     assertEquals(1, repository.lease("worker-b", 1, Duration.ofMinutes(1)).size());
     jdbc.update("DELETE FROM outbox_events WHERE id = ?", eventId);
+  }
+
+  private void provePoisonReconciliationIsolation() throws Exception {
+    UUID poisonEnvironmentId = UUID.fromString("01000000-0000-0000-0000-000000000001");
+    jdbc.update(
+        """
+        INSERT INTO environments
+          (id, organization_id, project_id, environment_key, name, kind, status,
+           current_revision, version, created_at, updated_at)
+        VALUES (?, ?, ?, 'poison', 'Poison', 'DEVELOPMENT', 'ACTIVE', 0, 0, ?, ?)
+        """,
+        poisonEnvironmentId,
+        ORGANIZATION_ID,
+        PROJECT_ID,
+        Timestamp.from(NOW),
+        Timestamp.from(NOW));
+    jdbc.update(
+        """
+        INSERT INTO environment_revisions
+          (organization_id, project_id, environment_id, revision, schema_version,
+           snapshot_json, canonical_snapshot, checksum_sha256,
+           actor_issuer, actor_subject, created_at)
+        VALUES (?, ?, ?, 1, 1, '{}'::jsonb, '{}', ?, 'test', 'poison-test', ?)
+        """,
+        ORGANIZATION_ID,
+        PROJECT_ID,
+        poisonEnvironmentId,
+        "0".repeat(64),
+        Timestamp.from(NOW));
+    jdbc.update(
+        "UPDATE environments SET current_revision = 1, version = 1 WHERE id = ?",
+        poisonEnvironmentId);
+    redisAdmin("DEL", RedisSnapshotMaterializer.key(ENVIRONMENT_ID));
+
+    worker.getBean(ProjectionReconciler.class).reconcile();
+
+    await(() -> redisRevision() == 3, Duration.ofSeconds(10));
   }
 
   private static void provePermanentOutboxFailure() throws Exception {

@@ -20,6 +20,7 @@ const DEFAULT_MAXIMUM_SNAPSHOT_BYTES = 1024 * 1024;
 const DEFAULT_ANALYTICS_FLUSH_INTERVAL_MS = 1_000;
 const DEFAULT_ANALYTICS_QUEUE_CAPACITY = 1_000;
 const DEFAULT_ANALYTICS_BATCH_SIZE = 50;
+const DEFAULT_ANALYTICS_REQUEST_TIMEOUT_MS = 2_000;
 
 export interface BrowserAnalyticsOptions {
   /** Analytics is disabled unless this literal opt-in is present. */
@@ -27,6 +28,7 @@ export interface BrowserAnalyticsOptions {
   readonly flushIntervalMs?: number;
   readonly queueCapacity?: number;
   readonly batchSize?: number;
+  readonly requestTimeoutMs?: number;
 }
 
 export interface BrowserAnalyticsStatistics {
@@ -98,9 +100,11 @@ export class LaunchForgeBrowserClient implements BrowserClient {
   private readonly analyticsFlushIntervalMs: number;
   private readonly analyticsQueueCapacity: number;
   private readonly analyticsBatchSize: number;
+  private readonly analyticsRequestTimeoutMs: number;
   private readonly analyticsQueue: AnalyticsEvent[] = [];
   private analyticsTimer: ReturnType<typeof setTimeout> | null = null;
   private analyticsFlush: Promise<void> | null = null;
+  private analyticsAbort: AbortController | null = null;
   private analyticsQueued = 0;
   private analyticsSent = 0;
   private analyticsDropped = 0;
@@ -152,6 +156,12 @@ export class LaunchForgeBrowserClient implements BrowserClient {
       1,
       100,
       'analytics.batchSize',
+    );
+    this.analyticsRequestTimeoutMs = boundedInteger(
+      options.analytics?.requestTimeoutMs ?? DEFAULT_ANALYTICS_REQUEST_TIMEOUT_MS,
+      100,
+      30_000,
+      'analytics.requestTimeoutMs',
     );
     if (this.analyticsBatchSize > this.analyticsQueueCapacity) {
       throw new Error('analytics.batchSize must fit analytics.queueCapacity');
@@ -209,6 +219,8 @@ export class LaunchForgeBrowserClient implements BrowserClient {
       clearTimeout(this.analyticsTimer);
       this.analyticsTimer = null;
     }
+    this.analyticsAbort?.abort();
+    this.analyticsAbort = null;
     this.analyticsDropped += this.analyticsQueue.length;
     this.analyticsQueue.length = 0;
     this.listeners.clear();
@@ -480,12 +492,16 @@ export class LaunchForgeBrowserClient implements BrowserClient {
       this.analyticsTimer = null;
     }
     const events = this.analyticsQueue.splice(0, this.analyticsBatchSize);
+    const abort = new AbortController();
+    this.analyticsAbort = abort;
+    const timeout = setTimeout(() => abort.abort(), this.analyticsRequestTimeoutMs);
     try {
       const response = await this.fetcher(this.analyticsUrl(), {
         method: 'POST',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
         credentials: 'omit',
         redirect: 'error',
+        signal: abort.signal,
         body: JSON.stringify({
           eventType: 'analytics.evaluation-batch.v1',
           schemaVersion: 1,
@@ -501,6 +517,11 @@ export class LaunchForgeBrowserClient implements BrowserClient {
     } catch {
       this.analyticsFailedBatches += 1;
       this.analyticsDropped += events.length;
+    } finally {
+      clearTimeout(timeout);
+      if (this.analyticsAbort === abort) {
+        this.analyticsAbort = null;
+      }
     }
   }
 

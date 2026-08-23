@@ -145,6 +145,13 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 - [ ] Correct P15-04 hosted change and deployment controls — deferred to final hosted-release review
 - [x] Correct P15-05 canonical JSON variation byte sizing
 - [x] Correct P15-06 canonical snapshot size ceiling
+- [x] Correct P15-07 browser analytics request timeout
+- [x] Correct P15-08 compound tenant and key-lineage integrity
+- [x] Correct P15-09 organization capability claim
+- [x] Correct P15-10 poison-row reconciliation isolation
+- [ ] Correct P15-11 Event Worker production database defaults
+- [ ] Correct P15-12 stale package manifest
+- [ ] Correct P15-13 forward-JDK Mockito instrumentation
 - [ ] Continue correcting remaining findings one issue at a time
 - [ ] Clean-clone demo validation
 - [ ] Verify every resume claim

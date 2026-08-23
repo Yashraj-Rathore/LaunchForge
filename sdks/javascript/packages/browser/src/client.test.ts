@@ -125,6 +125,72 @@ describe('LaunchForgeBrowserClient', () => {
     expect(client.boolVariation('new-checkout', false)).toBe(true);
     client.close();
   });
+
+  it('bounds a hanging analytics request and permits the next batch to flush', async () => {
+    vi.useFakeTimers();
+    try {
+      const analyticsSignals: AbortSignal[] = [];
+      const fetcher = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(snapshotResponse(4, true))
+        .mockImplementationOnce((_input, init) => {
+          const analyticsSignal = init?.signal;
+          if (!analyticsSignal) {
+            throw new Error('Expected analytics request cancellation signal');
+          }
+          analyticsSignals.push(analyticsSignal);
+          return new Promise<Response>((_resolve, reject) => {
+            analyticsSignal.addEventListener(
+              'abort',
+              () => reject(new DOMException('Analytics request timed out', 'AbortError')),
+              { once: true },
+            );
+          });
+        })
+        .mockResolvedValueOnce(new Response('{}', { status: 202 }));
+      const client = new LaunchForgeBrowserClient({
+        baseUrl: 'https://edge.example',
+        clientKey: CLIENT_KEY,
+        initialContext: createEvaluationContext('private-subject'),
+        streaming: false,
+        fetcher,
+        analytics: {
+          enabled: true,
+          batchSize: 1,
+          queueCapacity: 2,
+          flushIntervalMs: 1_000,
+          requestTimeoutMs: 100,
+        },
+      });
+      await client.start();
+
+      expect(client.boolVariation('new-checkout', false)).toBe(true);
+      const timedOutFlush = client.flushAnalytics();
+      await vi.advanceTimersByTimeAsync(100);
+      await timedOutFlush;
+
+      expect(analyticsSignals).toHaveLength(1);
+      expect(analyticsSignals[0]?.aborted).toBe(true);
+      expect(client.getAnalyticsStatistics()).toMatchObject({
+        queued: 1,
+        sent: 0,
+        dropped: 1,
+        failedBatches: 1,
+      });
+
+      expect(client.boolVariation('new-checkout', false)).toBe(true);
+      await client.flushAnalytics();
+      expect(client.getAnalyticsStatistics()).toMatchObject({
+        queued: 2,
+        sent: 1,
+        dropped: 1,
+        failedBatches: 1,
+      });
+      client.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 function clientWith(fetcher: typeof fetch, streaming = false): LaunchForgeBrowserClient {

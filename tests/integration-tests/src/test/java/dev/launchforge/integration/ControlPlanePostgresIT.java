@@ -302,6 +302,68 @@ class ControlPlanePostgresIT extends AbstractControlApiIntegrationTest {
   }
 
   @Test
+  void compoundTenantRelationshipsRejectMismatchedAuditAndSdkKeyLineage() {
+    Fixture alpha = fixture("constraint-alpha", OWNER_A, ORGANIZATION_A);
+    Fixture beta = fixture("constraint-beta", OWNER_B, ORGANIZATION_B);
+
+    assertThrows(
+        DataAccessException.class,
+        () ->
+            jdbcTemplate.update(
+                """
+                INSERT INTO audit_events
+                  (id, organization_id, project_id, actor_issuer, actor_subject, action,
+                   target_type, target_id, reason_code, correlation_id, created_at)
+                VALUES (?, ?, ?, 'test', 'constraint-test', 'INVALID_PROJECT_SCOPE',
+                        'PROJECT', ?, 'SUCCESS', ?, ?)
+                """,
+                UUID.randomUUID(),
+                ORGANIZATION_A,
+                beta.project().id().value(),
+                beta.project().id().value(),
+                UUID.randomUUID(),
+                Timestamp.from(NOW)));
+    assertThrows(
+        DataAccessException.class,
+        () ->
+            jdbcTemplate.update(
+                """
+                INSERT INTO audit_events
+                  (id, organization_id, project_id, environment_id, actor_issuer, actor_subject,
+                   action, target_type, target_id, reason_code, correlation_id, created_at)
+                VALUES (?, ?, ?, ?, 'test', 'constraint-test', 'INVALID_ENVIRONMENT_SCOPE',
+                        'ENVIRONMENT', ?, 'SUCCESS', ?, ?)
+                """,
+                UUID.randomUUID(),
+                ORGANIZATION_A,
+                alpha.project().id().value(),
+                beta.environment().id().value(),
+                beta.environment().id().value(),
+                UUID.randomUUID(),
+                Timestamp.from(NOW)));
+
+    Environment siblingEnvironment =
+        service.createEnvironment(
+            OWNER_A,
+            alpha.project().id(),
+            "staging.constraint-alpha",
+            "Staging constraint alpha",
+            Environment.Kind.STAGING);
+    IssuedServerSdkKey alphaKey =
+        sdkKeyService.create(OWNER_A, alpha.environment().id(), "Alpha server", null);
+    IssuedServerSdkKey siblingKey =
+        sdkKeyService.create(OWNER_A, siblingEnvironment.id(), "Sibling server", null);
+
+    assertThrows(
+        DataAccessException.class,
+        () ->
+            jdbcTemplate.update(
+                "UPDATE sdk_keys SET rotated_from_id = ? WHERE id = ?",
+                siblingKey.metadata().id().value(),
+                alphaKey.metadata().id().value()));
+  }
+
+  @Test
   void revisionRowsAreDatabaseImmutableAndRollbackCreatesHigherRevision() {
     Fixture fixture = fixture("history", OWNER_A, ORGANIZATION_A);
     PublishedRevision first = service.publish(OWNER_A, fixture.environment().id(), 0, null);

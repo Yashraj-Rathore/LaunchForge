@@ -105,9 +105,13 @@ Every runbook begins with diagnosis, protects data/config history, and avoids de
 3. deploy Edge trust containing the replacement public key before worker signing-key cutover;
 4. rebuild from latest immutable published revisions;
 5. the Event Worker reconciliation scan can replay/current-load;
-6. compare revision/signature/checksum against PostgreSQL;
-7. verify Edge rejects a forged value and a replay below its observed watermark;
-8. never reconstruct revision history from Redis.
+6. inspect projection-error metrics and safe worker logs for isolated invalid environment
+   revisions; repair the authoritative row through a reviewed migration or restore procedure;
+7. confirm healthy environments continue rebuilding while the invalid row is retried on the next
+   complete scan;
+8. compare revision/signature/checksum against PostgreSQL;
+9. verify Edge rejects a forged value and a replay below its observed watermark;
+10. never reconstruct revision history from Redis or silently skip/delete a poison row.
 
 ---
 
@@ -403,7 +407,24 @@ proves the local trust and recovery boundaries, not production key-management st
 availability, or transport encryption. Those remaining hosted-environment concerns retain their
 separate review findings.
 
-## 6. Destructive action warning
+## 6. P15-10 poison reconciliation isolation drill - 2026-08-23
+
+**Environment:** Local Testcontainers on Docker Desktop; PostgreSQL 18.4, Apache Kafka 4.3.1, and
+Redis 8.2.8.
+
+**Command:**
+
+```powershell
+.\mvnw.cmd --batch-mode --no-transfer-progress -pl tests/integration-tests -am verify -Pintegration "-Dit.test=DistributionPipelineIT" "-Dfailsafe.failIfNoSpecifiedTests=false"
+```
+
+The drill inserts an invalid current snapshot ordered before a healthy environment, removes the
+healthy Redis materialization, and runs the real reconciliation scan. The invalid row increments
+the projection error count without being materialized, while the healthy environment is rebuilt
+at its authoritative signed revision. The focused reactor completed with `BUILD SUCCESS`: one
+drill test, zero failures/errors.
+
+## 7. Destructive action warning
 
 Never:
 

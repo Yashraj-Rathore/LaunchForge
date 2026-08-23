@@ -231,6 +231,16 @@ the send. `FAILED` is reserved for an invalid permanent envelope and retains onl
 error code. Kafka/Redis introduce no new system-of-record tables: immutable
 `environment_revisions`, the current environment pointer, and the outbox remain authoritative.
 
+### P15-08 tenant-relationship hardening
+
+Flyway migration `V7__tenant_relationship_integrity.sql` closes the remaining duplicated-tenant
+relationship gaps. Nullable audit project references must match `(organization_id, project_id)`,
+and audit environment references require a project and must match
+`(organization_id, project_id, environment_id)`. SDK-key rotation lineage now references the
+predecessor through `(organization_id, project_id, environment_id, id)`, so a key cannot name a
+predecessor from another tenant or environment even when written outside the application path.
+The migration is additive and advances the supported schema range to V6-V7.
+
 Rule trees may initially be validated `jsonb` inside `flag_environment_configs` if domain validation remains explicit. Normalize only if query requirements justify it. Published snapshots remain immutable `jsonb`.
 
 ## Constraints

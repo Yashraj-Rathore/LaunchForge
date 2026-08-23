@@ -150,9 +150,9 @@ The central engineering problem is not CRUD. It is **safe, deterministic, low-la
 
 ## Core product
 
-A software team can:
+A software team working in a provisioned organization can:
 
-- create organizations, projects, and Development/Staging/Production environments;
+- create projects and Development/Staging/Production environments;
 - create typed flags and remote configuration values;
 - define ordered targeting rules;
 - roll a feature out deterministically to a percentage of subjects;
@@ -165,6 +165,10 @@ A software team can:
 - rotate SDK keys;
 - audit who changed what and why;
 - optionally collect privacy-minimized evaluation analytics.
+
+Organization creation, renaming, suspension, and closure are deployment-provisioning operations in
+the current release. The management API lists provisioned organizations and manages their
+memberships but does not yet provide self-service organization lifecycle or billing.
 
 ## Final target architecture
 

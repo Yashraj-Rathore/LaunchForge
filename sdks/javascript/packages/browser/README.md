@@ -46,5 +46,7 @@ const client = new LaunchForgeBrowserClient({
 
 The browser uses a finite queue and bounded batches sent to the client-key analytics route with
 `credentials: 'omit'`. `getAnalyticsStatistics()` exposes queued/sent/dropped/failed-batch counts,
-and `flushAnalytics()` permits an explicit best-effort flush. Analytics failure never changes local
-evaluation. The event schema sends neither the subject key/hash nor any context attribute.
+and `flushAnalytics()` permits an explicit best-effort flush. Requests time out after two seconds
+by default; `analytics.requestTimeoutMs` can select a bounded 100 ms to 30 second value. Analytics
+failure never changes local evaluation. The event schema sends neither the subject key/hash nor any
+context attribute.

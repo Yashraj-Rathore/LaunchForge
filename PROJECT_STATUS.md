@@ -1,6 +1,6 @@
 # Project Status
 
-**Status:** Prompt 15 final architecture review complete; P15-01 through P15-03, P15-05, and P15-06 corrected, P15-04 explicitly deferred, and remaining findings await explicit approval.
+**Status:** Prompt 15 final architecture review complete; P15-01 through P15-03 and P15-05 through P15-10 corrected, P15-04 explicitly deferred, and P15-11 through P15-13 await explicit approval.
 
 **Current milestone:** M13 demo/pilot (LF-1301–LF-1305) complete; Prompt 15 review recorded in `docs/27_FINAL_ARCHITECTURE_REVIEW.md`.
 
@@ -55,6 +55,9 @@ P15-05 was corrected on 2026-08-23 by measuring canonical JSON variation values 
 executing one shared multibyte boundary contract through management publication and both SDK
 parsers. P15-06 was corrected the same day by centralizing the 5 MiB backend snapshot ceiling,
 rejecting higher Edge/Worker configuration, and executing the exact boundary through both SDK
-parsers. One High finding remains: incomplete live GitHub change/deployment controls. Four
-Medium and three Low findings are also staged, so the project is not claimed ready for a hosted
-production pilot. Corrections remain one explicitly approved issue at a time.
+parsers. P15-07 through P15-10 were corrected on 2026-08-23 with abortable browser analytics
+requests, database-enforced audit/key-lineage tenant integrity, an accurate provisioned-organization
+README claim, and poison-row reconciliation isolation with healthy-page recovery evidence. One High
+finding remains: incomplete live GitHub change/deployment controls. No Medium finding remains;
+three Low findings are staged, so the project is not claimed ready for a hosted production pilot.
+Corrections remain one explicitly approved issue at a time.

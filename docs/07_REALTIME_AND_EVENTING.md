@@ -183,6 +183,13 @@ snapshot checksum before materialization. A bounded scheduled reconciliation sca
 immutable revisions directly from PostgreSQL, so Redis can be rebuilt even when retained Kafka
 history is insufficient.
 
+Reconciliation isolates an invalid authoritative row at the environment boundary. It increments a
+safe error metric, logs only the environment ID/revision plus the bounded failure, and continues
+through the current page and later pages. The page cursor still advances; the invalid current row
+is retried on the next complete scan rather than accepted, deleted, or permanently skipped. This
+prevents one corrupt environment from starving recovery for healthy tenants while preserving
+visible failure and PostgreSQL authority.
+
 ## 8. Config Edge service
 
 `launchforge-config-edge` is a separate Spring Boot/WebFlux deployable because its workload differs from the management API:
