@@ -847,6 +847,9 @@ class DistributionPipelineIT {
       executor.execute(
           () -> {
             try (Socket connection = server.accept()) {
+              if (connection.getInputStream().read() == -1) {
+                return;
+              }
               requestStarted.countDown();
               releaseRequest.await();
             } catch (java.io.IOException exception) {
