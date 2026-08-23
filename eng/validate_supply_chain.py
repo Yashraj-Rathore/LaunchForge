@@ -32,6 +32,10 @@ REQUIRED_CHECKS = (
     "OIDC tenancy browser smoke",
     "Repository contracts",
 )
+JAVA_RUNTIME_REFERENCE = (
+    "eclipse-temurin:25.0.4_7-jre-noble@"
+    "sha256:b4c93a50fc67612798db73d68ca3b0ee4ebdd51736e59cca370e689b9797037e"
+)
 
 
 def workflow_paths() -> list[Path]:
@@ -236,6 +240,71 @@ def validate_security_exceptions() -> None:
         fail("Trivy ignores require an explicit entry in security/supply-chain-exceptions.json")
 
 
+def validate_event_worker_database_credentials(application_yaml: str) -> None:
+    required = (
+        ("username: ${LAUNCHFORGE_DB_USER}", "LAUNCHFORGE_DB_USER"),
+        ("password: ${LAUNCHFORGE_DB_PASSWORD}", "LAUNCHFORGE_DB_PASSWORD"),
+    )
+    for setting, environment_name in required:
+        has_default = f"${{{environment_name}:" in application_yaml
+        if application_yaml.count(setting) != 1 or has_default:
+            fail(
+                "Event Worker database credentials must be mandatory environment placeholders "
+                f"without defaults: {setting}"
+            )
+
+
+def validate_mockito_agent_configuration(pom_text: str) -> None:
+    required = (
+        "<artifactId>mockito-core</artifactId>",
+        "<artifactId>maven-dependency-plugin</artifactId>",
+        "<goal>properties</goal>",
+    )
+    for token in required:
+        if token not in pom_text:
+            fail(f"Explicit Mockito test-agent configuration is missing: {token}")
+    agent_argument = (
+        "<argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar}</argLine>"
+    )
+    if pom_text.count(agent_argument) != 2:
+        fail("Surefire and Failsafe must both launch test JVMs with the explicit Mockito agent")
+
+
+def validate_java_runtime_images(dockerfile_texts: dict[str, str]) -> None:
+    for name, dockerfile_text in dockerfile_texts.items():
+        expected = f"ARG TEMURIN_JRE_IMAGE={JAVA_RUNTIME_REFERENCE}"
+        runtime_arguments = re.findall(
+            r"^ARG TEMURIN_JRE_IMAGE=.*$", dockerfile_text, re.MULTILINE
+        )
+        if runtime_arguments != [expected]:
+            fail(
+                f"{name} must pin the production JRE to the verified Java 25.0.4+7 manifest"
+            )
+
+
+def validate_final_review_correction_contracts() -> None:
+    event_worker_config = (
+        ROOT
+        / "backend"
+        / "launchforge-event-worker"
+        / "src"
+        / "main"
+        / "resources"
+        / "application.yml"
+    ).read_text(encoding="utf-8")
+    validate_event_worker_database_credentials(event_worker_config)
+    validate_mockito_agent_configuration((ROOT / "pom.xml").read_text(encoding="utf-8"))
+    validate_java_runtime_images(
+        {
+            path.name: path.read_text(encoding="utf-8")
+            for path in (
+                ROOT / "deploy" / "docker" / "Dockerfile.java",
+                ROOT / "deploy" / "docker" / "Dockerfile.migrator",
+            )
+        }
+    )
+
+
 def main() -> int:
     try:
         validate_action_pins()
@@ -244,6 +313,7 @@ def main() -> int:
         validate_database_compatibility()
         validate_helm_release_contract()
         validate_security_exceptions()
+        validate_final_review_correction_contracts()
     except (ManifestError, OSError, json.JSONDecodeError) as exception:
         print(f"supply-chain-validation: {exception}", file=sys.stderr)
         return 1

@@ -318,8 +318,9 @@ LaunchForge code does not claim production DR until restore has been tested.
 
 LF-1101 through LF-1104 establish the production packaging boundary without implementing the M12
 release pipeline. `deploy/docker/` contains one shared Java workload Dockerfile, a one-shot Flyway
-migrator, and an Nginx-hosted same-origin web image. Builder/runtime images are digest-pinned,
-runtime users are fixed and non-root, and release metadata is supplied through OCI build arguments.
+migrator, and an Nginx-hosted same-origin web image. Builder/runtime images are digest-pinned; the
+Java runtime tag and manifest resolve to the same `25.0.4+7` patch used by host and CI builds.
+Runtime users are fixed and non-root, and release metadata is supplied through OCI build arguments.
 The long-running images expose health checks; Compose and Kubernetes enforce read-only filesystems,
 bounded writable mounts, dropped capabilities, and no privilege escalation. Local Trivy 0.74.0
 scans of the final images found zero fixable HIGH/CRITICAL OS or JavaScript/JAR findings on
@@ -345,6 +346,11 @@ dedicated service accounts with token automount disabled. The chart supplies sta
 liveness probes, resources, rolling strategies, ingress, optional NetworkPolicies, management/Edge
 PDBs, and a Config Edge HPA. `enableServiceLinks: false` prevents Kubernetes-generated service
 variables from colliding with LaunchForge's typed environment variables.
+
+Every database-backed production artifact, including the Event Worker, requires
+`LAUNCHFORGE_DB_USER` and `LAUNCHFORGE_DB_PASSWORD`; application configuration supplies no database
+credential fallback. Local fictional values are injected only by the explicit Compose/environment
+boundary.
 
 Validate the chart with the exact Helm baseline and render both production defaults and the local
 kind override:

@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 ARG MAVEN_IMAGE=maven:3.9.16-eclipse-temurin-25@sha256:1b1fc6d0168ea616afd1c861d6f32ec37c9ec2ffe88a0351b3771dd4ad86b0d8
-ARG TEMURIN_JRE_IMAGE=eclipse-temurin:25-jre-noble@sha256:fbcf915c585659b30eb766ada4d6d7cfc9ec1040bf521e95bf61b10a25af73db
+ARG TEMURIN_JRE_IMAGE=eclipse-temurin:25.0.4_7-jre-noble@sha256:b4c93a50fc67612798db73d68ca3b0ee4ebdd51736e59cca370e689b9797037e
 
 FROM ${MAVEN_IMAGE} AS build
 WORKDIR /workspace

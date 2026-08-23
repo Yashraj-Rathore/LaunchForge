@@ -59,7 +59,7 @@ Verified against official release sources on **2026-08-10**; M1-owned tools were
 | Helm | `4.2.4`; CI image `alpine/helm:4.2.4`; manifest `sha256:76c375eed56144c68d6197c55bc5a4552fb42002190b796729901cbab3ae6e51` | M11 |
 | kind | `0.32.0`; local node `kindest/node:v1.34.8`; manifest `sha256:02722c2dedddcfc00febf5d27fbeb9b7b2c14294c82109ff4a85d89ac9ba3256` | M11 local proof |
 | Maven container builder | `maven:3.9.16-eclipse-temurin-25`; manifest `sha256:1b1fc6d0168ea616afd1c861d6f32ec37c9ec2ffe88a0351b3771dd4ad86b0d8` | M11 |
-| Temurin JRE container | `eclipse-temurin:25-jre-noble`; manifest `sha256:fbcf915c585659b30eb766ada4d6d7cfc9ec1040bf521e95bf61b10a25af73db` | M11 |
+| Temurin JRE container | `eclipse-temurin:25.0.4_7-jre-noble`; manifest `sha256:b4c93a50fc67612798db73d68ca3b0ee4ebdd51736e59cca370e689b9797037e` | P15-13 |
 | Node.js container builder | `node:24.19.0-bookworm-slim`; manifest `sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03` | M11 |
 | Nginx runtime | `nginx:1.31.2-alpine3.23`; manifest `sha256:54f2a904c251d5a34adf545a72d32515a15e08418dae0266e23be2e18c66fefa` | M11 |
 | Trivy | `0.74.0`; image manifest `sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969` | M11 local image gate |
@@ -85,6 +85,7 @@ Official verification references:
 - k6: <https://grafana.com/docs/k6/latest/release-notes/>
 - Docker/Kubernetes/Helm/kind: <https://docs.docker.com/engine/release-notes/29/>, <https://github.com/docker/compose/releases>, <https://kubernetes.io/releases/>, <https://github.com/helm/helm/releases>, and <https://github.com/kubernetes-sigs/kind/releases>
 - Production image bases and scanner: <https://hub.docker.com/_/maven>, <https://hub.docker.com/_/eclipse-temurin>, <https://hub.docker.com/_/node>, <https://hub.docker.com/_/nginx>, and <https://github.com/aquasecurity/trivy/releases>
+- Mockito explicit-agent guidance: <https://javadoc.io/doc/org.mockito/mockito-core/latest/org.mockito/org/mockito/Mockito.html#0.3>
 - CI/release Actions and workflow linter: <https://github.com/actions>, <https://github.com/docker>, <https://github.com/aquasecurity/trivy-action>, <https://github.com/gitleaks/gitleaks-action>, <https://github.com/anchore/sbom-action>, <https://github.com/Azure/setup-helm>, <https://github.com/Azure/setup-kubectl>, and <https://github.com/rhysd/actionlint/releases>
 
 ### M12 GitHub Action pins
@@ -134,12 +135,14 @@ benchmark harness from production artifacts. The Spring Boot OpenTelemetry start
 by the existing Spring Boot 4.1.0 dependency baseline.
 
 LF-1101/LF-1103/LF-1104 re-verified Kubernetes 1.36.3, Helm 4.2.4, and kind 0.32.0 on
-**2026-08-18**, and resolved every M11 container reference to the manifest shown above. The current
-Temurin 25 JRE container still carries the 25.0.3 runtime while the host/CI compiler remains the
-required 25.0.4+7 baseline; it uses the same Java 25 class-file level and is upgraded by digest when
-the 25.0.4 JRE image is published and scanned. The local Docker Desktop test host exposes cgroup v1,
-so kind's current Kubernetes 1.35/1.36 nodes reject kubelet startup. The proof therefore uses the
-last release-compatible cgroup-v1 node, Kubernetes 1.34.8, while Helm lint/template targets current
+**2026-08-18**, and resolved every M11 container reference to the manifest shown above. P15-13
+re-verified the official multi-platform Temurin image on **2026-08-23**, pinned the exact
+`25.0.4_7-jre-noble` tag and manifest, and executed `java -version` in that image to confirm
+Temurin `25.0.4+7`. The rebuilt Event Worker image passed the pinned Trivy 0.74.0 gate with zero
+fixable HIGH/CRITICAL OS or JAR findings. The runtime now matches the host/CI patch baseline. The
+local Docker Desktop test host exposes cgroup v1, so kind's current Kubernetes 1.35/1.36 nodes
+reject kubelet startup. The proof therefore uses the last release-compatible cgroup-v1 node,
+Kubernetes 1.34.8, while Helm lint/template targets current
 Kubernetes 1.36.3. This compatibility exception is local-test infrastructure, not the production
 cluster target.
 
@@ -155,6 +158,7 @@ The M0 reactor and workspace additionally pin:
 | google-java-format | `1.36.1` |
 | Checkstyle / Maven Checkstyle Plugin | `13.10.0` / `3.6.0` |
 | Maven Compiler / Enforcer / Surefire / Failsafe | `3.15.0` / `3.6.3` / `3.5.6` / `3.5.6` |
+| Maven Dependency Plugin / Mockito | `3.10.0` / `5.23.0` |
 | ESLint / Prettier | `10.8.1` / `3.9.6` |
 | Java JSON Canonicalization | `io.github.erdtman:java-json-canonicalization:1.1` |
 | JMH / Maven Shade Plugin | `1.37` / `3.6.2` |
@@ -162,6 +166,10 @@ The M0 reactor and workspace additionally pin:
 | Netty | `4.2.16.Final` |
 
 The root `pom.xml`, JavaScript package manifests, `pnpm-lock.yaml`, and SHA-pinned GitHub Actions are the executable source of truth for transitive and CI-tool versions.
+
+P15-13 follows Mockito's Java 21+ guidance: the Maven Dependency Plugin exposes the resolved
+`mockito-core` path and Surefire/Failsafe pass that artifact with `-javaagent` to every forked test
+JVM. Tests therefore do not rely on deprecated runtime self-attachment on forward JDKs.
 
 M2 adds the RFC 8785 Java canonicalization implementation referenced by RFC 8785 itself. It is required because snapshot checksums need ECMAScript-compatible number rendering and deterministic property ordering; ordinary Jackson serialization is not a substitute for the checksum contract. The dependency is isolated to infrastructure and the framework-free domain remains dependency-free.
 

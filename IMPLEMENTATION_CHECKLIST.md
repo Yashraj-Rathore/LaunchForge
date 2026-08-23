@@ -149,9 +149,9 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 - [x] Correct P15-08 compound tenant and key-lineage integrity
 - [x] Correct P15-09 organization capability claim
 - [x] Correct P15-10 poison-row reconciliation isolation
-- [ ] Correct P15-11 Event Worker production database defaults
-- [ ] Correct P15-12 stale package manifest
-- [ ] Correct P15-13 forward-JDK Mockito instrumentation
-- [ ] Continue correcting remaining findings one issue at a time
+- [x] Correct P15-11 Event Worker production database defaults
+- [x] Correct P15-12 stale package manifest
+- [x] Correct P15-13 forward-JDK Mockito instrumentation and runtime patch alignment
+- [x] Complete all approved code/documentation corrections; P15-04 remains explicitly deferred
 - [ ] Clean-clone demo validation
 - [ ] Verify every resume claim

@@ -20,6 +20,8 @@
 - Corrected P15-08 with V7 compound foreign keys that enforce tenant-consistent audit
   project/environment references and same-environment SDK-key rotation lineage, plus direct
   PostgreSQL rejection coverage.
+- Corrected P15-11 by removing Event Worker database username/password fallbacks and adding a
+  repository contract that requires fail-closed environment placeholders.
 
 ### Reliability
 
@@ -47,6 +49,9 @@
 
 - Corrected P15-09 by narrowing the README organization capability claim to provisioned
   organizations and explicitly documenting the absent self-service organization lifecycle.
+- Corrected P15-12 by replacing the M0-only package manifest with the current M1-M13 documentation,
+  implementation, SDK, contract, test, deployment, release, and engineering inventory, guarded by
+  derived documentation checks.
 - Added complete LaunchForge architecture, product, SDK, evaluation, security, eventing, testing, operations, deployment, commercialization, and Codex implementation package.
 - Normalized the canonical repository/module layout around `launchforge-control-api`, the bounded Java SDK, and the JavaScript core/browser/React workspace.
 - Established one normative snapshot representation, RFC 8785 checksum procedure, identifier policy, browser-projection checksum behavior, and algorithm-version-1 evaluator/reason-code contract.
@@ -81,6 +86,9 @@
 
 ### Implementation
 
+- Corrected P15-13 by supplying the resolved Mockito 5.23.0 artifact as an explicit Java agent to
+  Surefire/Failsafe and pinning both production Java runtime Dockerfiles to the verified Temurin
+  25.0.4+7 multi-platform manifest.
 - Added the Java 25 / Spring Boot 4.1 Maven reactor, committed Maven 3.9.16 wrapper, bounded backend and SDK modules, strict compiler/format/static gates, and executable ArchUnit dependency rules.
 - Added the minimal Control API application shell plus a real PostgreSQL Testcontainers connection test, and a digest-pinned PostgreSQL 18.4 local Compose service with health, environment, and lifecycle commands.
 - Added the pnpm 11.21 workspace, minimal React 19.2 / strict TypeScript / Vite admin shell, reserved JavaScript SDK package boundaries, and format/lint/typecheck/test/build commands.

@@ -4,10 +4,9 @@
 
 **Prompt:** 15 — final architecture, security, compatibility, failure-mode, test, claim, and toolchain review
 
-**Disposition:** Review complete. P15-01 through P15-03 and P15-05 through P15-10 were corrected in
+**Disposition:** Review complete. P15-01 through P15-03 and P15-05 through P15-13 were corrected in
 separately approved follow-ups between 2026-08-21 and 2026-08-23. P15-04 is explicitly deferred,
-not resolved, and must be resumed before the final hosted-release review. P15-11 through P15-13
-retain their original Low ranking.
+not resolved, and must be resumed before the final hosted-release review.
 
 ## Executive decision
 
@@ -19,14 +18,14 @@ for its current local portfolio/demo purpose.
 It is **not ready for a hosted production pilot or release** until the one unresolved High finding
 is corrected and revalidated. The desired `main` ruleset is installed but disabled, while the
 created deployment environments still lack real identity/infrastructure and promotion evidence.
-P15-01 through P15-03 and P15-05 through P15-10 no longer contribute to the unresolved counts.
+P15-01 through P15-03 and P15-05 through P15-13 no longer contribute to the unresolved counts.
 
 | Severity | Count | Meaning in this review |
 |---|---:|---|
 | Critical | 0 | No demonstrated unauthenticated compromise, cross-tenant API access, secret disclosure, or deterministic-evaluation corruption was found. |
 | High | 1 | Unresolved release blocker with a credible change-control consequence. |
 | Medium | 0 | All four original Medium findings were corrected and regression-tested. |
-| Low | 3 | Documentation or forward-toolchain debt with limited current runtime impact. |
+| Low | 0 | All three original Low findings were corrected and regression-tested. |
 
 ## Resolved since review
 
@@ -188,6 +187,29 @@ Correction evidence:
 - `DistributionPipelineIT` inserts an invalid lower-ordered current snapshot and proves the real
   PostgreSQL-to-Redis reconciler still restores a healthy environment's signed current revision.
 
+#### P15-11 — Event Worker database defaults are unsafe for a production artifact
+
+**Resolved 2026-08-23.** Event Worker now matches the other database-backed deployables: database
+username and password are mandatory environment placeholders with no application-level fallback.
+Local fictional credentials remain explicit Compose/environment inputs. The supply-chain repository
+contract rejects either credential default.
+
+#### P15-12 — `PACKAGE_MANIFEST.md` describes only the original M0 shell
+
+**Resolved 2026-08-23.** The package manifest now records the completed M1-M13 local scope and the
+actual documentation, ADR, prompt, Maven module, JavaScript workspace, contract, test, deployment,
+release, security, engineering, and template inventory. Documentation validation derives the key
+counts from the repository and rejects the obsolete M0-only claim.
+
+#### P15-13 — Forward-JDK test instrumentation needs an explicit Mockito agent
+
+**Resolved 2026-08-23.** The root Maven build follows Mockito's Java 21+ guidance: it resolves the
+managed `mockito-core` artifact and supplies it as an explicit `-javaagent` to Surefire and
+Failsafe. The Java 25.0.4 focused build no longer emits Mockito's dynamic self-attachment warning.
+Both production Java Dockerfiles now use the exact verified Temurin `25.0.4+7` JRE tag and
+multi-platform manifest, matching the host and CI patch baseline. Repository contracts reject
+missing test agents and floating or mismatched runtime references.
+
 ## Ranked unresolved findings
 
 ### High
@@ -229,32 +251,9 @@ ruleset with the six documented required checks plus review/CODEOWNERS/history p
 configure the environments with real provider OIDC or the documented narrowly scoped secrets and
 variables, and complete one approved same-digest staged promotion.
 
-### Low
-
-#### P15-11 — Event Worker database defaults are unsafe for a production artifact
-
-The Event Worker `application.yml` defaults the database username/password to
-`launchforge`/`launchforge-local`, while the other database deployables fail closed and Helm
-overrides the values from a Secret. This is mainly an unsafe standalone-misconfiguration path and a
-violation of the no-hard-coded-credentials repository rule.
-
-#### P15-12 — `PACKAGE_MANIFEST.md` describes only the original M0 shell
-
-The manifest says the package contains documents 00–21 and defers product behavior, while the
-repository now contains completed M1–M13 implementations and documents through this review. It is
-stale packaging documentation. It was intentionally not corrected during this review.
-
-#### P15-13 — Forward-JDK test instrumentation needs an explicit Mockito agent
-
-The successful Java build warns that Mockito is self-attaching the Byte Buddy agent and that dynamic
-agent loading will be disabled by default in a future JDK. This does not fail Java 25.0.4 today but
-is predictable toolchain debt. The separately documented Temurin runtime-image patch exception
-(25.0.3 image versus 25.0.4 CI/host) also remains open and accurately disclosed in
-`docs/19_TECHNOLOGY_BASELINE.md`.
-
 ## Security and tenant-isolation review
 
-P15-11 is the only unresolved security-adjacent finding; P15-01, P15-03, and P15-08 are resolved as
+No security-adjacent finding remains unresolved; P15-01, P15-03, P15-08, and P15-11 are resolved as
 recorded above. No cross-organization API access was reproduced. Server-derived organization
 scope, role checks, database-enforced compound ownership on tenant relationship chains, SDK
 credential-class separation, hash-only server-key verification, CSRF/OIDC/session
@@ -301,18 +300,17 @@ edge restart, rollback, and disabled analytics.
 
 ## Test and operational-evidence gaps
 
-Each P15 finding needs the focused regression evidence stated with it. In addition:
+Focused correction evidence is recorded below. The remaining operational-evidence gaps are:
 
 - the final checklist's clean-clone four-minute demo run has not been executed after this review;
 - controlled load evidence is local and bounded, not production capacity proof;
-- the release/promotion/restore workflows have not run against configured hosted environments;
-- the remaining P15-11 through P15-13 items need their focused regression/documentation evidence.
+- the release/promotion/restore workflows have not run against configured hosted environments.
 
 ## README, resume, demo, and commercial-claim review
 
 P15-09 is resolved by narrowing the organization claim to the implemented provisioned-organization
-workflow and explicitly stating the absent self-service lifecycle. P15-12 remains stale package
-metadata. The case-study throughput and propagation numbers are correctly labeled as local
+workflow and explicitly stating the absent self-service lifecycle. P15-12 is resolved by replacing
+the M0-era package metadata with a contract-checked current repository inventory. The case-study throughput and propagation numbers are correctly labeled as local
 controlled measurements, the demo/customer names are fictional, pilot pricing is explicitly a
 hypothesis, and no customers, revenue, production capacity, multi-region deployment, or completed
 hosted release are claimed. The four-minute demo pauses are presentation pacing rather than
@@ -325,8 +323,8 @@ policy, or known-vulnerability gate failure was observed. Maven Enforcer and the
 lockfile passed; the repository supply-chain validator passed; GitHub CI remains the time-sensitive
 source for dependency review, Trivy filesystem/image scans, action pinning, and OIDC/release policy.
 
-P15-13 records the forward-JDK Mockito warning and known runtime image patch exception. Shading the
-standalone JMH harness also emits expected module/duplicate metadata warnings; no runtime failure was
+P15-13 is resolved with explicit Mockito instrumentation and a verified Temurin 25.0.4+7 runtime
+image pin. Shading the standalone JMH harness still emits expected module/duplicate metadata warnings; no runtime failure was
 demonstrated, but a future packaging task should explicitly verify the benchmark artifact after
 dependency changes.
 
@@ -357,7 +355,8 @@ approved and completed after that review alongside the remaining work.
    hanging-fetch/later-batch coverage are established.
 8. **P15-08 (resolved 2026-08-23):** V7 compound tenant/lineage constraints and direct database
    rejection tests are established.
-9. **P15-11:** remove production-artifact database credential defaults.
+9. **P15-11 (resolved 2026-08-23):** all Event Worker database credentials are mandatory
+   environment inputs and the repository contract rejects defaults.
 
 ### Stage 2 — resilience, product truth, and documentation
 
@@ -365,8 +364,10 @@ approved and completed after that review alongside the remaining work.
     scans, and cannot starve healthy pages.
 11. **P15-09 (resolved 2026-08-23):** the public capability claim now accurately describes
     provisioned organizations and the absent self-service lifecycle.
-12. **P15-12:** regenerate the package manifest from the completed repository inventory.
-13. **P15-13:** configure explicit Mockito instrumentation and close the runtime image patch exception.
+12. **P15-12 (resolved 2026-08-23):** the package manifest records the completed repository
+    inventory and is checked against derived counts.
+13. **P15-13 (resolved 2026-08-23):** Surefire/Failsafe use the explicit Mockito agent and both
+    production Java Dockerfiles use the verified Temurin 25.0.4+7 image manifest.
 
 ### Stage 3 — final release evidence
 
@@ -449,6 +450,26 @@ published at the user's request.
   builds; the browser SDK's six tests include the hanging analytics request regression.
 - Documentation and supply-chain validators, all 14 engineering unit tests, generated master-spec
   synchronization, release compatibility parsing, and Git diff checks passed.
+
+The live GitHub Actions result is separate evidence and is not claimed until these changes are
+published at the user's request.
+
+### P15-11 through P15-13 correction validation - 2026-08-23
+
+- `./mvnw.cmd --batch-mode --no-transfer-progress verify` passed all 14 reactor modules and 148
+  unit, contract, architecture, and demo tests. Mockito-using tests ran with the explicit agent and
+  emitted no dynamic self-attachment warning.
+- `./mvnw.cmd --batch-mode --no-transfer-progress -pl tests/integration-tests -am verify -Pintegration`
+  passed all 28 Docker-backed PostgreSQL, Kafka, Redis, ClickHouse, and TLS tests with zero
+  failures/errors, exercising the Failsafe agent path.
+- The official `eclipse-temurin:25.0.4_7-jre-noble` multi-platform manifest resolved to
+  `sha256:b4c93a50fc67612798db73d68ca3b0ee4ebdd51736e59cca370e689b9797037e`; `java -version`
+  reported Temurin `25.0.4+7`. Both the Event Worker and migrator production images built from the
+  new pin, and the built Event Worker image reported that same runtime. The pinned Trivy 0.74.0
+  gate reported zero fixable HIGH/CRITICAL OS or JAR findings for that rebuilt image.
+- All 18 engineering unit tests, documentation/supply-chain validators, full and secure Compose
+  rendering, strict Helm lint, production/local Helm transport contracts, generated master-spec
+  synchronization, and Git whitespace checks passed.
 
 The live GitHub Actions result is separate evidence and is not claimed until these changes are
 published at the user's request.

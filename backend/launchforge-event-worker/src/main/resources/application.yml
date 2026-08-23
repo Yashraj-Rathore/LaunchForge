@@ -3,8 +3,8 @@ spring:
     name: launchforge-event-worker
   datasource:
     url: ${LAUNCHFORGE_DB_URL:jdbc:postgresql://localhost:5432/launchforge?connectTimeout=5&socketTimeout=15&tcpKeepAlive=true}
-    username: ${LAUNCHFORGE_DB_USER:launchforge}
-    password: ${LAUNCHFORGE_DB_PASSWORD:launchforge-local}
+    username: ${LAUNCHFORGE_DB_USER}
+    password: ${LAUNCHFORGE_DB_PASSWORD}
     hikari:
       connection-timeout: 5000
       validation-timeout: 2000

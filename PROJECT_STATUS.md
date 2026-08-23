@@ -1,6 +1,6 @@
 # Project Status
 
-**Status:** Prompt 15 final architecture review complete; P15-01 through P15-03 and P15-05 through P15-10 corrected, P15-04 explicitly deferred, and P15-11 through P15-13 await explicit approval.
+**Status:** Prompt 15 final architecture review complete; P15-01 through P15-03 and P15-05 through P15-13 corrected, with only P15-04 explicitly deferred to the final hosted-release review.
 
 **Current milestone:** M13 demo/pilot (LF-1301–LF-1305) complete; Prompt 15 review recorded in `docs/27_FINAL_ARCHITECTURE_REVIEW.md`.
 
@@ -57,7 +57,10 @@ parsers. P15-06 was corrected the same day by centralizing the 5 MiB backend sna
 rejecting higher Edge/Worker configuration, and executing the exact boundary through both SDK
 parsers. P15-07 through P15-10 were corrected on 2026-08-23 with abortable browser analytics
 requests, database-enforced audit/key-lineage tenant integrity, an accurate provisioned-organization
-README claim, and poison-row reconciliation isolation with healthy-page recovery evidence. One High
-finding remains: incomplete live GitHub change/deployment controls. No Medium finding remains;
-three Low findings are staged, so the project is not claimed ready for a hosted production pilot.
-Corrections remain one explicitly approved issue at a time.
+README claim, and poison-row reconciliation isolation with healthy-page recovery evidence. P15-11
+through P15-13 were corrected on 2026-08-23 by removing Event Worker database credential defaults,
+replacing the M0-only package manifest with a contract-checked completed inventory, configuring
+Mockito as an explicit Surefire/Failsafe agent, and aligning both production Java runtime images to
+the verified Temurin 25.0.4+7 manifest. One High finding remains: incomplete live GitHub
+change/deployment controls. No Medium or Low finding remains, so the project is not claimed ready
+for a hosted production pilot.
