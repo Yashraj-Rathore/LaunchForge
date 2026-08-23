@@ -98,26 +98,39 @@ Correction evidence:
 
 ### High
 
-#### P15-04 — Required GitHub change and deployment controls are not active
+#### P15-04 — Required GitHub change and deployment controls are not fully active
 
 The repository documents branch protection and `staging`/`production` GitHub Environments as owner
-setup. The review queried the live repository on 2026-08-21: repository rulesets were empty, the
-`main` branch-protection endpoint reported that the branch was not protected, and the environments
-collection was empty. Direct pushes to `main` remain possible and the protected promotion workflow
-cannot exercise its intended approval boundary.
+setup. The initial review queried the live repository on 2026-08-21: repository rulesets were empty,
+the `main` branch-protection endpoint reported that the branch was not protected, and the
+environments collection was empty.
+
+Partial hardening on 2026-08-23 activated a no-bypass `v*` tag ruleset that blocks update and
+deletion, created tag-restricted `staging` and `production` environments, and made production
+fail-closed with a required reviewer and self-approval disabled. The exact desired active ruleset
+payloads are now versioned and contract-tested under `.github/rulesets/`. The complete `main`
+ruleset is installed live but remains disabled because the repository has only one collaborator;
+activating mandatory non-self review without another trusted reviewer would make `main`
+unmaintainable. The environments do not yet have cluster/OIDC configuration, required variables,
+or secrets, and no tagged staging/promotion run exists. Direct pushes to `main` therefore remain
+possible and the production workflow cannot yet prove its intended approval and same-digest
+boundary.
 
 This is accurately disclosed in `PROJECT_STATUS.md`; the finding is an operational release blocker,
 not a misleading code claim.
 
 Evidence:
 
-- `.github/workflows/ci.yml`, `.github/workflows/release.yml`, and `.github/workflows/promote.yml`
+- `.github/rulesets/main.json`, `.github/rulesets/release-tags.json`, `.github/CODEOWNERS`,
+  `.github/workflows/ci.yml`, `.github/workflows/release.yml`, and
+  `.github/workflows/promote-production.yml`
 - `docs/24_RELEASE_SUPPLY_CHAIN.md`
-- live GitHub API responses for `Yashraj-Rathore/LaunchForge` on 2026-08-21
+- live GitHub API responses for `Yashraj-Rathore/LaunchForge` on 2026-08-21 and 2026-08-23
 
-Required correction evidence: configure a `main` ruleset with the six documented required checks,
-review/CODEOWNERS and history protections, protect release tags, create reviewed `staging` and
-`production` environments with OIDC/secrets, and complete one same-digest staged promotion.
+Remaining correction evidence: add a second trusted collaborator, activate the installed `main`
+ruleset with the six documented required checks plus review/CODEOWNERS/history protections,
+configure the environments with real provider OIDC or the documented narrowly scoped secrets and
+variables, and complete one approved same-digest staged promotion.
 
 ### Medium
 
@@ -304,7 +317,8 @@ configuration changes begin.
    ClickHouse non-response drill proves distribution progress.
 3. **P15-03 (resolved 2026-08-23):** Kafka/Redis TLS, secret-backed Kafka SASL, rendered-contract
    validation, and authenticated TLS integration evidence are established.
-4. **P15-04:** configure and verify live GitHub rulesets, environments, and first staged promotion.
+4. **P15-04 (partially hardened 2026-08-23):** add an independent reviewer, activate the installed
+   `main` ruleset, configure environment identity, and execute the first staged promotion.
 
 ### Stage 1 — compatibility and tenant integrity
 

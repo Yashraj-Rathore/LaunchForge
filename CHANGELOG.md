@@ -13,6 +13,10 @@
 - Corrected P15-03 with production-default Kafka `SASL_SSL` and Redis TLS, secret-backed Kafka
   identity and CA trust mounts, an opt-in secure local Compose overlay, rendered deployment-contract
   validation, and live authenticated TLS boundary coverage.
+- Partially hardened P15-04 by activating immutable `v*` tag protection and creating tag-restricted
+  staging/production GitHub Environments with fail-closed production review. Added machine-validated
+  desired ruleset payloads; `main` remains disabled until an independent reviewer exists, and no
+  deployment/promotion claim is made without real environment identity and evidence.
 
 ### Reliability
 

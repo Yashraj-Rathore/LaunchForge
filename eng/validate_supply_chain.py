@@ -14,6 +14,7 @@ from release_manifest import ManifestError, validate_compatibility
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
+RULESETS = ROOT / ".github" / "rulesets"
 ACTION_PATTERN = re.compile(r"^\s*-?\s*uses:\s*([^@\s]+)@([^\s#]+)(?:\s+#\s*(\S+))?", re.MULTILINE)
 SHA_PATTERN = re.compile(r"[0-9a-f]{40}\Z")
 MIGRATION_PATTERN = re.compile(r"V([1-9][0-9]*)__[^/\\]+\.sql\Z")
@@ -23,6 +24,14 @@ REQUIRED_WORKFLOWS = {
     "promote-production.yml",
     "rollback-production.yml",
 }
+REQUIRED_CHECKS = (
+    "Dependency, secret, and repository security",
+    "Java and JavaScript evaluator compatibility",
+    "Java quality and integration",
+    "Frontend quality",
+    "OIDC tenancy browser smoke",
+    "Repository contracts",
+)
 
 
 def workflow_paths() -> list[Path]:
@@ -82,6 +91,90 @@ def validate_workflow_contracts() -> None:
         for token in tokens:
             if token not in text:
                 fail(f"{name} is missing release contract token: {token}")
+
+
+def validate_ruleset_contracts(main: dict, release_tags: dict) -> None:
+    expected_main_envelope = {
+        "name": "Protect main",
+        "target": "branch",
+        "enforcement": "active",
+        "bypass_actors": [],
+        "conditions": {
+            "ref_name": {"include": ["refs/heads/main"], "exclude": []}
+        },
+    }
+    for key, expected in expected_main_envelope.items():
+        if main.get(key) != expected:
+            fail(f"main ruleset {key} must be {expected!r}")
+
+    main_rules = main.get("rules")
+    if not isinstance(main_rules, list):
+        fail("main ruleset rules must be an array")
+    by_type = {rule.get("type"): rule for rule in main_rules if isinstance(rule, dict)}
+    expected_types = {
+        "deletion",
+        "non_fast_forward",
+        "required_linear_history",
+        "pull_request",
+        "required_status_checks",
+    }
+    if set(by_type) != expected_types or len(main_rules) != len(expected_types):
+        fail(f"main ruleset must contain exactly {sorted(expected_types)}")
+
+    expected_pull_request = {
+        "allowed_merge_methods": ["squash", "rebase"],
+        "dismiss_stale_reviews_on_push": True,
+        "require_code_owner_review": True,
+        "require_last_push_approval": False,
+        "required_approving_review_count": 1,
+        "required_review_thread_resolution": True,
+    }
+    if by_type["pull_request"].get("parameters") != expected_pull_request:
+        fail("main ruleset pull-request protections do not match the release contract")
+
+    status_parameters = by_type["required_status_checks"].get("parameters")
+    if not isinstance(status_parameters, dict):
+        fail("main ruleset status-check parameters must be an object")
+    contexts = status_parameters.get("required_status_checks")
+    if not isinstance(contexts, list) or contexts != [
+        {"context": context} for context in REQUIRED_CHECKS
+    ]:
+        fail("main ruleset required checks must exactly match CI job names")
+    if status_parameters.get("strict_required_status_checks_policy") is not True:
+        fail("main ruleset must require the pull-request head to be current")
+    if status_parameters.get("do_not_enforce_on_create") is not False:
+        fail("main ruleset must enforce required checks on branch creation")
+
+    expected_release_tags = {
+        "name": "Protect release tags",
+        "target": "tag",
+        "enforcement": "active",
+        "bypass_actors": [],
+        "conditions": {
+            "ref_name": {"include": ["refs/tags/v*"], "exclude": []}
+        },
+        "rules": [{"type": "deletion"}, {"type": "non_fast_forward"}],
+    }
+    if release_tags != expected_release_tags:
+        fail("release-tag ruleset does not match the immutable-tag contract")
+
+
+def validate_repository_control_contracts() -> None:
+    main = json.loads((RULESETS / "main.json").read_text(encoding="utf-8"))
+    release_tags = json.loads(
+        (RULESETS / "release-tags.json").read_text(encoding="utf-8")
+    )
+    validate_ruleset_contracts(main, release_tags)
+
+    ci_text = (WORKFLOWS / "ci.yml").read_text(encoding="utf-8")
+    for context in REQUIRED_CHECKS:
+        if f"name: {context}" not in ci_text:
+            fail(f"CI is missing required-check job name: {context}")
+
+    codeowners = (ROOT / ".github" / "CODEOWNERS").read_text(encoding="utf-8")
+    for owned_path in ("/.github/", "/deploy/release/", "/security/"):
+        if not any(line.startswith(f"{owned_path} ") for line in codeowners.splitlines()):
+            fail(f"CODEOWNERS is missing release-sensitive path {owned_path}")
 
 
 def validate_database_compatibility() -> None:
@@ -147,6 +240,7 @@ def main() -> int:
     try:
         validate_action_pins()
         validate_workflow_contracts()
+        validate_repository_control_contracts()
         validate_database_compatibility()
         validate_helm_release_contract()
         validate_security_exceptions()

@@ -38,9 +38,19 @@ history. Apply the rule to administrators, block force pushes and deletion, and 
 push bypass. Protect `v*` tags from update or deletion. `.github/CODEOWNERS` assigns release,
 workflow, and supply-chain policy changes to the repository owner.
 
-The repository cannot create branch rules through workflow source. The owner must configure and
-periodically audit these GitHub settings; a green workflow without the ruleset is not equivalent to
-protected `main`.
+The exact desired API request bodies are versioned in `.github/rulesets/main.json` and
+`.github/rulesets/release-tags.json`. `eng/validate_supply_chain.py` rejects drift between the
+`main` payload, CI job names, CODEOWNERS coverage, and the immutable-tag contract. Do not activate
+the `main` payload until at least two trusted collaborators can participate: GitHub does not allow
+an author to approve their own pull request, and this no-bypass policy would otherwise lock a
+single-collaborator repository. After that prerequisite is satisfied, an administrator can create
+or update the ruleset with the versioned payload and then verify the effective branch rules through
+the GitHub API.
+
+Repository workflows deliberately lack administration permission and cannot install these hosted
+controls themselves. The owner must configure and periodically audit the live rulesets and
+environments; a committed payload or green workflow without active enforcement is not equivalent
+to protected `main`.
 
 ## 3. Dependencies, scanners, and exceptions
 

@@ -818,10 +818,15 @@ measured case-study README, and a hypothesis-only pilot package. Demo UI transit
 recommended four-minute presentation pauses are deliberately paced; configuration propagation is
 not delayed. Media and clean-start evidence are regenerated from the running stack.
 
-The repository-side M12 controls and local evidence pass. A real GHCR publication, GitHub
-attestation, staging smoke, and production approval require the repository owner to configure the
-documented protected branch/tag rules and `staging`/`production` GitHub Environments, then create the
-first annotated release tag. Those external executions have not been claimed as local evidence.
+The repository-side M12 controls and local evidence pass. On 2026-08-23 the live repository gained
+an active immutable `v*` tag ruleset and tag-restricted `staging`/`production` GitHub Environments;
+production requires review and prevents self-approval. The exact desired active ruleset payloads
+are versioned under `.github/rulesets/` and validated in CI. The complete `main` payload is installed
+live but intentionally disabled because the owner is the only collaborator and the required
+no-bypass approval rule would otherwise lock the repository. The environments still lack real
+cluster/OIDC configuration and no tagged GHCR publication, staging smoke, attestation, or approved
+same-digest production promotion has run. Those external executions have not been claimed as local
+evidence.
 
 The final review found no Critical issue and four initial High hosted-release blockers. P15-01 was
 corrected on 2026-08-21 with worker-only Ed25519 materialization signing, Edge public-key
@@ -830,7 +835,7 @@ container integration evidence. P15-02 was corrected on 2026-08-23 with separate
 and configuration schedulers plus a ClickHouse non-response distribution drill. P15-03 was
 corrected the same day with production-default Kafka SASL/TLS and Redis TLS, secret-backed
 credentials/trust, rendered Helm/Compose contract gates, and authenticated TLS integration proof.
-One High finding remains: absent live GitHub change/deployment controls. Six
+One High finding remains: incomplete live GitHub change/deployment controls. Six
 Medium and three Low findings are also staged, so the project is not claimed ready for a hosted
 production pilot. Corrections remain one explicitly approved issue at a time.
 
@@ -5120,13 +5125,14 @@ deployed SHA, contract versions, and image references. Forward promotion enables
 Application rollback disables it and proves the schema ledger is unchanged. Configuration rollback
 continues to create a newer immutable product revision.
 
-GitHub-hosted controls cannot be fully expressed in repository source. The repository owner must
-configure the protected `main` ruleset, protected `v*` tags, required check names, CODEOWNERS review,
-and `staging`/`production` Environments. Production requires a reviewer and must prevent self-review.
-Provider OIDC is preferred; the portable baseline permits only a short-lived, narrowly scoped
-environment kubeconfig until a provider-specific identity step is chosen. Values transported by an
-environment secret contain no application secret values and reference Kubernetes Secrets managed
-outside Git.
+GitHub-hosted controls cannot be activated by ordinary repository workflow source. The exact desired
+`main` and `v*` ruleset payloads are versioned under `.github/rulesets/` and checked against the CI
+job names and CODEOWNERS coverage by `eng/validate_supply_chain.py`; an administrator must apply and
+audit them in GitHub. The owner must also configure the `staging`/`production` Environments.
+Production requires a reviewer and must prevent self-review. Provider OIDC is preferred; the
+portable baseline permits only a short-lived, narrowly scoped environment kubeconfig until a
+provider-specific identity step is chosen. Values transported by an environment secret contain no
+application secret values and reference Kubernetes Secrets managed outside Git.
 
 The full operating procedure, required environment variables, scanner exception policy,
 attestation verification, staging smoke, promotion, and rollback commands are normative in
@@ -8494,9 +8500,19 @@ history. Apply the rule to administrators, block force pushes and deletion, and 
 push bypass. Protect `v*` tags from update or deletion. `.github/CODEOWNERS` assigns release,
 workflow, and supply-chain policy changes to the repository owner.
 
-The repository cannot create branch rules through workflow source. The owner must configure and
-periodically audit these GitHub settings; a green workflow without the ruleset is not equivalent to
-protected `main`.
+The exact desired API request bodies are versioned in `.github/rulesets/main.json` and
+`.github/rulesets/release-tags.json`. `eng/validate_supply_chain.py` rejects drift between the
+`main` payload, CI job names, CODEOWNERS coverage, and the immutable-tag contract. Do not activate
+the `main` payload until at least two trusted collaborators can participate: GitHub does not allow
+an author to approve their own pull request, and this no-bypass policy would otherwise lock a
+single-collaborator repository. After that prerequisite is satisfied, an administrator can create
+or update the ruleset with the versioned payload and then verify the effective branch rules through
+the GitHub API.
+
+Repository workflows deliberately lack administration permission and cannot install these hosted
+controls themselves. The owner must configure and periodically audit the live rulesets and
+environments; a committed payload or green workflow without active enforcement is not equivalent
+to protected `main`.
 
 ## 3. Dependencies, scanners, and exceptions
 
@@ -9118,26 +9134,39 @@ Correction evidence:
 
 ### High
 
-#### P15-04 — Required GitHub change and deployment controls are not active
+#### P15-04 — Required GitHub change and deployment controls are not fully active
 
 The repository documents branch protection and `staging`/`production` GitHub Environments as owner
-setup. The review queried the live repository on 2026-08-21: repository rulesets were empty, the
-`main` branch-protection endpoint reported that the branch was not protected, and the environments
-collection was empty. Direct pushes to `main` remain possible and the protected promotion workflow
-cannot exercise its intended approval boundary.
+setup. The initial review queried the live repository on 2026-08-21: repository rulesets were empty,
+the `main` branch-protection endpoint reported that the branch was not protected, and the
+environments collection was empty.
+
+Partial hardening on 2026-08-23 activated a no-bypass `v*` tag ruleset that blocks update and
+deletion, created tag-restricted `staging` and `production` environments, and made production
+fail-closed with a required reviewer and self-approval disabled. The exact desired active ruleset
+payloads are now versioned and contract-tested under `.github/rulesets/`. The complete `main`
+ruleset is installed live but remains disabled because the repository has only one collaborator;
+activating mandatory non-self review without another trusted reviewer would make `main`
+unmaintainable. The environments do not yet have cluster/OIDC configuration, required variables,
+or secrets, and no tagged staging/promotion run exists. Direct pushes to `main` therefore remain
+possible and the production workflow cannot yet prove its intended approval and same-digest
+boundary.
 
 This is accurately disclosed in `PROJECT_STATUS.md`; the finding is an operational release blocker,
 not a misleading code claim.
 
 Evidence:
 
-- `.github/workflows/ci.yml`, `.github/workflows/release.yml`, and `.github/workflows/promote.yml`
+- `.github/rulesets/main.json`, `.github/rulesets/release-tags.json`, `.github/CODEOWNERS`,
+  `.github/workflows/ci.yml`, `.github/workflows/release.yml`, and
+  `.github/workflows/promote-production.yml`
 - `docs/24_RELEASE_SUPPLY_CHAIN.md`
-- live GitHub API responses for `Yashraj-Rathore/LaunchForge` on 2026-08-21
+- live GitHub API responses for `Yashraj-Rathore/LaunchForge` on 2026-08-21 and 2026-08-23
 
-Required correction evidence: configure a `main` ruleset with the six documented required checks,
-review/CODEOWNERS and history protections, protect release tags, create reviewed `staging` and
-`production` environments with OIDC/secrets, and complete one same-digest staged promotion.
+Remaining correction evidence: add a second trusted collaborator, activate the installed `main`
+ruleset with the six documented required checks plus review/CODEOWNERS/history protections,
+configure the environments with real provider OIDC or the documented narrowly scoped secrets and
+variables, and complete one approved same-digest staged promotion.
 
 ### Medium
 
@@ -9324,7 +9353,8 @@ configuration changes begin.
    ClickHouse non-response drill proves distribution progress.
 3. **P15-03 (resolved 2026-08-23):** Kafka/Redis TLS, secret-backed Kafka SASL, rendered-contract
    validation, and authenticated TLS integration evidence are established.
-4. **P15-04:** configure and verify live GitHub rulesets, environments, and first staged promotion.
+4. **P15-04 (partially hardened 2026-08-23):** add an independent reviewer, activate the installed
+   `main` ruleset, configure environment identity, and execute the first staged promotion.
 
 ### Stage 1 — compatibility and tenant integrity
 

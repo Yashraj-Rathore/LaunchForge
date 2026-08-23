@@ -33,10 +33,15 @@ measured case-study README, and a hypothesis-only pilot package. Demo UI transit
 recommended four-minute presentation pauses are deliberately paced; configuration propagation is
 not delayed. Media and clean-start evidence are regenerated from the running stack.
 
-The repository-side M12 controls and local evidence pass. A real GHCR publication, GitHub
-attestation, staging smoke, and production approval require the repository owner to configure the
-documented protected branch/tag rules and `staging`/`production` GitHub Environments, then create the
-first annotated release tag. Those external executions have not been claimed as local evidence.
+The repository-side M12 controls and local evidence pass. On 2026-08-23 the live repository gained
+an active immutable `v*` tag ruleset and tag-restricted `staging`/`production` GitHub Environments;
+production requires review and prevents self-approval. The exact desired active ruleset payloads
+are versioned under `.github/rulesets/` and validated in CI. The complete `main` payload is installed
+live but intentionally disabled because the owner is the only collaborator and the required
+no-bypass approval rule would otherwise lock the repository. The environments still lack real
+cluster/OIDC configuration and no tagged GHCR publication, staging smoke, attestation, or approved
+same-digest production promotion has run. Those external executions have not been claimed as local
+evidence.
 
 The final review found no Critical issue and four initial High hosted-release blockers. P15-01 was
 corrected on 2026-08-21 with worker-only Ed25519 materialization signing, Edge public-key
@@ -45,6 +50,6 @@ container integration evidence. P15-02 was corrected on 2026-08-23 with separate
 and configuration schedulers plus a ClickHouse non-response distribution drill. P15-03 was
 corrected the same day with production-default Kafka SASL/TLS and Redis TLS, secret-backed
 credentials/trust, rendered Helm/Compose contract gates, and authenticated TLS integration proof.
-One High finding remains: absent live GitHub change/deployment controls. Six
+One High finding remains: incomplete live GitHub change/deployment controls. Six
 Medium and three Low findings are also staged, so the project is not claimed ready for a hosted
 production pilot. Corrections remain one explicitly approved issue at a time.

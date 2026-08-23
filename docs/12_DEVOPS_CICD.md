@@ -393,13 +393,14 @@ deployed SHA, contract versions, and image references. Forward promotion enables
 Application rollback disables it and proves the schema ledger is unchanged. Configuration rollback
 continues to create a newer immutable product revision.
 
-GitHub-hosted controls cannot be fully expressed in repository source. The repository owner must
-configure the protected `main` ruleset, protected `v*` tags, required check names, CODEOWNERS review,
-and `staging`/`production` Environments. Production requires a reviewer and must prevent self-review.
-Provider OIDC is preferred; the portable baseline permits only a short-lived, narrowly scoped
-environment kubeconfig until a provider-specific identity step is chosen. Values transported by an
-environment secret contain no application secret values and reference Kubernetes Secrets managed
-outside Git.
+GitHub-hosted controls cannot be activated by ordinary repository workflow source. The exact desired
+`main` and `v*` ruleset payloads are versioned under `.github/rulesets/` and checked against the CI
+job names and CODEOWNERS coverage by `eng/validate_supply_chain.py`; an administrator must apply and
+audit them in GitHub. The owner must also configure the `staging`/`production` Environments.
+Production requires a reviewer and must prevent self-review. Provider OIDC is preferred; the
+portable baseline permits only a short-lived, narrowly scoped environment kubeconfig until a
+provider-specific identity step is chosen. Values transported by an environment secret contain no
+application secret values and reference Kubernetes Secrets managed outside Git.
 
 The full operating procedure, required environment variables, scanner exception policy,
 attestation verification, staging smoke, promotion, and rollback commands are normative in
