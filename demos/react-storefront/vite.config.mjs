@@ -140,4 +140,4 @@ function canonicalize(value) {
     .sort()
     .map((key) => `${JSON.stringify(key)}:${canonicalize(value[key])}`)
     .join(',')}}`;
-}
+};
