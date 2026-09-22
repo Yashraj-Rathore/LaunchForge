@@ -6,7 +6,7 @@
 
 **Admin console refresh:** The M6 console received a responsive visual-system and usability refresh on 2026-08-20, including adaptive navigation, mobile-safe content, flag discovery, and responsive analytics/audit presentation. This does not advance the M13 milestone.
 
-**Specification baseline:** Canonical module paths, snapshot/checksum representation, algorithm-version-1 types and reason codes, milestone dependencies, and exact Prompt 0 toolchain pins were normalized on 2026-08-10.
+**Specification baseline:** Canonical module paths, snapshot/checksum representation, algorithm-version-1 types and reason codes, milestone dependencies, and exact Prompt 0 toolchain pins were normalized on 2026-08-10. Spring Boot, Netty, and Tomcat received security-maintenance repins on 2026-09-22.
 
 | Milestone | Issues | Status |
 |---|---|---|
