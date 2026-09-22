@@ -26,12 +26,14 @@ Exact patch versions must be verified from official release sources during `Prom
 
 ### Verified pins
 
-Verified against official release sources on **2026-08-10**; M1-owned tools were re-verified when introduced:
+Verified against official release sources on **2026-08-10**; M1-owned tools were re-verified when introduced. Spring Boot, Netty, and Tomcat security-maintenance pins were re-verified on **2026-09-22**:
 
 | Technology | Exact version/distribution | Introduction |
 |---|---|---|
 | JDK | Eclipse Temurin `25.0.4+7`, HotSpot | M0 |
-| Spring Boot | `4.1.0` | M0 |
+| Spring Boot | `4.1.1` | M0; security maintenance 2026-09-22 |
+| Netty | `4.2.17.Final` | M0; security maintenance 2026-09-22 |
+| Apache Tomcat | `11.0.26` | M0; security maintenance 2026-09-22 |
 | Apache Maven | `3.9.16` through wrapper | M0 |
 | Maven Wrapper Plugin | `3.3.4`, `only-script` wrapper type | M0 |
 | Node.js | `24.19.0` LTS | M0 |
@@ -71,7 +73,7 @@ TypeScript 7.0 is not the initial pin because its first release does not expose 
 Official verification references:
 
 - Java: <https://github.com/adoptium/temurin25-binaries/releases> and <https://www.oracle.com/java/technologies/javase/25-0-4-relnotes.html>
-- Spring Boot: <https://spring.io/projects/spring-boot/> and <https://docs.spring.io/spring-boot/system-requirements.html>
+- Spring Boot, Netty, and Tomcat: <https://spring.io/projects/spring-boot/>, <https://docs.spring.io/spring-boot/appendix/dependency-versions/coordinates.html>, <https://github.com/netty/netty/releases/tag/netty-4.2.17.Final>, <https://tomcat.apache.org/security-11.html>, and <https://tomcat.apache.org/download-11.cgi>
 - Maven/wrapper: <https://maven.apache.org/download.cgi> and <https://maven.apache.org/tools/wrapper/maven-wrapper-plugin/plugin-info.html>
 - Node/pnpm: <https://nodejs.org/dist/index.json> and <https://github.com/pnpm/pnpm/releases>
 - React/TypeScript: <https://react.dev/versions>, <https://github.com/Microsoft/TypeScript/releases>, and <https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/>
@@ -132,7 +134,7 @@ LF-1001/LF-1002/LF-1004 re-verified the official collector, Prometheus LTS, Graf
 releases on **2026-08-17**, then pulled and recorded the multi-platform manifest digests above.
 LF-1003 uses JMH 1.37 in its own Maven module, following the OpenJDK recommendation to isolate the
 benchmark harness from production artifacts. The Spring Boot OpenTelemetry starter remains managed
-by the existing Spring Boot 4.1.0 dependency baseline.
+by the existing Spring Boot 4.1.1 dependency baseline.
 
 LF-1101/LF-1103/LF-1104 re-verified Kubernetes 1.36.3, Helm 4.2.4, and kind 0.32.0 on
 **2026-08-18**, and resolved every M11 container reference to the manifest shown above. P15-13
@@ -163,7 +165,8 @@ The M0 reactor and workspace additionally pin:
 | Java JSON Canonicalization | `io.github.erdtman:java-json-canonicalization:1.1` |
 | JMH / Maven Shade Plugin | `1.37` / `3.6.2` |
 | PostgreSQL JDBC | `42.7.12` |
-| Netty | `4.2.16.Final` |
+| Netty | `4.2.17.Final` |
+| Apache Tomcat | `11.0.26` |
 
 The root `pom.xml`, JavaScript package manifests, `pnpm-lock.yaml`, and SHA-pinned GitHub Actions are the executable source of truth for transitive and CI-tool versions.
 
