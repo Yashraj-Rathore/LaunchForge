@@ -4,6 +4,8 @@
 
 ### Security
 
+- Updated Spring Boot to 4.1.1, Netty to 4.2.17.Final, and embedded Tomcat to 11.0.26 after upstream security disclosures; the dependency graph now resolves beyond every affected release.
+
 - Corrected P15-01 by signing Redis snapshot/revision materializations with worker-only Ed25519
   keys, verifying trusted public keys and bounded monotonic revision watermarks in Config Edge, and
   removing Edge snapshot backfill rights.
