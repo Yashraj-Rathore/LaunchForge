@@ -1,4 +1,4 @@
-# Codex Prompt 15 - Final Architecture Review
+# Implementation Prompt 15 - Final Architecture Review
 
 Read the complete repository and compare the implementation against:
 

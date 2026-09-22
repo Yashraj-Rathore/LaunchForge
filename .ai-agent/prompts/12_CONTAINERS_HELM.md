@@ -1,4 +1,4 @@
-# Codex Prompt 12 - Production Containers and Helm
+# Implementation Prompt 12 - Production Containers and Helm
 
 Implement **LF-1101 through LF-1104 only**.
 

@@ -1,4 +1,4 @@
-# LaunchForge - Complete Codex Implementation Specification
+# LaunchForge - AI Agent Master Implementation Specification
 
 > GENERATED FILE. Source files are the authority. Run `python eng/sync_master_spec.py` after editing documentation.
 
@@ -249,9 +249,6 @@ LaunchForge/
   pnpm-workspace.yaml
   AGENTS.md
   README.md
-  CODEX_START_HERE.md
-  CODEX_PROMPT_SEQUENCE.md
-  CODEX_MASTER_IMPLEMENTATION_SPEC.md
   PROJECT_STATUS.md
   backend/
     launchforge-domain/
@@ -293,15 +290,16 @@ LaunchForge/
   eng/
 ```
 
-## How to use this package
+## Project documentation
 
-1. Extract the folder into a new Git repository.
-2. Read `CODEX_START_HERE.md`.
-3. Give Codex **Prompt 0 only**.
-4. Review the assessment and exact technology pins.
-5. Continue one numbered prompt at a time.
-6. Never ask Codex to build all milestones in one task.
-7. `CODEX_MASTER_IMPLEMENTATION_SPEC.md` is generated from the modular docs; edit source files, not the generated master.
+1. Read `docs/00_DOCUMENT_MAP.md`.
+2. Review `docs/01_PRODUCT_REQUIREMENTS.md`.
+3. Review `docs/02_SYSTEM_ARCHITECTURE.md`.
+4. Use `docs/15_BACKLOG_AND_ACCEPTANCE.md` for canonical issue contracts.
+5. Check `PROJECT_STATUS.md` for current evidence and remaining release gates.
+
+Repository contribution requirements are in `AGENTS.md` and
+`templates/definition-of-done.md`. Generated documentation is checked by the canonical validator.
 
 ## Development foundation
 
@@ -596,7 +594,7 @@ Never claim customers, revenue, availability, or benchmark numbers until they ar
 
 <!-- SOURCE: AGENTS.md -->
 
-# AGENTS.md — Repository Instructions for Codex
+# AGENTS.md — Repository Instructions for Implementation Agents
 
 ## Mission
 
@@ -614,7 +612,7 @@ Before changing code, read:
 6. `docs/15_BACKLOG_AND_ACCEPTANCE.md`
 7. `templates/definition-of-done.md`
 
-`CODEX_MASTER_IMPLEMENTATION_SPEC.md` is generated. Never edit it directly.
+`.ai-agent/master-implementation-spec.md` is generated. Never edit it directly.
 
 If requirements conflict, stop and report the conflict. Do not silently invent a new product direction.
 
@@ -731,9 +729,9 @@ An issue is complete only when it satisfies both `docs/15_BACKLOG_AND_ACCEPTANCE
 
 ---
 
-<!-- SOURCE: CODEX_START_HERE.md -->
+<!-- SOURCE: .ai-agent/start-here.md -->
 
-# Codex Start Here
+# AI Agent Start Here
 
 You are implementing LaunchForge. Treat repository documentation as the source of truth.
 
@@ -777,7 +775,7 @@ Do **not** write application code, initialize frameworks, or create product migr
 
 ## Standard issue prompt
 
-> Implement issue(s) `[IDs]` from `docs/15_BACKLOG_AND_ACCEPTANCE.md`. Read linked requirements and ADRs first. Provide a short plan, implement only those issues, add tests, run required validation, update source documentation/status if needed, regenerate `CODEX_MASTER_IMPLEMENTATION_SPEC.md`, and report files changed plus remaining risks. Do not start the next issue.
+> Implement issue(s) `[IDs]` from `docs/15_BACKLOG_AND_ACCEPTANCE.md`. Read linked requirements and ADRs first. Provide a short plan, implement only those issues, add tests, run required validation, update source documentation/status if needed, regenerate `.ai-agent/master-implementation-spec.md`, and report files changed plus remaining risks. Do not start the next issue.
 
 ## Quality requirement
 
@@ -814,7 +812,13 @@ Every change must be understandable and reviewable by a human developer. Fast ge
 | M12 CI/CD supply chain | LF-1201–LF-1205 | Complete (2026-08-20) |
 | M13 Demo/pilot | LF-1301–LF-1305 | Complete (2026-08-20) |
 
-Update after each completed Codex prompt. Do not mark issues complete until validation passes.
+Update after each completed implementation prompt. Do not mark issues complete until validation passes.
+
+Repository-maintenance material for implementation agents is consolidated under the hidden
+`.ai-agent/` directory with vendor-neutral names. Public onboarding in `README.md` links only
+product, architecture, backlog, and project-status documentation. The generated aggregate
+specification and documentation validator follow the internal paths, and `.ai-agent/` is excluded
+from application-image build context.
 
 The M13 baseline includes a generated deterministic Northstar seed, guarded one-command reset,
 tested Java/Spring/JavaScript/React integration paths, real-system recruiter media capture, a
@@ -864,7 +868,7 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 
 ## Before coding
 
-- [x] Run Codex Prompt 00
+- [x] Run Implementation Prompt 00
 - [x] Review proposed exact versions
 - [x] Resolve documentation contradictions found by Prompt 00
 - [x] Approve M0 only
@@ -5745,7 +5749,7 @@ Do not put fabricated "week 1/week 2" claims in the repository. Actual developme
 
 ## How to use this backlog
 
-Codex implements one bounded issue at a time unless a prompt explicitly groups tightly coupled foundation issues.
+An implementation agent handles one bounded issue at a time unless a prompt explicitly groups tightly coupled foundation issues.
 
 Every issue must satisfy:
 
@@ -8129,7 +8133,7 @@ Use the real answer after building. Likely candidates:
 
 Never pretend a planned challenge was actually experienced.
 
-## 21. How to discuss AI/Codex use
+## 21. How to discuss AI-assisted implementation
 
 Be transparent:
 
@@ -8549,7 +8553,7 @@ The final Prompt 11 tree passed these applicable repository gates on 2026-08-17:
   -Pintegration`: 26 integration cases passed with no failures, errors, or skips;
 - locked Node 24.19.0/pnpm 11.21.0 container run: formatting, lint, type-check, 21 unit
   tests, and all production builds passed;
-- `python eng/validate_docs.py`: 78 backlog issues and 16 Codex prompts passed;
+- `python eng/validate_docs.py`: 78 backlog issues and 16 implementation prompts passed;
 - all committed JSON templates, contracts, the Grafana dashboard, and the raw JMH artifact parsed
   successfully;
 - all Compose profiles resolved, and the three pinned k6 inspections passed without sending
@@ -9955,7 +9959,7 @@ Run and report exact relevant commands, eventually including:
 
 ## Report
 
-Codex returns:
+The implementation agent returns:
 
 1. scope completed;
 2. files changed;
@@ -9966,13 +9970,13 @@ Codex returns:
 
 ---
 
-<!-- SOURCE: CODEX_PROMPT_SEQUENCE.md -->
+<!-- SOURCE: .ai-agent/prompt-sequence.md -->
 
-# LaunchForge - Codex Prompt Sequence
+# LaunchForge - AI Agent Prompt Sequence
 
-Use **one prompt at a time**. Do not ask Codex to build the whole platform in one task.
+Use **one prompt at a time**. Do not ask the implementation agent to build the whole platform in one task.
 
-The canonical individual prompts live under `codex-prompts/`.
+The canonical individual prompts live under `.ai-agent/prompts/`.
 
 ## Prompt order
 
@@ -10038,11 +10042,11 @@ Kafka/Redis/SSE optimizations may not change the externally visible fact that:
 
 ---
 
-<!-- SOURCE: codex-prompts/00_REPOSITORY_ASSESSMENT.md -->
+<!-- SOURCE: .ai-agent/prompts/00_REPOSITORY_ASSESSMENT.md -->
 
-# Codex Prompt 00 - Repository Assessment
+# Implementation Prompt 00 - Repository Assessment
 
-Read `AGENTS.md`, `README.md`, `CODEX_START_HERE.md`, `PROJECT_STATUS.md`, every numbered file under `docs/`, every ADR under `docs/decisions/`, and `templates/definition-of-done.md`.
+Read `AGENTS.md`, `README.md`, `.ai-agent/start-here.md`, `PROJECT_STATUS.md`, every numbered file under `docs/`, every ADR under `docs/decisions/`, and `templates/definition-of-done.md`.
 
 **Do not write application code yet.**
 
@@ -10064,9 +10068,9 @@ Update no files. Wait for approval before Prompt 01.
 
 ---
 
-<!-- SOURCE: codex-prompts/01_FOUNDATION.md -->
+<!-- SOURCE: .ai-agent/prompts/01_FOUNDATION.md -->
 
-# Codex Prompt 01 - Foundation
+# Implementation Prompt 01 - Foundation
 
 Implement **LF-0001 through LF-0005 only**.
 
@@ -10090,9 +10094,9 @@ Add tests/validation, update status/changelog/docs, report commands/results/file
 
 ---
 
-<!-- SOURCE: codex-prompts/02_TENANCY_IDENTITY.md -->
+<!-- SOURCE: .ai-agent/prompts/02_TENANCY_IDENTITY.md -->
 
-# Codex Prompt 02 - Tenancy and Identity
+# Implementation Prompt 02 - Tenancy and Identity
 
 Implement **LF-0101 through LF-0105 only**.
 
@@ -10119,9 +10123,9 @@ Run validation, update docs/status/changelog, report, and stop.
 
 ---
 
-<!-- SOURCE: codex-prompts/03_FLAGS_CONTROL_PLANE.md -->
+<!-- SOURCE: .ai-agent/prompts/03_FLAGS_CONTROL_PLANE.md -->
 
-# Codex Prompt 03 - Flag Control Plane
+# Implementation Prompt 03 - Flag Control Plane
 
 Implement **LF-0201 through LF-0207 only**.
 
@@ -10156,9 +10160,9 @@ Run full relevant validation, update docs/status/changelog, and stop.
 
 ---
 
-<!-- SOURCE: codex-prompts/04_JAVA_SDK_EVALUATOR.md -->
+<!-- SOURCE: .ai-agent/prompts/04_JAVA_SDK_EVALUATOR.md -->
 
-# Codex Prompt 04 - Java Evaluator and SDK
+# Implementation Prompt 04 - Java Evaluator and SDK
 
 Implement **LF-0301 through LF-0307 only**.
 
@@ -10187,9 +10191,9 @@ Add concurrency tests and all golden tests. Update docs/status/changelog and sto
 
 ---
 
-<!-- SOURCE: codex-prompts/05_CONFIG_EDGE_STREAMING.md -->
+<!-- SOURCE: .ai-agent/prompts/05_CONFIG_EDGE_STREAMING.md -->
 
-# Codex Prompt 05 - Config Edge and Streaming
+# Implementation Prompt 05 - Config Edge and Streaming
 
 Implement **LF-0401 through LF-0406 only**.
 
@@ -10213,9 +10217,9 @@ Run tests/E2E, update docs/status/changelog, and stop.
 
 ---
 
-<!-- SOURCE: codex-prompts/06_JAVASCRIPT_REACT_SDKS.md -->
+<!-- SOURCE: .ai-agent/prompts/06_JAVASCRIPT_REACT_SDKS.md -->
 
-# Codex Prompt 06 - JavaScript and React SDKs
+# Implementation Prompt 06 - JavaScript and React SDKs
 
 Implement **LF-0501 through LF-0505 only**.
 
@@ -10238,9 +10242,9 @@ Run Java and JS golden compatibility gates together, browser tests, update docs/
 
 ---
 
-<!-- SOURCE: codex-prompts/07_ADMIN_CONSOLE.md -->
+<!-- SOURCE: .ai-agent/prompts/07_ADMIN_CONSOLE.md -->
 
-# Codex Prompt 07 - React Admin Console
+# Implementation Prompt 07 - React Admin Console
 
 Implement **LF-0601 through LF-0606 only**.
 
@@ -10270,9 +10274,9 @@ Run validation, capture only real screenshots if useful, update docs/status/chan
 
 ---
 
-<!-- SOURCE: codex-prompts/08_KAFKA_REDIS_DISTRIBUTION.md -->
+<!-- SOURCE: .ai-agent/prompts/08_KAFKA_REDIS_DISTRIBUTION.md -->
 
-# Codex Prompt 08 - Kafka and Redis Distribution
+# Implementation Prompt 08 - Kafka and Redis Distribution
 
 Implement **LF-0701 through LF-0706 only**.
 
@@ -10302,9 +10306,9 @@ Update runbooks/status/changelog and stop.
 
 ---
 
-<!-- SOURCE: codex-prompts/09_ANALYTICS_CLICKHOUSE.md -->
+<!-- SOURCE: .ai-agent/prompts/09_ANALYTICS_CLICKHOUSE.md -->
 
-# Codex Prompt 09 - Optional Evaluation Analytics
+# Implementation Prompt 09 - Optional Evaluation Analytics
 
 Implement **LF-0801 through LF-0805 only**.
 
@@ -10332,9 +10336,9 @@ Run failure-isolation tests, update docs/status/changelog, and stop.
 
 ---
 
-<!-- SOURCE: codex-prompts/10_SECURITY_HARDENING.md -->
+<!-- SOURCE: .ai-agent/prompts/10_SECURITY_HARDENING.md -->
 
-# Codex Prompt 10 - Security Hardening
+# Implementation Prompt 10 - Security Hardening
 
 Implement **LF-0901 through LF-0906 only**.
 
@@ -10362,9 +10366,9 @@ Run security and regression validation, update docs/status/changelog, and stop.
 
 ---
 
-<!-- SOURCE: codex-prompts/11_RELIABILITY_PERFORMANCE.md -->
+<!-- SOURCE: .ai-agent/prompts/11_RELIABILITY_PERFORMANCE.md -->
 
-# Codex Prompt 11 - Reliability, Observability and Performance
+# Implementation Prompt 11 - Reliability, Observability and Performance
 
 Implement **LF-1001 through LF-1006 only**.
 
@@ -10392,9 +10396,9 @@ Update docs/status/changelog and stop.
 
 ---
 
-<!-- SOURCE: codex-prompts/12_CONTAINERS_HELM.md -->
+<!-- SOURCE: .ai-agent/prompts/12_CONTAINERS_HELM.md -->
 
-# Codex Prompt 12 - Production Containers and Helm
+# Implementation Prompt 12 - Production Containers and Helm
 
 Implement **LF-1101 through LF-1104 only**.
 
@@ -10422,9 +10426,9 @@ Update docs/status/changelog and stop.
 
 ---
 
-<!-- SOURCE: codex-prompts/13_CICD_SUPPLY_CHAIN.md -->
+<!-- SOURCE: .ai-agent/prompts/13_CICD_SUPPLY_CHAIN.md -->
 
-# Codex Prompt 13 - CI/CD and Supply Chain
+# Implementation Prompt 13 - CI/CD and Supply Chain
 
 Implement **LF-1201 through LF-1205 only**.
 
@@ -10447,9 +10451,9 @@ Run workflow/static validation where possible, update docs/status/changelog, and
 
 ---
 
-<!-- SOURCE: codex-prompts/14_DEMO_PILOT.md -->
+<!-- SOURCE: .ai-agent/prompts/14_DEMO_PILOT.md -->
 
-# Codex Prompt 14 - Demo and Pilot Readiness
+# Implementation Prompt 14 - Demo and Pilot Readiness
 
 Implement **LF-1301 through LF-1305 only**.
 
@@ -10471,9 +10475,9 @@ Run clean-start demo validation, update status/changelog, and stop.
 
 ---
 
-<!-- SOURCE: codex-prompts/15_FINAL_ARCHITECTURE_REVIEW.md -->
+<!-- SOURCE: .ai-agent/prompts/15_FINAL_ARCHITECTURE_REVIEW.md -->
 
-# Codex Prompt 15 - Final Architecture Review
+# Implementation Prompt 15 - Final Architecture Review
 
 Read the complete repository and compare the implementation against:
 

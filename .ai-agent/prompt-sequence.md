@@ -1,8 +1,8 @@
-# LaunchForge - Codex Prompt Sequence
+# LaunchForge - AI Agent Prompt Sequence
 
-Use **one prompt at a time**. Do not ask Codex to build the whole platform in one task.
+Use **one prompt at a time**. Do not ask the implementation agent to build the whole platform in one task.
 
-The canonical individual prompts live under `codex-prompts/`.
+The canonical individual prompts live under `.ai-agent/prompts/`.
 
 ## Prompt order
 

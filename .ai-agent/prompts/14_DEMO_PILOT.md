@@ -1,4 +1,4 @@
-# Codex Prompt 14 - Demo and Pilot Readiness
+# Implementation Prompt 14 - Demo and Pilot Readiness
 
 Implement **LF-1301 through LF-1305 only**.
 

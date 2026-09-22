@@ -54,7 +54,7 @@ Run and report exact relevant commands, eventually including:
 
 ## Report
 
-Codex returns:
+The implementation agent returns:
 
 1. scope completed;
 2. files changed;

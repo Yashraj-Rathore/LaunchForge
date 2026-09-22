@@ -4,7 +4,7 @@ Use `PROJECT_STATUS.md` as the status source of truth. This checklist is a quick
 
 ## Before coding
 
-- [x] Run Codex Prompt 00
+- [x] Run Implementation Prompt 00
 - [x] Review proposed exact versions
 - [x] Resolve documentation contradictions found by Prompt 00
 - [x] Approve M0 only

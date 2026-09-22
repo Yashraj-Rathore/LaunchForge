@@ -1,4 +1,4 @@
-# Codex Prompt 01 - Foundation
+# Implementation Prompt 01 - Foundation
 
 Implement **LF-0001 through LF-0005 only**.
 

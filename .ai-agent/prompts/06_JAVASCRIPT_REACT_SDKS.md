@@ -1,4 +1,4 @@
-# Codex Prompt 06 - JavaScript and React SDKs
+# Implementation Prompt 06 - JavaScript and React SDKs
 
 Implement **LF-0501 through LF-0505 only**.
 

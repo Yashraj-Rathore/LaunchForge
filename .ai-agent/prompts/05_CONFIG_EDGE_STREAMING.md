@@ -1,4 +1,4 @@
-# Codex Prompt 05 - Config Edge and Streaming
+# Implementation Prompt 05 - Config Edge and Streaming
 
 Implement **LF-0401 through LF-0406 only**.
 

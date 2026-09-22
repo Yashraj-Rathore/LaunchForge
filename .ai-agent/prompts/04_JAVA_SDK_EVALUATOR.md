@@ -1,4 +1,4 @@
-# Codex Prompt 04 - Java Evaluator and SDK
+# Implementation Prompt 04 - Java Evaluator and SDK
 
 Implement **LF-0301 through LF-0307 only**.
 

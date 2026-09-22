@@ -241,9 +241,6 @@ LaunchForge/
   pnpm-workspace.yaml
   AGENTS.md
   README.md
-  CODEX_START_HERE.md
-  CODEX_PROMPT_SEQUENCE.md
-  CODEX_MASTER_IMPLEMENTATION_SPEC.md
   PROJECT_STATUS.md
   backend/
     launchforge-domain/
@@ -285,15 +282,16 @@ LaunchForge/
   eng/
 ```
 
-## How to use this package
+## Project documentation
 
-1. Extract the folder into a new Git repository.
-2. Read `CODEX_START_HERE.md`.
-3. Give Codex **Prompt 0 only**.
-4. Review the assessment and exact technology pins.
-5. Continue one numbered prompt at a time.
-6. Never ask Codex to build all milestones in one task.
-7. `CODEX_MASTER_IMPLEMENTATION_SPEC.md` is generated from the modular docs; edit source files, not the generated master.
+1. Read `docs/00_DOCUMENT_MAP.md`.
+2. Review `docs/01_PRODUCT_REQUIREMENTS.md`.
+3. Review `docs/02_SYSTEM_ARCHITECTURE.md`.
+4. Use `docs/15_BACKLOG_AND_ACCEPTANCE.md` for canonical issue contracts.
+5. Check `PROJECT_STATUS.md` for current evidence and remaining release gates.
+
+Repository contribution requirements are in `AGENTS.md` and
+`templates/definition-of-done.md`. Generated documentation is checked by the canonical validator.
 
 ## Development foundation
 

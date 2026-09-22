@@ -11,4 +11,4 @@ demos/demo-media/
 .env
 .env.*
 !.env.example
-CODEX_MASTER_IMPLEMENTATION_SPEC.md
+.ai-agent

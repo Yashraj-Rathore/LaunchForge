@@ -10,8 +10,8 @@ errors = []
 required = [
     "README.md",
     "AGENTS.md",
-    "CODEX_START_HERE.md",
-    "CODEX_PROMPT_SEQUENCE.md",
+    ".ai-agent/start-here.md",
+    ".ai-agent/prompt-sequence.md",
     "PROJECT_STATUS.md",
     "PACKAGE_MANIFEST.md",
     "docs/01_PRODUCT_REQUIREMENTS.md",
@@ -31,9 +31,9 @@ unique = sorted(set(ids))
 if len(unique) < 60:
     errors.append(f"expected >=60 unique backlog IDs, found {len(unique)}")
 
-prompts = sorted((ROOT / "codex-prompts").glob("*.md"))
+prompts = sorted((ROOT / ".ai-agent/prompts").glob("*.md"))
 if len(prompts) != 16:
-    errors.append(f"expected 16 numbered Codex prompt files, found {len(prompts)}")
+    errors.append(f"expected 16 numbered implementation prompt files, found {len(prompts)}")
 
 numbered_docs = sorted(
     path for path in (ROOT / "docs").glob("*.md") if re.match(r"\d{2}_", path.name)
@@ -46,7 +46,7 @@ manifest = (ROOT / "PACKAGE_MANIFEST.md").read_text(encoding="utf-8")
 manifest_contract = (
     (f"{len(numbered_docs)} numbered documents", "numbered documentation inventory"),
     (f"{len(adrs)} ADRs", "ADR inventory"),
-    (f"{len(prompts)} ordered Codex prompts", "prompt inventory"),
+    (f"{len(prompts)} ordered implementation prompts", "prompt inventory"),
     (f"{len(maven_modules)} Maven child modules", "Maven module inventory"),
     ("M1-M13 complete", "implemented milestone state"),
     ("docs/27_FINAL_ARCHITECTURE_REVIEW.md", "current final-review document"),
@@ -74,7 +74,7 @@ for issue in sorted(set(re.findall(r"\bLF-\d{4}\b", status))):
         errors.append(f"PROJECT_STATUS references missing backlog ID {issue}")
 
 # Generated master must explicitly warn not to edit.
-master = ROOT / "CODEX_MASTER_IMPLEMENTATION_SPEC.md"
+master = ROOT / ".ai-agent/master-implementation-spec.md"
 if master.exists():
     text = master.read_text(encoding="utf-8")
     if "GENERATED FILE" not in text:
@@ -86,7 +86,7 @@ if errors:
         print(f"- {err}")
     sys.exit(1)
 
-print(f"Documentation validation passed: {len(unique)} backlog issues, {len(prompts)} Codex prompts.")
+print(f"Documentation validation passed: {len(unique)} backlog issues, {len(prompts)} implementation prompts.")
 
 if __name__ == "__main__":
     pass

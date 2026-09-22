@@ -1,4 +1,4 @@
-# Codex Prompt 07 - React Admin Console
+# Implementation Prompt 07 - React Admin Console
 
 Implement **LF-0601 through LF-0606 only**.
 

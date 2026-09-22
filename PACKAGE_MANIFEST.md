@@ -1,6 +1,6 @@
 # Package Manifest
 
-This repository contains the LaunchForge implementation and its Codex handoff package. The current
+This repository contains the LaunchForge implementation and its internal maintenance package. The current
 status is M1-M13 complete for the documented local portfolio/demo scope; hosted production-release
 evidence remains explicitly tracked in `docs/27_FINAL_ARCHITECTURE_REVIEW.md`.
 
@@ -10,7 +10,7 @@ evidence remains explicitly tracked in `docs/27_FINAL_ARCHITECTURE_REVIEW.md`.
 |---|---|
 | Product and engineering documentation | 28 numbered documents, from `docs/00_DOCUMENT_MAP.md` through `docs/27_FINAL_ARCHITECTURE_REVIEW.md` |
 | Architecture decisions | 8 ADRs plus `docs/decisions/README.md` |
-| Codex execution package | 16 ordered Codex prompts plus the root handoff and status documents |
+| Internal implementation workflow | 16 ordered implementation prompts plus the root handoff and status documents |
 | Java workspace | 13 Maven child modules under `backend/`, `sdks/java/`, `demos/`, and `tests/` |
 | JavaScript workspace | Admin console, JavaScript core/browser/React SDKs, demo storefront, and browser E2E tests |
 | Versioned contracts | Evaluator/size golden vectors and configuration/analytics event schemas with examples |
@@ -21,8 +21,8 @@ evidence remains explicitly tracked in `docs/27_FINAL_ARCHITECTURE_REVIEW.md`.
 
 - `README.md` — product overview, measured case study, quick starts, limitations, and repository map;
 - `AGENTS.md` — repository implementation and safety rules;
-- `CODEX_START_HERE.md` and `CODEX_PROMPT_SEQUENCE.md` — ordered Codex handoff;
-- `CODEX_MASTER_IMPLEMENTATION_SPEC.md` — generated combined specification; never edit directly;
+- `.ai-agent/start-here.md` and `.ai-agent/prompt-sequence.md` — ordered implementation handoff;
+- `.ai-agent/master-implementation-spec.md` — generated combined specification; never edit directly;
 - `PROJECT_STATUS.md`, `IMPLEMENTATION_CHECKLIST.md`, and `CHANGELOG.md` — current progress and
   history;
 - `PACKAGE_MANIFEST.md` — this inventory.

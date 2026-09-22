@@ -215,7 +215,7 @@ Use the real answer after building. Likely candidates:
 
 Never pretend a planned challenge was actually experienced.
 
-## 21. How to discuss AI/Codex use
+## 21. How to discuss AI-assisted implementation
 
 Be transparent:
 

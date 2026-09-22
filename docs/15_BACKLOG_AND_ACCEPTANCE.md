@@ -2,7 +2,7 @@
 
 ## How to use this backlog
 
-Codex implements one bounded issue at a time unless a prompt explicitly groups tightly coupled foundation issues.
+An implementation agent handles one bounded issue at a time unless a prompt explicitly groups tightly coupled foundation issues.
 
 Every issue must satisfy:
 

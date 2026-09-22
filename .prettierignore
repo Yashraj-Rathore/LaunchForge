@@ -4,5 +4,5 @@
 **/coverage/
 **/playwright-report/
 **/test-results/
-CODEX_MASTER_IMPLEMENTATION_SPEC.md
+.ai-agent/master-implementation-spec.md
 pnpm-lock.yaml

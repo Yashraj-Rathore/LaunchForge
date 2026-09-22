@@ -1,4 +1,4 @@
-# Codex Prompt 09 - Optional Evaluation Analytics
+# Implementation Prompt 09 - Optional Evaluation Analytics
 
 Implement **LF-0801 through LF-0805 only**.
 

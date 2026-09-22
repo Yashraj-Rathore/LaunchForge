@@ -1,4 +1,4 @@
-# Codex Prompt 02 - Tenancy and Identity
+# Implementation Prompt 02 - Tenancy and Identity
 
 Implement **LF-0101 through LF-0105 only**.
 

@@ -1,4 +1,4 @@
-# Codex Start Here
+# AI Agent Start Here
 
 You are implementing LaunchForge. Treat repository documentation as the source of truth.
 
@@ -42,7 +42,7 @@ Do **not** write application code, initialize frameworks, or create product migr
 
 ## Standard issue prompt
 
-> Implement issue(s) `[IDs]` from `docs/15_BACKLOG_AND_ACCEPTANCE.md`. Read linked requirements and ADRs first. Provide a short plan, implement only those issues, add tests, run required validation, update source documentation/status if needed, regenerate `CODEX_MASTER_IMPLEMENTATION_SPEC.md`, and report files changed plus remaining risks. Do not start the next issue.
+> Implement issue(s) `[IDs]` from `docs/15_BACKLOG_AND_ACCEPTANCE.md`. Read linked requirements and ADRs first. Provide a short plan, implement only those issues, add tests, run required validation, update source documentation/status if needed, regenerate `.ai-agent/master-implementation-spec.md`, and report files changed plus remaining risks. Do not start the next issue.
 
 ## Quality requirement
 

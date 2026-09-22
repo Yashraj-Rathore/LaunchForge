@@ -135,7 +135,7 @@ The final Prompt 11 tree passed these applicable repository gates on 2026-08-17:
   -Pintegration`: 26 integration cases passed with no failures, errors, or skips;
 - locked Node 24.19.0/pnpm 11.21.0 container run: formatting, lint, type-check, 21 unit
   tests, and all production builds passed;
-- `python eng/validate_docs.py`: 78 backlog issues and 16 Codex prompts passed;
+- `python eng/validate_docs.py`: 78 backlog issues and 16 implementation prompts passed;
 - all committed JSON templates, contracts, the Grafana dashboard, and the raw JMH artifact parsed
   successfully;
 - all Compose profiles resolved, and the three pinned k6 inspections passed without sending

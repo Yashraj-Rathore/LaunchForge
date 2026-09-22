@@ -1,6 +1,6 @@
-# Codex Prompt 00 - Repository Assessment
+# Implementation Prompt 00 - Repository Assessment
 
-Read `AGENTS.md`, `README.md`, `CODEX_START_HERE.md`, `PROJECT_STATUS.md`, every numbered file under `docs/`, every ADR under `docs/decisions/`, and `templates/definition-of-done.md`.
+Read `AGENTS.md`, `README.md`, `.ai-agent/start-here.md`, `PROJECT_STATUS.md`, every numbered file under `docs/`, every ADR under `docs/decisions/`, and `templates/definition-of-done.md`.
 
 **Do not write application code yet.**
 

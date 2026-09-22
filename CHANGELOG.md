@@ -47,12 +47,16 @@
 
 ### Documentation
 
+- Removed vendor-specific implementation-agent branding from the current repository tree, moved
+  internal workflow prompts and the generated aggregate specification under `.ai-agent/`, and
+  kept public onboarding focused on product and source documentation.
+
 - Corrected P15-09 by narrowing the README organization capability claim to provisioned
   organizations and explicitly documenting the absent self-service organization lifecycle.
 - Corrected P15-12 by replacing the M0-only package manifest with the current M1-M13 documentation,
   implementation, SDK, contract, test, deployment, release, and engineering inventory, guarded by
   derived documentation checks.
-- Added complete LaunchForge architecture, product, SDK, evaluation, security, eventing, testing, operations, deployment, commercialization, and Codex implementation package.
+- Added complete LaunchForge architecture, product, SDK, evaluation, security, eventing, testing, operations, deployment, commercialization, and implementation package.
 - Normalized the canonical repository/module layout around `launchforge-control-api`, the bounded Java SDK, and the JavaScript core/browser/React workspace.
 - Established one normative snapshot representation, RFC 8785 checksum procedure, identifier policy, browser-projection checksum behavior, and algorithm-version-1 evaluator/reason-code contract.
 - Defined cross-language numeric, Unicode, missing/null, SemVer, and rollout-input behavior and aligned SDK examples, test vectors, templates, and ADR guidance.

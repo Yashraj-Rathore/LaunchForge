@@ -1,4 +1,4 @@
-# AGENTS.md — Repository Instructions for Codex
+# AGENTS.md — Repository Instructions for Implementation Agents
 
 ## Mission
 
@@ -16,7 +16,7 @@ Before changing code, read:
 6. `docs/15_BACKLOG_AND_ACCEPTANCE.md`
 7. `templates/definition-of-done.md`
 
-`CODEX_MASTER_IMPLEMENTATION_SPEC.md` is generated. Never edit it directly.
+`.ai-agent/master-implementation-spec.md` is generated. Never edit it directly.
 
 If requirements conflict, stop and report the conflict. Do not silently invent a new product direction.
 

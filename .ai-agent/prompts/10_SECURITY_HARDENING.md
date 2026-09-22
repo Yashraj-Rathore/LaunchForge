@@ -1,4 +1,4 @@
-# Codex Prompt 10 - Security Hardening
+# Implementation Prompt 10 - Security Hardening
 
 Implement **LF-0901 through LF-0906 only**.
 

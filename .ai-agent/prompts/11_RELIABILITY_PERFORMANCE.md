@@ -1,4 +1,4 @@
-# Codex Prompt 11 - Reliability, Observability and Performance
+# Implementation Prompt 11 - Reliability, Observability and Performance
 
 Implement **LF-1001 through LF-1006 only**.
 

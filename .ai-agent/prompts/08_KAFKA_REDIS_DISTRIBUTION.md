@@ -1,4 +1,4 @@
-# Codex Prompt 08 - Kafka and Redis Distribution
+# Implementation Prompt 08 - Kafka and Redis Distribution
 
 Implement **LF-0701 through LF-0706 only**.
 

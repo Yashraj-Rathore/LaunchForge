@@ -25,7 +25,13 @@
 | M12 CI/CD supply chain | LF-1201–LF-1205 | Complete (2026-08-20) |
 | M13 Demo/pilot | LF-1301–LF-1305 | Complete (2026-08-20) |
 
-Update after each completed Codex prompt. Do not mark issues complete until validation passes.
+Update after each completed implementation prompt. Do not mark issues complete until validation passes.
+
+Repository-maintenance material for implementation agents is consolidated under the hidden
+`.ai-agent/` directory with vendor-neutral names. Public onboarding in `README.md` links only
+product, architecture, backlog, and project-status documentation. The generated aggregate
+specification and documentation validator follow the internal paths, and `.ai-agent/` is excluded
+from application-image build context.
 
 The M13 baseline includes a generated deterministic Northstar seed, guarded one-command reset,
 tested Java/Spring/JavaScript/React integration paths, real-system recruiter media capture, a

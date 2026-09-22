@@ -1,4 +1,4 @@
-# Codex Prompt 13 - CI/CD and Supply Chain
+# Implementation Prompt 13 - CI/CD and Supply Chain
 
 Implement **LF-1201 through LF-1205 only**.
 

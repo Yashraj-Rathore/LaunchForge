@@ -1,4 +1,4 @@
-# Codex Prompt 03 - Flag Control Plane
+# Implementation Prompt 03 - Flag Control Plane
 
 Implement **LF-0201 through LF-0207 only**.
 
