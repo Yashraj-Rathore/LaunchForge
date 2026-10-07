@@ -18,20 +18,20 @@
   "dependencies": {
     "@launchforge/js-browser": "workspace:*",
     "@launchforge/js-core": "workspace:*",
-    "react": "19.2.7"
+    "react": "19.3.0"
   },
   "peerDependencies": {
     "react": "^19.2.0"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
-    "@testing-library/react": "16.3.2",
-    "@types/react": "19.2.18",
-    "eslint": "10.8.1",
-    "globals": "17.9.0",
-    "jsdom": "30.0.1",
+    "@testing-library/react": "16.3.3",
+    "@types/react": "19.3.0",
+    "eslint": "10.10.0",
+    "globals": "17.12.0",
+    "jsdom": "30.1.0",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.67.0",
-    "vitest": "4.1.10"
+    "typescript-eslint": "8.70.0",
+    "vitest": "4.1.11"
   }
 }
